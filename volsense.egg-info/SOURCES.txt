@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+volsense.egg-info/PKG-INFO
+volsense.egg-info/SOURCES.txt
+volsense.egg-info/dependency_links.txt
+volsense.egg-info/requires.txt
+volsense.egg-info/top_level.txt
+volsense_pkg/__init__.py

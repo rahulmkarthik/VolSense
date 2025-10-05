@@ -1,0 +1,68 @@
+Metadata-Version: 2.4
+Name: volsense
+Version: 0.1.0
+Summary: Volatility forecasting library with LSTM and GARCH baselines
+Author-email: Rahul Karthik <rahul.m.karthik@gmail.com>
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: torch
+Requires-Dist: arch
+
+# ⚡ VolSense: Explainable Volatility Forecasting
+
+VolSense is an **explainable AI-powered volatility forecaster** that blends traditional econometric models with modern machine learning to predict market volatility.  
+It aims to answer a critical quant question: *can deep learning models outperform GARCH-style baselines while remaining interpretable?*
+
+---
+
+## 🚀 Features
+- **Data ingestion**: fetch historical equity/ETF/crypto data via [yfinance](https://pypi.org/project/yfinance/).
+- **Volatility computation**: realized vol from returns, rolling-window features.
+- **Baselines**: ARCH/GARCH/EGARCH models via [`arch`](https://arch.readthedocs.io/).
+- **Deep learning forecasters**:
+  - LSTM (sequence modeling)
+  - TCN (temporal convolutional network)
+- **Explainability**:
+  - SHAP feature attribution
+  - Sensitivity analysis vs GARCH parameters
+- **Evaluation**:
+  - RMSE / MAE on volatility forecasts
+  - VaR exceedance backtesting
+- **Deployment**: Streamlit dashboard for interactive volatility forecasting
+
+---
+
+## 📂 Project Structure
+
+VolSense/
+├── data/ # raw & processed datasets
+│ ├── raw/
+│ └── processed/
+├── notebooks/ # exploration & experiments
+│ ├── 01_data_exploration.ipynb
+│ ├── 02_garch_baseline.ipynb
+│ ├── 03_lstm_forecast.ipynb
+│ ├── 04_explainability.ipynb
+├── volsense_pkg/ # main package
+│ ├── data/ # data fetching & preprocessing
+│ ├── models/ # GARCH, LSTM, TCN
+│ ├── explainability/ # SHAP, sensitivity
+│ └── utils/ # metrics, helpers
+├── scripts/ # CLI scripts (dataset build, run forecast)
+├── tests/ # unit tests
+├── requirements.txt
+├── Dockerfile
+└── README.md
+
+## ⚙️ Installation
+
+Clone the repo and set up dependencies:
+```bash
+git clone https://github.com/yourusername/VolSense.git
+cd VolSense
+python -m venv venv
+source venv/bin/activate   # on Mac/Linux
+venv\Scripts\activate      # on Windows
+pip install -r requirements.txt

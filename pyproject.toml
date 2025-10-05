@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "volsense"
+version = "0.1.0"
+description = "Volatility forecasting library with LSTM and GARCH baselines"
+authors = [
+  { name = "Rahul Karthik", email = "rahul.m.karthik@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+  "pandas",
+  "torch",
+  "arch"
+]
+
+# --- Tell setuptools what to package ---
+[tool.setuptools]
+# explicitly list only your package folder
+packages = ["volsense_pkg"]

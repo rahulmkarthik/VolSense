@@ -31,6 +31,8 @@ class VolSenseForecaster:
     def __init__(self, method="lstm", **kwargs):
         self.method = method.lower()
         self.kwargs = kwargs
+        self.window = kwargs.get("window", 15)  # ✅ Fix for LSTM compatibility
+        self.horizon = kwargs.get("horizon", 1)
         self.model = None
         self._val_loader = None
         self.device = kwargs.get("device", "cpu")

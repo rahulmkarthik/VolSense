@@ -1,79 +1,80 @@
 # volsense_pkg/utils/metrics.py
 import numpy as np
 import pandas as pd
-from arch import arch_model
-from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 
-def rolling_garch_forecast(
-    returns: pd.Series,
-    window: int = 1000,
-    horizon: int = 1,
-    p: int = 1,
-    q: int = 1,
-    dist: str = "normal"
-):
+# =====================================================
+# --- Existing Low-Level GARCH Utilities (KEEP THESE) ---
+# =====================================================
+def rolling_garch_forecast(model, returns, horizon=1):
     """
-    Perform a rolling window GARCH(p,q) forecast.
-
-    Args:
-        returns (pd.Series): log returns (mean ~0).
-        window (int): size of rolling estimation window (in days).
-        horizon (int): forecast horizon (default 1-day ahead).
-        p, q (int): GARCH orders.
-        dist (str): error distribution ("normal", "t", "skewt").
-
-    Returns:
-        pd.DataFrame with realized vol, forecast vol, and dates.
+    Generate rolling forecasts using a fitted arch_model.
+    Each step fits on past data and forecasts 1-step ahead.
     """
-    import numpy as np
-    import pandas as pd
-    from arch import arch_model
-
-    realized_vols = []
-    forecast_vols = []
-    dates = []
-
-    returns = returns.dropna()
-
-    for i in range(window, len(returns) - horizon + 1):
-        train = returns.iloc[i - window:i]
-
-        # Fit GARCH
-        model = arch_model(train * 100, vol="GARCH", p=p, q=q, mean="Zero", dist=dist)
-        fitted = model.fit(disp="off")
-
-        # Forecast volatility
-        forecast = fitted.forecast(horizon=horizon, reindex=False)
-        fcast_vol = forecast.variance.iloc[-1] ** 0.5
-        fcast_vol = fcast_vol.iloc[horizon - 1] / 100 * np.sqrt(252)  # annualized
-        forecast_vols.append(fcast_vol)
-
-        # Realized volatility: depends on horizon
-        future_returns = returns.iloc[i:i + horizon]
-        if horizon == 1:
-            realized = np.abs(future_returns.iloc[0]) * np.sqrt(252)
-        else:
-            realized = future_returns.std() * np.sqrt(252)
-        realized_vols.append(realized)
-
-        # Date for this forecast
-        dates.append(returns.index[i + horizon - 1])
-
-    return pd.DataFrame({
-        "date": dates,
-        "forecast_vol": forecast_vols,
-        "realized_vol": realized_vols
-    }).set_index("date")
+    forecasts = []
+    n = len(returns)
+    for i in range(horizon, n):
+        window_data = returns[:i]
+        res = model.fit(disp="off")
+        fcast = res.forecast(horizon=1, reindex=False)
+        vol = np.sqrt(fcast.variance.iloc[-1, 0])
+        forecasts.append(vol)
+    return np.array(forecasts)
 
 
+# =====================================================
+# --- Universal Evaluation Metrics (REPLACE OLD ONES) ---
+# =====================================================
+def rmse(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.sqrt(np.mean((y_true - y_pred) ** 2))
 
-def evaluate_forecasts(df: pd.DataFrame):
+
+def mae(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs(y_true - y_pred))
+
+
+def mape(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs((y_true - y_pred) / (y_true + 1e-8))) * 100
+
+
+def r2_score(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - ss_res / (ss_tot + 1e-8)
+
+
+# =====================================================
+# --- Unified Forecast Evaluation Interface ---
+# =====================================================
+def evaluate_forecasts(df):
     """
-    Compute RMSE and MAE for forecast vs realized vol.
+    Compute evaluation metrics for volatility forecasts.
+    Expects df with columns ['realized_vol', 'forecast_vol'].
     """
-    # RMSE = sqrt(MSE)
-    mse = mean_squared_error(df["realized_vol"], df["forecast_vol"])
-    rmse = np.sqrt(mse)
-    mae = mean_absolute_error(df["realized_vol"], df["forecast_vol"])
-    return {"RMSE": rmse, "MAE": mae}
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("Expected a pandas DataFrame.")
+    if not all(c in df.columns for c in ["realized_vol", "forecast_vol"]):
+        raise ValueError("DataFrame must contain 'realized_vol' and 'forecast_vol' columns.")
+
+    metrics = {
+        "RMSE": rmse(df["realized_vol"], df["forecast_vol"]),
+        "MAE": mae(df["realized_vol"], df["forecast_vol"]),
+        "MAPE": mape(df["realized_vol"], df["forecast_vol"]),
+        "R2": r2_score(df["realized_vol"], df["forecast_vol"]),
+    }
+    return metrics
+ 
+
+# =====================================================
+# --- Backward Compatibility: old evaluate_forecast() ---
+# =====================================================
+def evaluate_forecast(y_true, y_pred):
+    """
+    Legacy wrapper for evaluate_forecasts() for backward compatibility.
+    """
+    df = pd.DataFrame({"realized_vol": y_true, "forecast_vol": y_pred})
+    return evaluate_forecasts(df)

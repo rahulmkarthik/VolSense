@@ -1,131 +1,254 @@
-# volsense_pkg/pipeline/forecast_interface.py
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Union, List, Dict
 
+from volsense_pkg.data_fetching.multi_fetch import fetch_multi_ohlcv, build_multi_dataset
 from volsense_pkg.data_fetching.fetch_yf import fetch_ohlcv, compute_returns_vol
+from volsense_pkg.utils.evaluation import Backtester
 from volsense_pkg.forecasters.forecaster_api import VolSenseForecaster
 
 
-def forecast_ticker(
-    tickers: Union[str, List[str]],
-    method: str = "lstm",
-    start: str = "2020-01-01",
-    end: str = None,
-    lookback: int = 21,
-    window: int = 30,
-    horizon: int = 1,
-    epochs: int = 5,
-    batch_size: int = 32,
+# ---------------------------------------------------------------------------
+# Core single-ticker forecasting routine
+# ---------------------------------------------------------------------------
+
+def forecast_single_ticker(
+    ticker,
+    method="garch",
+    start="2020-01-01",
+    lookback=15,
+    horizon=1,
+    df=None,  # NEW: optional pre-fetched DataFrame
     **kwargs
-) -> List[Dict]:
-    """
-    Unified forecasting interface for one or more tickers.
-    Supports both LSTM and GARCH forecasters.
-    """
-    if isinstance(tickers, str):
-        tickers = [tickers]
+):
+    print(f"\n📈 Processing {ticker} ({method.upper()})...")
+    try:
+        # === Fetch data only if not provided ===
+        if df is None:
+            df = fetch_ohlcv(ticker, start=start)
+        if df is None or len(df) < lookback:
+            raise ValueError(f"No data for {ticker}")
 
-    results = []
+        feat = compute_returns_vol(df, window=lookback, ticker=ticker)
 
-    for ticker in tickers:
-        print(f"\n📈 Processing {ticker} ({method.upper()})...")
+        # --- normalize column naming ---
+        if "vol_realized" in feat.columns and "realized_vol" not in feat.columns:
+            feat = feat.rename(columns={"vol_realized": "realized_vol"})
 
-        try:
-            # --- Step 1: Fetch data ---
-            df = fetch_ohlcv(ticker, start=start, end=end)
-            df = compute_returns_vol(df, window=lookback, ticker=ticker)
-            df = df.rename(columns={"vol_realized": "realized_vol"})
+        # --- Ensure required columns exist ---
+        required = ["date", "return", "realized_vol"]
+        for col in required:
+            if col not in feat.columns:
+                raise KeyError(f"Expected column '{col}' missing in {ticker}")
 
-            if df.empty:
-                print(f"⚠️ Skipping {ticker}: no data returned.")
-                continue
+        feat["ticker"] = ticker
 
-            # --- Step 2: Initialize and fit model ---
-            model = VolSenseForecaster(method=method, window=window, horizon=horizon, **kwargs)
-            if method == "lstm":
-                model.fit(df, epochs=epochs, batch_size=batch_size)
-            elif method == "garch":
-                returns_series = df["return"].dropna()
-                model.fit(returns_series)
-            else:
-                raise ValueError(f"Unknown method '{method}'. Choose 'lstm' or 'garch'.")
+        # === Initialize model ===
+        model = VolSenseForecaster(method=method, **kwargs)
 
-            # --- Step 3: Forecast next-day volatility ---
-            if method == "lstm":
-                preds, actuals = model.predict()
-                forecast_vol = float(preds[-1]) if len(preds) > 0 else np.nan
-            else:
-                forecast_vol = float(model.model.predict(horizon=horizon)[-1])
+        # === Fit and forecast ===
+        if method.lower() in ["garch", "egarch", "gjr"]:
+            returns_series = feat["return"].dropna()
+            model.fit(returns_series)
+            pred = model.predict(horizon=horizon)
+        elif method.lower() == "lstm":
+            model.fit(feat)
+            pred = model.predict(horizon=horizon)
+        else:
+            raise ValueError(f"Unsupported method '{method}'.")
 
-            latest_realized = df["realized_vol"].iloc[-1]
+        realized_vol = float(feat["realized_vol"].iloc[-1])
+        forecast_vol = float(np.asarray(pred).flatten()[-1])
 
-            results.append({
-                "ticker": ticker,
-                "realized_vol": latest_realized,
-                "forecast_vol": forecast_vol,
-                "model": model
-            })
-
-        except Exception as e:
-            print(f"❌ {ticker}: failed due to {e}")
-
-    return results
-
-
-# ---------------------------------------------------------------------
-# 🧵 Parallelized version
-# ---------------------------------------------------------------------
-def forecast_multi_parallel(
-    tickers: List[str],
-    method: str = "lstm",
-    max_workers: int = 4,
-    **kwargs
-) -> List[Dict]:
-    """
-    Parallelized forecasting across multiple tickers using threads.
-    Shares same args as forecast_ticker().
-
-    Example:
-        forecast_multi_parallel(["SPY", "AAPL", "GOOG"], method="garch", max_workers=3)
-    """
-    results = []
-    print(f"\n🚀 Running parallel forecasts with {max_workers} workers...")
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(forecast_ticker, t, method=method, **kwargs): t
-            for t in tickers
+        return {
+            "ticker": ticker,
+            "realized_vol": realized_vol,
+            "forecast_vol": forecast_vol,
         }
 
-        for fut in as_completed(futures):
-            ticker = futures[fut]
+    except Exception as e:
+        print(f"❌ {ticker}: failed due to {e}")
+        return None
+
+# ---------------------------------------------------------------------------
+# Multi-ticker parallelized version
+# ---------------------------------------------------------------------------
+
+def forecast_multi_parallel(
+    tickers,
+    method="garch",
+    start="2020-01-01",
+    lookback=15,
+    horizon=1,
+    max_workers=4,
+    **kwargs
+):
+    """
+    Parallel multi-ticker forecasting wrapper.
+    Uses ThreadPoolExecutor and passes properly formatted DataFrames
+    to forecast_single_ticker().
+    """
+    from volsense_pkg.data_fetching.multi_fetch import fetch_multi_ohlcv
+    from volsense_pkg.pipeline.forecast_interface import forecast_single_ticker
+
+    print(f"\n🚀 Running parallel forecasts with {max_workers} workers...\n")
+
+    # === Fetch all data first ===
+    data_dict = fetch_multi_ohlcv(tickers, start=start)
+
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {}
+
+        for ticker, df in data_dict.items():
+            # --- Ensure we always have a proper 'date' column
+            if not isinstance(df, pd.DataFrame):
+                print(f"⚠️ {ticker}: invalid data (not a DataFrame). Skipping.")
+                continue
+
+            df = df.copy()
+            if "date" not in df.columns:
+                df = df.reset_index()
+                # Some yfinance frames have 'Date' not 'date'
+                if "Date" in df.columns:
+                    df.rename(columns={"Date": "date"}, inplace=True)
+
+            # Submit forecast job
+            futures[executor.submit(
+                forecast_single_ticker,
+                ticker=ticker,
+                method=method,
+                start=start,
+                lookback=lookback,
+                horizon=horizon,
+                df=df,  # ✅ directly pass pre-fetched frame
+                **kwargs
+            )] = ticker
+
+        for future in as_completed(futures):
+            ticker = futures[future]
             try:
-                res = fut.result()
+                res = future.result()
                 if res:
-                    results.extend(res)
+                    results.append(res)
             except Exception as e:
                 print(f"❌ {ticker}: failed due to {e}")
 
+    # === Summarize results ===
+    if not results:
+        print("⚠️ No forecasts to summarize.")
+        return pd.DataFrame(columns=["ticker", "realized_vol", "forecast_vol", "vol_diff", "vol_direction"])
+
+    df = pd.DataFrame(results)
+    df["vol_diff"] = df["forecast_vol"] - df["realized_vol"]
+    df["vol_direction"] = df["vol_diff"].apply(lambda x: 1.0 if x > 0 else -1.0)
+
+    print("\n=== Multi Ticker (%s) Parallel ===" % method.upper())
+    return df
+
+
+
+# ---------------------------------------------------------------------------
+# Multi-ticker sequential version
+# ---------------------------------------------------------------------------
+def forecast_ticker(tickers, method="garch", start="2020-01-01", lookback=15,
+                    horizon=1, **kwargs):
+    results = []
+    for t in tickers:
+        res = forecast_single_ticker(
+            t, method=method, start=start, lookback=lookback,
+            horizon=horizon, **kwargs
+        )
+        if res:
+            results.append(res)
     return results
 
 
-# ---------------------------------------------------------------------
-# 📊 Summarizer
-# ---------------------------------------------------------------------
-def summarize_forecasts(results: List[Dict]) -> pd.DataFrame:
+# ---------------------------------------------------------------------------
+# Summary helper
+# ---------------------------------------------------------------------------
+def summarize_forecasts(results):
     """
-    Convert the output of forecast_ticker() or forecast_multi_parallel() into a DataFrame.
+    Convert results (list[dict] or DataFrame) into a standardized summary DataFrame.
+    Adds vol_diff and vol_direction.
     """
-    df = pd.DataFrame([
-        {
-            "ticker": r["ticker"],
-            "realized_vol": r["realized_vol"],
-            "forecast_vol": r["forecast_vol"]
-        }
-        for r in results
-    ])
+
+    # Handle None or empty input
+    if results is None:
+        print("⚠️ No forecasts to summarize.")
+        return pd.DataFrame(columns=["ticker", "realized_vol", "forecast_vol", "vol_diff", "vol_direction"])
+
+    # If results is already a DataFrame
+    if isinstance(results, pd.DataFrame):
+        if results.empty:
+            print("⚠️ No forecasts to summarize.")
+            return results
+        df = results.copy()
+
+    # If results is a list of dicts
+    elif isinstance(results, (list, tuple)):
+        if not results:
+            print("⚠️ No forecasts to summarize.")
+            return pd.DataFrame(columns=["ticker", "realized_vol", "forecast_vol", "vol_diff", "vol_direction"])
+        df = pd.DataFrame(results)
+
+    else:
+        print(f"⚠️ Unexpected type for results: {type(results)}")
+        return pd.DataFrame(columns=["ticker", "realized_vol", "forecast_vol", "vol_diff", "vol_direction"])
+
+    # Compute derived columns
     df["vol_diff"] = df["forecast_vol"] - df["realized_vol"]
     df["vol_direction"] = np.sign(df["vol_diff"])
+
     return df
+
+
+
+# ---------------------------------------------------------------------------
+# Unified interface (single OR multiple tickers)
+# ---------------------------------------------------------------------------
+def forecast_interface(tickers, method="garch", parallel=False,
+                       start="2020-01-01", lookback=15, horizon=1,
+                       max_workers=4, **kwargs):
+    """
+    Generic interface for single or multi-ticker forecasting.
+    Handles both GARCH-family and LSTM models.
+    """
+    tickers = [tickers] if isinstance(tickers, str) else tickers
+
+    if len(tickers) == 1 and not parallel:
+        res = forecast_ticker(
+            tickers, method=method, start=start,
+            lookback=lookback, horizon=horizon, **kwargs
+        )
+    elif parallel:
+        res = forecast_multi_parallel(
+            tickers, method=method, start=start,
+            lookback=lookback, horizon=horizon,
+            max_workers=max_workers, **kwargs
+        )
+    else:
+        res = forecast_ticker(
+            tickers, method=method, start=start,
+            lookback=lookback, horizon=horizon, **kwargs
+        )
+
+    return summarize_forecasts(res)
+
+# =====================================================
+# Backtesting Integration
+# =====================================================
+
+def run_backtest_for_ticker(ticker, method="lstm", start="2020-01-01",
+                            lookback=15, horizon=1, plot=True, **kwargs):
+    """
+    Runs a backtest for a single ticker using the specified forecasting method.
+    """
+    backtester = Backtester(method=method, lookback=lookback, horizon=horizon, **kwargs)
+    feat = backtester.prepare_data(ticker, start=start)
+    df_eval = backtester.run(feat)
+    metrics = backtester.evaluate(df_eval)
+    if plot:
+        backtester.plot(df_eval, title=f"{ticker} ({method.upper()}) Backtest")
+    return metrics
+

@@ -21,43 +21,49 @@ def fetch_multi_ohlcv(tickers, start="2000-01-01", end=None):
     return data_dict
 
 
-# volsense_pkg/data_fetching/multi_fetch.py
-
 def build_multi_dataset(data_dict, lookback=21):
     """
     Combine multiple tickers into a long DF with columns:
     ['date', 'return', 'realized_vol', 'ticker']
+
+    Fully backward-compatible, but now:
+    ✅ Flattens any MultiIndex columns (Price/Ticker artifacts)
+    ✅ Cleans residual name attributes automatically
+    ✅ Ensures standardized schema for all downstream modules
     """
-    import numpy as np
-    import pandas as pd
 
     frames = []
     for ticker, df in data_dict.items():
         df = df.copy()
         df.index = pd.to_datetime(df.index)
 
-        # Ensure Adj Close exists, else fallback to Close
+        # --- Flatten MultiIndex columns if present ---
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+
+        # --- Ensure Adj Close exists, else fallback to Close ---
         if "Adj Close" not in df.columns and "Close" in df.columns:
             df["Adj Close"] = df["Close"]
 
-        # Features/target
+        # --- Compute features ---
         df["return"] = df["Adj Close"].pct_change()
         df["realized_vol"] = df["return"].rolling(lookback).std() * np.sqrt(252)
 
-        # Keep only what we need and drop NaNs
+        # --- Keep only relevant columns and drop NaNs ---
         temp = df[["return", "realized_vol"]].dropna().copy()
         temp["ticker"] = ticker
 
-        # Make the index a column and standardize its name to 'date'
+        # --- Standardize date column ---
         temp = temp.reset_index()
         if "Date" in temp.columns:
-            temp = temp.rename(columns={"Date": "date"})
+            temp.rename(columns={"Date": "date"}, inplace=True)
         elif "index" in temp.columns:  # safety for unnamed index
-            temp = temp.rename(columns={"index": "date"})
+            temp.rename(columns={"index": "date"}, inplace=True)
         temp["date"] = pd.to_datetime(temp["date"])
 
-        # Clean up column-index name (that "Price" label you saw)
+        # --- Clean up name attributes ---
         temp.columns.name = None
+        temp.index.name = None
 
         frames.append(temp[["date", "return", "realized_vol", "ticker"]])
 
@@ -67,4 +73,11 @@ def build_multi_dataset(data_dict, lookback=21):
     out = pd.concat(frames, ignore_index=True)
     out.sort_values(["ticker", "date"], inplace=True)
     out.reset_index(drop=True, inplace=True)
+
+    # --- Final cleanup in case any column names persisted ---
+    if isinstance(out.columns, pd.MultiIndex):
+        out.columns = [c[0] if isinstance(c, tuple) else c for c in out.columns]
+    out.columns.name = None
+    out.index.name = None
+
     return out

@@ -91,11 +91,11 @@ def compute_returns_vol(df, window=21, ticker=None):
     out["return"] = out[price_col].pct_change()
 
     # realized volatility
-    out["vol_realized"] = out["return"].rolling(window).std() * np.sqrt(252)
+    out["realized_vol"] = out["return"].rolling(window).std() * np.sqrt(252)
 
     # optional ticker
     if ticker:
         out["ticker"] = ticker
-        return out[["date", "return", "vol_realized", "ticker"]].dropna()
+        return out[["date", "return", "realized_vol", "ticker"]].dropna()
     else:
-        return out[["date", "return", "vol_realized"]].dropna()
+        return out[["date", "return", "realized_vol"]].dropna()

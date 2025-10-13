@@ -129,47 +129,35 @@ class VolSenseForecaster:
         return self
 
     # ============================================================
-    # Global LSTM Fit / Load / Predict
+    # Global LSTM Fit / Load / Predict (Updated for new architecture)
     # ============================================================
     def fit_global(self, df, val_start="2025-01-01", window=30, horizons=1, stride=2, epochs=10):
         """
         Train or fine-tune a global LSTM volatility model across multiple tickers.
-        Expects df with ['date', 'ticker', 'realized_vol'].
+        Expects df with ['date', 'ticker', 'realized_vol', 'return'].
         """
-        print(f"\n🌐 Training GlobalVolForecaster (window={window}, horizon={horizons})")
+        print(f"\n🌐 Training GlobalVolForecaster v2 (window={window}, horizon={horizons})")
 
-        # --- Build splits ---
-        train_ds, val_ds, t2i, scalers = build_global_splits(
-            df, window=window, horizons=horizons, stride=stride, val_start=val_start
-        )
-
-        # --- Build model ---
-        model = GlobalVolForecaster(
-            n_tickers=len(t2i),
-            window=window,
-            n_horizons=horizons if isinstance(horizons, int) else len(horizons),
-            emb_dim=8,
-            hidden_dim=64,
-            num_layers=2,
-            dropout=0.2,
-        )
-
+        # --- Prepare configuration for the new API ---
         cfg = TrainConfig(
+            window=window,
+            horizons=horizons if isinstance(horizons, int) else len(horizons),
+            stride=stride,
+            val_start=val_start,
             epochs=epochs,
-            lr=1e-3,
-            batch_size=128,
-            oversample_high_vol=True,
             device=self.device,
+            oversample_high_vol=True,
         )
 
-        # --- Train model ---
-        history = train_global_model(model, train_ds, val_ds, cfg)
+        # --- Train via new train_global_model() ---
+        model, history, val_loader, t2i, scalers, features = train_global_model(df, cfg)
 
-        # --- Save metadata ---
+        # --- Save artifacts in the wrapper ---
         self.model = model
         self.global_ticker_to_id = t2i
         self.global_scalers = scalers
         self.global_window = window
+        self.features = features
 
         if self.global_ckpt_path:
             save_checkpoint(self.global_ckpt_path, model, t2i, scalers)
@@ -177,9 +165,10 @@ class VolSenseForecaster:
 
         return history
 
+
     def load_global(self, ckpt_path):
-        """Load pretrained global model checkpoint."""
-        print(f"\n📦 Loading pretrained GlobalVolForecaster from {ckpt_path}")
+        """Load pretrained global model checkpoint (new version)."""
+        print(f"\n📦 Loading pretrained GlobalVolForecaster v2 from {ckpt_path}")
         model, t2i, scalers = load_checkpoint(ckpt_path, device=self.device)
         self.model = model
         self.global_ticker_to_id = t2i
@@ -187,11 +176,16 @@ class VolSenseForecaster:
         self.global_window = model.window
         print(f"✅ Loaded GlobalVolForecaster ({len(t2i)} tickers, window={model.window})")
 
+
     def predict_global(self, df):
-        """Generate next-day volatility forecasts for all tickers in df."""
+        """Generate next-day volatility forecasts for all tickers using the v2 model."""
         if self.model is None:
             raise RuntimeError("Global model not trained or loaded.")
+
+        # Prepare last input window per ticker
+        from volsense_pkg.models.global_vol_forecaster import make_last_windows, predict_next_day
         df_last_windows = make_last_windows(df, window=self.global_window)
+
         preds = predict_next_day(
             self.model,
             df_last_windows,
@@ -201,6 +195,7 @@ class VolSenseForecaster:
             device=self.device,
         )
         return preds
+
 
     # ============================================================
     # Unified Prediction Interface

@@ -1,186 +1,260 @@
 # ============================================================
-# 🌍 Global Vol Forecaster — Simplified, Auto-Configurable Version
+# volsense_pkg/models/global_vol_forecaster.py
+# Enhanced GlobalVolForecaster with optional Attention + Residual Head
+# Backward compatible with existing training code
 # ============================================================
-import torch
-import torch.nn as nn
+
 import numpy as np
 import pandas as pd
+import torch
+import torch.nn as nn
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import Dataset, DataLoader
 from dataclasses import dataclass
 
-# ------------------------------------------------------------
-# Dataset
-# ------------------------------------------------------------
-class GlobalVolDataset(Dataset):
-    def __init__(self, df, window, horizons, stride, features, target_col, ticker_to_id):
-        self.df = df
-        self.window = window
-        self.horizons = horizons if isinstance(horizons, int) else horizons[0]
-        self.stride = stride
-        self.features = features
-        self.target_col = target_col
-        self.ticker_to_id = ticker_to_id
 
-        self.samples = []
-        for tkr, g in df.groupby("ticker"):
-            vals = g[self.features + [self.target_col]].values
-            tid = ticker_to_id[tkr]
-            for i in range(0, len(vals) - window - self.horizons, stride):
-                x = vals[i:i + window, :-1]           # features only
-                y = vals[i + window + self.horizons - 1, -1]
-                self.samples.append((tid, x, y))
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        tid, x, y = self.samples[idx]
-        x = torch.tensor(x, dtype=torch.float32)
-        y = torch.tensor(y, dtype=torch.float32)
-        tid = torch.tensor(tid, dtype=torch.long)
-        return tid, x, y
+# ============================================================
+# 🧩 Config Dataclass
+# ============================================================
+@dataclass
+class TrainConfig:
+    window: int = 30
+    horizons: int = 1
+    stride: int = 1
+    val_start: str = "2025-01-01"
+    target_col: str = "realized_vol_log"
+    extra_features: list = None
+    epochs: int = 20
+    lr: float = 1e-3
+    batch_size: int = 128
+    oversample_high_vol: bool = False
+    cosine_schedule: bool = False
+    device: str = "cpu"
 
 
-# ------------------------------------------------------------
-# Model
-# ------------------------------------------------------------
+# ============================================================
+# 🧠 GlobalVolForecaster Model
+# ============================================================
 class GlobalVolForecaster(nn.Module):
-    def __init__(self, n_tickers, input_dim, hidden_dim=128, num_layers=3,
-                 dropout=0.1, emb_dim=12, n_horizons=1):
+    def __init__(
+        self,
+        n_tickers: int,
+        window: int,
+        n_horizons: int = 1,
+        emb_dim: int = 12,
+        hidden_dim: int = 128,
+        num_layers: int = 2,
+        dropout: float = 0.1,
+        attention: bool = False,
+        residual_head: bool = False,
+        input_size: int = 1,  # ✅ NEW: safe default for LSTM
+    ):
         super().__init__()
+
+        self.window = window
+        self.n_horizons = n_horizons
+        self.emb_dim = emb_dim
+        self.attention_enabled = attention
+        self.residual_head = residual_head
+        self.input_size = input_size
+
+        # --- Embedding for ticker IDs
         self.tok = nn.Embedding(n_tickers, emb_dim)
-        self.lstm = nn.LSTM(input_size=input_dim + emb_dim,
-                            hidden_size=hidden_dim,
-                            num_layers=num_layers,
-                            dropout=dropout,
-                            batch_first=True)
+
+        # --- Core LSTM backbone
+        self.lstm = nn.LSTM(
+            input_size=self.input_size + emb_dim,  # ✅ FIXED HERE
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            dropout=dropout,
+            batch_first=True,
+        )
+
+        # Optional Attention
+        if self.attention_enabled:
+            self.attn = nn.MultiheadAttention(
+                embed_dim=hidden_dim, num_heads=4, dropout=dropout, batch_first=True
+            )
+
+        # Output head
         self.head = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim // 2),
             nn.ReLU(),
-            nn.Linear(hidden_dim // 2, n_horizons)
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, n_horizons),
         )
 
+        if self.residual_head:
+            self.residual = nn.Linear(hidden_dim, n_horizons)
+
     def forward(self, tkr_id, X):
-        if X.ndim == 2:  # [B, F]
+        if X.ndim == 2:  # [B, F] → [B, 1, F]
             X = X.unsqueeze(1)
+
         B, W, F = X.shape
         emb = self.tok(tkr_id).unsqueeze(1).expand(B, W, -1)
-        x = torch.cat([X, emb], dim=-1)
-        out, _ = self.lstm(x)
+        X = torch.cat([X, emb], dim=-1)
+
+        out, _ = self.lstm(X)
+
+        if self.attention_enabled:
+            out, _ = self.attn(out, out, out)
+
         last = out[:, -1, :]
-        return self.head(last).squeeze(-1)
+        yhat = self.head(last)
+
+        if self.residual_head:
+            yhat = yhat + self.residual(last)
+
+        return yhat.squeeze(-1)
 
 
-# ------------------------------------------------------------
-# Config Dataclass
-# ------------------------------------------------------------
-@dataclass
-class TrainConfig:
-    epochs: int = 15
-    lr: float = 5e-4
-    batch_size: int = 256
-    device: str = "cpu"
-    val_start: str = "2025-01-01"
-    window: int = 40
-    horizons: int = 1
-    stride: int = 1
-    target_col: str = "realized_vol_log"
-    extra_features: list = None
 
-
-# ------------------------------------------------------------
-# Build splits and scalers automatically
-# ------------------------------------------------------------
+# ============================================================
+# 🧮 Dataset Builder
+# ============================================================
 def build_global_splits(df, cfg):
+    """
+    Builds train/val datasets based on cfg parameters.
+    """
     df = df.copy()
-    if not np.issubdtype(df["date"].dtype, np.datetime64):
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df.dropna(subset=["date"], inplace=True)
+    df = df.sort_values(["ticker", "date"])
+    df["date"] = pd.to_datetime(df["date"])
 
-    # Default features (return + extras)
-    features = ["return"]
-    if cfg.extra_features:
-        features += cfg.extra_features
+    required_cols = ["date", "ticker", cfg.target_col, "return"]
+    for col in required_cols:
+        if col not in df.columns:
+            raise KeyError(f"Missing required column: {col}")
 
-    # Per-ticker scaling
+    # --- Ticker encoding
+    tickers = sorted(df["ticker"].unique())
+    ticker_to_id = {t: i for i, t in enumerate(tickers)}
+    df["ticker_id"] = df["ticker"].map(ticker_to_id)
+
+    # --- Scale per ticker
+    features = ["return"] + (cfg.extra_features or [])
     scalers = {}
     scaled_frames = []
-    for tkr, g in df.groupby("ticker"):
-        sc_x, sc_y = StandardScaler(), StandardScaler()
-        x_scaled = sc_x.fit_transform(g[features])
-        y_scaled = sc_y.fit_transform(g[[cfg.target_col]])
-        g_scaled = g.copy()
-        for i, f in enumerate(features):
-            g_scaled[f] = x_scaled[:, i]
-        g_scaled[cfg.target_col] = y_scaled
-        scaled_frames.append(g_scaled)
-        scalers[tkr] = {"x": sc_x, "y": sc_y}
+
+    for t in tickers:
+        sub = df[df["ticker"] == t].copy()
+        scaler = StandardScaler()
+        sub_features = sub[features].fillna(0.0)
+        sub[features] = scaler.fit_transform(sub_features)
+        scalers[t] = scaler
+        scaled_frames.append(sub)
 
     df_scaled = pd.concat(scaled_frames, ignore_index=True)
-    ticker_to_id = {tkr: i for i, tkr in enumerate(df_scaled["ticker"].unique())}
 
-    train_df = df_scaled[df_scaled["date"] < cfg.val_start]
-    val_df = df_scaled[df_scaled["date"] >= cfg.val_start]
+    train_df = df_scaled[df_scaled["date"] < cfg.val_start].reset_index(drop=True)
+    val_df = df_scaled[df_scaled["date"] >= cfg.val_start].reset_index(drop=True)
 
-    train_ds = GlobalVolDataset(train_df, cfg.window, cfg.horizons, cfg.stride,
-                                features, cfg.target_col, ticker_to_id)
-    val_ds = GlobalVolDataset(val_df, cfg.window, cfg.horizons, cfg.stride,
-                              features, cfg.target_col, ticker_to_id)
-    return train_ds, val_ds, ticker_to_id, scalers, features
+    class GlobalVolDataset(torch.utils.data.Dataset):
+        def __init__(self, df, cfg):
+            self.df = df
+            self.cfg = cfg
+            self.grouped = {t: g.reset_index(drop=True) for t, g in df.groupby("ticker_id")}
+            self.samples = []
+            for tid, g in self.grouped.items():
+                for i in range(0, len(g) - cfg.window - cfg.horizons, cfg.stride):
+                    self.samples.append((tid, i))
+
+        def __len__(self):
+            return len(self.samples)
+
+        def __getitem__(self, idx):
+            tid, start = self.samples[idx]
+            g = self.grouped[tid]
+            X = g.iloc[start:start + self.cfg.window]
+            y = g.iloc[start + self.cfg.window + self.cfg.horizons - 1][self.cfg.target_col]
+            feats = ["return"] + (self.cfg.extra_features or [])
+            X = torch.tensor(X[feats].values, dtype=torch.float32)
+            y = torch.tensor(y, dtype=torch.float32)
+            tid = torch.tensor(tid, dtype=torch.long)
+            return tid, X, y
+
+    train_ds = GlobalVolDataset(train_df, cfg)
+    val_ds = GlobalVolDataset(val_df, cfg)
+
+    return train_ds, val_ds, ticker_to_id, scalers
 
 
-# ------------------------------------------------------------
-# Unified training loop
-# ------------------------------------------------------------
+# ============================================================
+# 🚀 Training Loop
+# ============================================================
 def train_global_model(df, cfg):
-    train_ds, val_ds, ticker_to_id, scalers, features = build_global_splits(df, cfg)
+    """
+    Unified training entrypoint — builds splits, model, trains and returns artifacts.
+    """
+    from torch.utils.data import DataLoader
+
+    # Build datasets
+    train_ds, val_ds, ticker_to_id, scalers = build_global_splits(df, cfg)
+
+    # Create model
+    features = ["return"] + (cfg.extra_features or [])
 
     model = GlobalVolForecaster(
         n_tickers=len(ticker_to_id),
-        input_dim=len(features),
-        hidden_dim=128,
+        window=cfg.window,
+        n_horizons=cfg.horizons,
+        emb_dim=16,
+        hidden_dim=160,
         num_layers=3,
-        dropout=0.1,
-        emb_dim=12,
-        n_horizons=1
-    ).to(cfg.device)
+        dropout=0.2,
+        attention=True,
+        residual_head=True,
+        input_size=len(features),  # ✅ Pass actual feature count
+    )
+
+    features = ["return"] + (cfg.extra_features or [])
+
+    device = torch.device(cfg.device)
+    model.to(device)
 
     train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False)
 
-    opt = torch.optim.Adam(model.parameters(), lr=cfg.lr)
-    loss_fn = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+    criterion = nn.MSELoss()
+
+    if cfg.cosine_schedule:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=cfg.epochs, eta_min=1e-6
+        )
+    else:
+        scheduler = None
 
     history = {"train": [], "val": []}
     print(f"\n🚀 Training GlobalVolForecaster on {len(ticker_to_id)} tickers...\n")
 
     for ep in range(1, cfg.epochs + 1):
         model.train()
-        tr_loss = 0.0
-        for tid, X, y in train_loader:
-            tid, X, y = tid.to(cfg.device), X.to(cfg.device), y.to(cfg.device)
-            opt.zero_grad()
-            pred = model(tid, X)
-            loss = loss_fn(pred, y)
+        train_loss = 0.0
+        for t_id, X, y in train_loader:
+            t_id, X, y = t_id.to(device), X.to(device), y.to(device)
+            optimizer.zero_grad()
+            yhat = model(t_id, X)
+            loss = criterion(yhat, y)
             loss.backward()
-            opt.step()
-            tr_loss += loss.item() * len(tid)
-        tr_loss /= len(train_loader.dataset)
+            optimizer.step()
+            train_loss += loss.item() * len(t_id)
+        train_loss /= len(train_loader.dataset)
 
         model.eval()
-        vl_loss = 0.0
+        val_loss = 0.0
         with torch.no_grad():
-            for tid, X, y in val_loader:
-                tid, X, y = tid.to(cfg.device), X.to(cfg.device), y.to(cfg.device)
-                pred = model(tid, X)
-                loss = loss_fn(pred, y)
-                vl_loss += loss.item() * len(tid)
-        vl_loss /= len(val_loader.dataset)
+            for t_id, X, y in val_loader:
+                t_id, X, y = t_id.to(device), X.to(device), y.to(device)
+                yhat = model(t_id, X)
+                loss = criterion(yhat, y)
+                val_loss += loss.item() * len(t_id)
+        val_loss /= len(val_loader.dataset)
+        if scheduler:
+            scheduler.step()
 
-        print(f"Epoch {ep}/{cfg.epochs} | Train Loss: {tr_loss:.4f} | Val Loss: {vl_loss:.4f}")
-        history["train"].append(tr_loss)
-        history["val"].append(vl_loss)
+        print(f"Epoch {ep}/{cfg.epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+        history["train"].append(train_loss)
+        history["val"].append(val_loss)
 
-    print("\n✅ Training complete.")
+    print(f"\n✅ Training complete with feature set: {features}\n")
     return model, history, val_loader, ticker_to_id, scalers, features

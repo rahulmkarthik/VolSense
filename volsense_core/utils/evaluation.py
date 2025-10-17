@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from volsense_pkg.utils.metrics import evaluate_forecasts
-from volsense_pkg.forecasters.forecaster_api import VolSenseForecaster
-from volsense_pkg.data_fetching.fetch_yf import fetch_ohlcv, compute_returns_vol
+from volsense_core.utils.metrics import evaluate_forecasts
+from volsense_core.forecasters.forecaster_api import VolSenseForecaster
+from volsense_core.data_fetching.fetch_yf import fetch_ohlcv, compute_returns_vol
 
 
 # ============================================================

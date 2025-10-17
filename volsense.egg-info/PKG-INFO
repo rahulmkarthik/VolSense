@@ -1,14 +1,16 @@
 Metadata-Version: 2.4
 Name: volsense
-Version: 0.1.0
-Summary: Volatility forecasting library with LSTM and GARCH baselines
-Author-email: Rahul Karthik <rahul.m.karthik@gmail.com>
+Version: 1.0.0
+Summary: A modular framework for volatility forecasting using deep learning and GARCH models
+Author: Your Name
+License: MIT
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
-Requires-Dist: numpy
-Requires-Dist: pandas
-Requires-Dist: torch
-Requires-Dist: arch
+Requires-Dist: torch>=2.0
+Requires-Dist: numpy>=1.23
+Requires-Dist: pandas>=1.5
+Requires-Dist: arch>=5.4
+Requires-Dist: tqdm
 
 # ⚡ VolSense: Explainable Volatility Forecasting
 

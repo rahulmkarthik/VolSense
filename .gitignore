@@ -12,4 +12,5 @@ checkpoints/
 *.pt
 
 # Jupyter checkpoints
-.ipynb_checkpoints/
+.ipynb_checkpoints/# Ignore CSVs generated under data
+data/**/*.csv

@@ -1,7 +1,7 @@
-# volsense_pkg/forecasters/forecaster_api.py
+# volsense_core/forecasters/forecaster_api.py
 
-from volsense_pkg.models.garch_methods import ARCHForecaster
-from volsense_pkg.models.lstm_forecaster import (
+from volsense_core.models.garch_methods import ARCHForecaster
+from volsense_core.models.lstm_forecaster import (
     LSTMForecaster,
     MultiVolDataset,
     train_lstm,
@@ -9,7 +9,7 @@ from volsense_pkg.models.lstm_forecaster import (
 )
 
 # --- New imports for Global LSTM integration ---
-from volsense_pkg.models.global_vol_forecaster import (
+from volsense_core.models.global_vol_forecaster import (
     GlobalVolForecaster,
     build_global_splits,
     train_global_model,
@@ -183,7 +183,7 @@ class VolSenseForecaster:
             raise RuntimeError("Global model not trained or loaded.")
 
         # Prepare last input window per ticker
-        from volsense_pkg.models.global_vol_forecaster import make_last_windows, predict_next_day
+        from volsense_core.models.global_vol_forecaster import make_last_windows, predict_next_day
         df_last_windows = make_last_windows(df, window=self.global_window)
 
         preds = predict_next_day(

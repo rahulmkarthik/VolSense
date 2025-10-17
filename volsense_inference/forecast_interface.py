@@ -3,10 +3,10 @@ import numpy as np
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from volsense_pkg.data_fetching.multi_fetch import fetch_multi_ohlcv, build_multi_dataset
-from volsense_pkg.data_fetching.fetch_yf import fetch_ohlcv, compute_returns_vol
-from volsense_pkg.utils.evaluation import Backtester
-from volsense_pkg.forecasters.forecaster_api import VolSenseForecaster
+from volsense_core.data_fetching.multi_fetch import fetch_multi_ohlcv, build_multi_dataset
+from volsense_core.data_fetching.fetch_yf import fetch_ohlcv, compute_returns_vol
+from volsense_core.utils.evaluation import Backtester
+from volsense_core.forecasters.forecaster_api import VolSenseForecaster
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def forecast_multi_parallel(
     max_workers=4,
     **kwargs
 ):
-    from volsense_pkg.pipeline.forecast_interface import forecast_single_ticker
+    from volsense_inference.pipeline.forecast_interface import forecast_single_ticker
 
     print(f"\n🚀 Running parallel forecasts with {max_workers} workers...\n")
 

@@ -1,1 +1,2 @@
-volsense_pkg
+volsense_core
+volsense_inference

@@ -4,21 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "volsense"
-version = "0.1.0"
-description = "Volatility forecasting library with LSTM and GARCH baselines"
-authors = [
-  { name = "Rahul Karthik", email = "rahul.m.karthik@gmail.com" }
-]
+version = "1.0.0"
+description = "A modular framework for volatility forecasting using deep learning and GARCH models"
+authors = [{name="Your Name"}]
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.9"
 dependencies = [
-  "numpy",
-  "pandas",
-  "torch",
-  "arch"
+    "torch>=2.0",
+    "numpy>=1.23",
+    "pandas>=1.5",
+    "arch>=5.4",
+    "tqdm",
 ]
 
-# --- Tell setuptools what to package ---
-[tool.setuptools]
-# explicitly list only your package folder
-packages = ["volsense_pkg"]
+[project.scripts]
+volsense-train = "volsense_core.cli.train_model:main"
+volsense-forecast = "volsense_inference.cli.forecast:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["volsense_core*", "volsense_inference*"]

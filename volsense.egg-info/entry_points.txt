@@ -1,0 +1,3 @@
+[console_scripts]
+volsense-forecast = volsense_inference.cli.forecast:main
+volsense-train = volsense_core.cli.train_model:main

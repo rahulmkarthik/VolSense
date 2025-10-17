@@ -14,3 +14,7 @@ checkpoints/
 # Jupyter checkpoints
 .ipynb_checkpoints/# Ignore CSVs generated under data
 data/**/*.csv
+# Python bytecode
+__pycache__/
+*.py[cod]
+*..class

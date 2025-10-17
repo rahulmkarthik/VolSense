@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import os
 from sklearn.preprocessing import StandardScaler
 from dataclasses import dataclass
 from typing import List, Dict
@@ -23,6 +24,9 @@ class TrainConfig:
     horizons: int | list = 1
     stride: int = 2                     # 👈 default stride=3 for decorrelation
     val_start: str = "2025-01-01"
+    val_end: str | None = None        # optional: end of validation window (exclusive)
+    val_mode: str = "causal"          # "causal" or "holdout_slice"
+    embargo_days: int = 0             # drop these days on either side of val window from train
     target_col: str = "realized_vol_log"
     extra_features: list | None = None
 
@@ -232,8 +236,36 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
         scaled_parts.append(sub)
     df_scaled = pd.concat(scaled_parts, ignore_index=True)
 
-    train_df = df_scaled[df_scaled["date"] < cfg.val_start].reset_index(drop=True)
-    val_df   = df_scaled[df_scaled["date"] >= cfg.val_start].reset_index(drop=True)
+    # inside build_global_splits(...) after df_scaled is built
+    df_scaled["date"] = pd.to_datetime(df_scaled["date"])
+    val_end = getattr(cfg, "val_end", None)
+    val_mode = getattr(cfg, "val_mode", "causal")
+    embargo = int(getattr(cfg, "embargo_days", 0))
+
+    if val_end is None:
+        # original behavior: single cut by val_start
+        train_df = df_scaled[df_scaled["date"] < cfg.val_start].reset_index(drop=True)
+        val_df   = df_scaled[df_scaled["date"] >= cfg.val_start].reset_index(drop=True)
+    else:
+        mask_val = (df_scaled["date"] >= cfg.val_start) & (df_scaled["date"] < val_end)
+
+        if val_mode == "holdout_slice":
+            # train on everything except the held-out slice (+/- embargo window)
+            if embargo > 0:
+                # widen the excluded region by embargo on both sides
+                lo = pd.to_datetime(cfg.val_start) - pd.Timedelta(days=embargo)
+                hi = pd.to_datetime(val_end) + pd.Timedelta(days=embargo)
+                mask_excl = (df_scaled["date"] >= lo) & (df_scaled["date"] < hi)
+            else:
+                mask_excl = mask_val
+            train_df = df_scaled[~mask_excl].reset_index(drop=True)
+            val_df   = df_scaled[mask_val].reset_index(drop=True)
+
+        else:  # "causal"
+            # forward test flavor: train strictly before val_start; validate within [start, end)
+            train_df = df_scaled[df_scaled["date"] < cfg.val_start].reset_index(drop=True)
+            val_df   = df_scaled[mask_val].reset_index(drop=True)
+
 
     class GlobalVolDataset(torch.utils.data.Dataset):
         def __init__(self, df: pd.DataFrame, cfg: TrainConfig, is_train: bool):

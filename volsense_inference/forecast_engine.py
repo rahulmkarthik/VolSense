@@ -7,6 +7,8 @@ from volsense_inference.model_loader import load_model
 from volsense_inference.predictor import predict_batch, attach_realized
 from volsense_core.data_fetching.multi_fetch import fetch_multi_ohlcv
 from volsense_core.data_fetching.fetch_yf import compute_returns_vol
+from volsense_inference.analytics import VolAnalytics
+
 
 
 def build_features(df_all: pd.DataFrame, eps=1e-6):
@@ -104,6 +106,11 @@ class Forecast:
         preds = attach_realized(preds, df_recent)
         self.predictions = preds
         print("✅ Forecast complete.")
+
+        # Attach analytics object
+        self.signals = VolAnalytics(preds)
+        self.signals.compute()
+
         return preds
 
     # ------------------------------------------------------------------

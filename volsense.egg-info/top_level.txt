@@ -1,2 +1,0 @@
-volsense_core
-volsense_inference

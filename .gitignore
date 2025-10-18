@@ -18,3 +18,5 @@ data/**/*.csv
 __pycache__/
 *.py[cod]
 *..class
+# Ignore any egg-info dirs anywhere
+*.egg-info/

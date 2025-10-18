@@ -24,6 +24,7 @@ def build_features(df_all: pd.DataFrame, eps=1e-6):
     df_all["vol_ratio"] = df_all["vol_3d"] / (df_all["vol_10d"] + eps)
     df_all["vol_chg"]   = df_all["vol_3d"] - df_all["vol_10d"]
     df_all["vol_vol"]   = g["realized_vol"].apply(lambda s: s.rolling(10, min_periods=2).std())
+    df_all["ewma_vol_10d"] = g["realized_vol"].apply(lambda s: s.ewm(span=10, adjust=False).mean())
 
     # Market-level and calendar features
     df_all["market_stress"] = df_all.groupby("date")["return"].transform(lambda x: x.std())
@@ -68,7 +69,7 @@ class Forecast:
             model_version=model_version, checkpoints_dir=checkpoints_dir
         )
 
-        self.window = self.meta.get("window", 30)
+        self.window = self.meta.get("window", 40)
         self.horizons = self.meta.get("horizons", [1])
         print(f"✔ Window={self.window}, Horizons={self.horizons}")
 
@@ -108,7 +109,18 @@ class Forecast:
     # ------------------------------------------------------------------
     # Visualization
     # ------------------------------------------------------------------
-    def plot(self, ticker: str, show_vix: bool = False, vix_df: pd.DataFrame = None):
+
+
+    def plot(self, ticker: str, show_vix: bool = False, vix_df: pd.DataFrame = None, show: bool = False):
+        """Plots realized vs predicted volatility for a given ticker.
+
+        Args:
+            ticker: Ticker symbol to plot.
+            show_vix: Overlay VIX if True and vix_df provided.
+            vix_df: DataFrame with columns ['date','close'] for VIX.
+            show: If True, call plt.show() inside and close the figure (return None).
+                  If False, return the Figure and do not show.
+        """
         if self.predictions is None:
             raise RuntimeError("No forecasts computed yet. Run .run(ticker) first.")
 
@@ -117,23 +129,44 @@ class Forecast:
             raise ValueError(f"No forecast results for {ticker}")
 
         df_t = self.df_recent[self.df_recent["ticker"] == ticker].copy()
-        df_t = df_t.sort_values("date").tail(180)  # show recent ~6 months
+        df_t = df_t.sort_values("date").tail(180)  # last ~6 months
 
-        plt.figure(figsize=(10, 5))
-        plt.plot(df_t["date"], df_t["realized_vol"], label="Realized Volatility", color="tab:blue")
-        plt.axhline(preds["pred_vol_1"].values[0], color="tab:orange", linestyle="--", label="Predicted 1d Vol")
-        if len(self.horizons) > 1:
-            for i, h in enumerate(self.horizons[1:], start=2):
-                col = f"pred_vol_{h}"
-                if col in preds.columns:
-                    plt.axhline(preds[col].values[0], linestyle="--", alpha=0.7, label=f"Pred {h}d")
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(df_t["date"], df_t["realized_vol"], label="Realized Volatility", color="tab:blue")
+
+        # Collect horizons we actually have predictions for
+        present_horizons = [h for h in sorted(set(getattr(self, "horizons", [])))
+                            if f"pred_vol_{h}" in preds.columns]
+
+        # Unique colors per horizon (skip index 0 in tab10 to avoid blue clash)
+        palette = plt.get_cmap("tab10").colors
+        start_idx = 1  # 0 is blue; we already used that for realized vol
+        color_map = {h: palette[(start_idx + i) % len(palette)] for i, h in enumerate(present_horizons)}
+
+        # Plot all horizons with distinct colors
+        for h in present_horizons:
+            col = f"pred_vol_{h}"
+            y = preds[col].values[0]
+            ax.axhline(y, color=color_map[h], linestyle="--", alpha=0.9, label=f"Pred {h}d")
 
         if show_vix and vix_df is not None:
             vix_df = vix_df.copy()
-            vix_df["date"] = pd.to_datetime(vix_df["date"])
-            plt.plot(vix_df["date"], vix_df["close"], color="tab:red", alpha=0.5, label="VIX Index")
+            vix_df["date"] = pd.to_datetime(vix_df["date"], errors="coerce")
+            ax.plot(vix_df["date"], vix_df["close"], color="tab:red", alpha=0.5, label="VIX Index")
 
-        plt.title(f"{ticker} — Forecast vs Realized Volatility")
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+        ax.set_title(f"{ticker} — Forecast vs Realized Volatility")
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Volatility")
+
+        # Deduplicate legend entries (defensive)
+        handles, labels = ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        ax.legend(by_label.values(), by_label.keys())
+
+        if show:
+            plt.show()
+            plt.close(fig)  # avoid a second capture by caller
+            return None
+
+        return fig
+

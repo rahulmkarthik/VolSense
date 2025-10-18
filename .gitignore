@@ -20,3 +20,5 @@ __pycache__/
 *..class
 # Ignore any egg-info dirs anywhere
 *.egg-info/
+# Python packaging artifacts
+volsense.egg-info/

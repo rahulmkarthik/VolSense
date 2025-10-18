@@ -29,7 +29,7 @@ def _import_class(module_path: str, class_name: str):
 
 
 def load_model(
-    model_version: str = "v5b",
+    model_version: str = "v6a",
     checkpoints_dir: str = "models",
 ) -> Tuple[Any, Dict[str, Any], Optional[Dict[str, Any]], Optional[Dict[str, int]], Optional[list]]:
     """

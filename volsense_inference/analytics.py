@@ -1,191 +1,199 @@
 """
-VolSense Analytics — Object-Oriented Quant Signal Toolkit
----------------------------------------------------------
-Used internally by Forecast() to compute and visualize volatility signals.
+VolSense Analytics — Trader Snapshot Module
+-------------------------------------------
+Lightweight analytical layer for daily volatility forecasts.
+Generates actionable metrics, relative signals, and visualizations
+for multi-ticker forecasts without requiring historical data.
+
+This module is intended for use within volsense_inference.
 """
 
 import pandas as pd
 import numpy as np
-from typing import Optional, List
 import matplotlib.pyplot as plt
+from typing import List, Optional
 
 
-class VolAnalytics:
+class Analytics:
     """
-    A modular analytics layer for VolSense forecasts.
+    Trader-facing analytics for VolSense forecasts.
 
-    Handles computation of derived signals, rolling stats, and visualization.
+    Parameters
+    ----------
+    preds : pd.DataFrame
+        DataFrame with columns ["ticker", "realized_vol", "pred_vol_1", ...].
+    vol_regime_quantiles : list, optional
+        Quantile thresholds for regime classification, default [0.2, 0.8].
     """
 
-    def __init__(
-        self,
-        preds: pd.DataFrame,
-        realized_window: int = 20,
-        vol_regime_quantiles: List[float] = [0.2, 0.8],
-    ):
+    def __init__(self, preds: pd.DataFrame, vol_regime_quantiles: List[float] = [0.2, 0.8]):
         if preds is None or preds.empty:
-            raise ValueError("Empty forecast DataFrame provided to VolAnalytics.")
-        self.raw = preds.copy()
-        self.realized_window = realized_window
+            raise ValueError("Empty forecast DataFrame passed to Analytics.")
+
+        self.raw = preds.copy().reset_index(drop=True)
         self.vol_regime_quantiles = vol_regime_quantiles
-        self.processed = None
+        self.processed: Optional[pd.DataFrame] = None
 
-    # ===============================================================
-    # 🔹 Compute Signals
-    # ===============================================================
-
+    # ============================================================
+    # 🔹 Core computation
+    # ============================================================
     def compute(self) -> pd.DataFrame:
         """
-        Compute derived volatility signals and tag regimes.
+        Compute cross-sectional volatility analytics for traders.
+        Adds f/r ratio, z-scores, signal strengths, and regime tags.
         """
         df = self.raw.copy()
-        horizon_cols = [c for c in df.columns if c.startswith("pred_vol_")]
-        out_frames = []
+        horizons = [c for c in df.columns if c.startswith("pred_vol_")]
 
-        for tkr, g in df.groupby("ticker"):
-            g = g.copy()
-            g["realized_mean"] = (
-                g["realized_vol"]
-                .rolling(self.realized_window, min_periods=5)
-                .mean()
-            )
-            g["realized_std"] = (
-                g["realized_vol"]
-                .rolling(self.realized_window, min_periods=5)
-                .std()
-            )
+        # Cross-sectional mean/std (snapshot)
+        mean = df["realized_vol"].mean()
+        std = df["realized_vol"].std() or 1e-8
 
-            for col in horizon_cols:
-                g[f"{col}_f_r_ratio"] = g[col] / (g["realized_vol"] + 1e-8)
-                g[f"{col}_zscore"] = (
-                    g[col] - g["realized_mean"]
-                ) / (g["realized_std"] + 1e-8)
-                g[f"{col}_signal_strength"] = g[f"{col}_zscore"].clip(-3, 3)
+        for h in horizons:
+            df[f"{h}_f_r_ratio"] = df[h] / (df["realized_vol"] + 1e-8)
+            df[f"{h}_zscore"] = (df[h] - mean) / std
+            df[f"{h}_signal_strength"] = df[f"{h}_zscore"].clip(-3, 3)
 
-            out_frames.append(g)
-
-        df = pd.concat(out_frames, ignore_index=True)
-        df["vol_regime"] = self._assign_vol_regimes(df)
-        self.processed = df
-        return df
-
-    # ===============================================================
-    # 🔹 Private helper: regime tagging
-    # ===============================================================
-
-    def _assign_vol_regimes(self, df: pd.DataFrame) -> pd.Series:
+        # Volatility regimes
         low_q, high_q = self.vol_regime_quantiles
         low_thr = df["realized_vol"].quantile(low_q)
         high_thr = df["realized_vol"].quantile(high_q)
 
-        def _regime(x):
-            if x < low_thr:
+        def _regime(v):
+            if v < low_thr:
                 return "Low Vol"
-            elif x > high_thr:
+            elif v > high_thr:
                 return "High Vol"
             else:
                 return "Normal"
 
-        return df["realized_vol"].apply(_regime)
+        df["vol_regime"] = df["realized_vol"].apply(_regime)
+        self.processed = df
+        return df
 
-    # ===============================================================
-    # 🔹 Trader-facing summaries
-    # ===============================================================
-
-    def summary(self, horizon: str = "pred_vol_1") -> pd.DataFrame:
+    # ============================================================
+    # 🔹 Quick trader summary
+    # ============================================================
+    def summary(self, horizon: str = "pred_vol_5") -> pd.DataFrame:
         """
-        Return the latest per-ticker forecast summary.
+        Return summarized metrics for each ticker:
+        realized vol, forecast vol, f/r ratio, z-score, and regime.
         """
         if self.processed is None:
             self.compute()
         df = self.processed
+        if horizon not in df.columns:
+            horizon = [c for c in df.columns if c.startswith("pred_vol_")][0]
+
         cols = [
             "ticker",
             "realized_vol",
             horizon,
             f"{horizon}_f_r_ratio",
+            f"{horizon}_zscore",
             "vol_regime",
-            f"{horizon}_signal_strength",
         ]
-        cols = [c for c in cols if c in df.columns]
-        latest = df.groupby("ticker").tail(1)[cols].reset_index(drop=True)
-        latest.rename(
+        df_summary = df[cols].copy()
+        df_summary.rename(
             columns={
                 horizon: "forecast_vol",
                 f"{horizon}_f_r_ratio": "f/r_ratio",
-                f"{horizon}_signal_strength": "signal_strength",
+                f"{horizon}_zscore": "zscore",
             },
             inplace=True,
         )
-        return latest.sort_values("signal_strength", ascending=False)
+        df_summary.sort_values("zscore", ascending=False, inplace=True)
+        return df_summary.reset_index(drop=True)
 
-    def overview(self) -> pd.DataFrame:
+    # ============================================================
+    # 🔹 Human-readable interpretation
+    # ============================================================
+    def describe(self, ticker: str, horizon: str = "pred_vol_5") -> str:
         """
-        Compute RMSE, bias, and correlation summary.
-        """
-        if self.processed is None:
-            self.compute()
-
-        df = self.processed
-        horizons = [c for c in df.columns if c.startswith("pred_vol_")]
-        summary = []
-
-        for tkr, g in df.groupby("ticker"):
-            entry = {"ticker": tkr}
-            for col in horizons:
-                valid = g.dropna(subset=["realized_vol", col])
-                if len(valid) < 5:
-                    continue
-                err = valid[col] - valid["realized_vol"]
-                entry[f"{col}_rmse"] = np.sqrt(np.mean(err**2))
-                entry[f"{col}_bias"] = np.mean(err)
-                entry[f"{col}_corr"] = np.corrcoef(
-                    valid["realized_vol"], valid[col]
-                )[0, 1]
-            summary.append(entry)
-        return pd.DataFrame(summary).round(4)
-
-    # ===============================================================
-    # 🔹 Visualization
-    # ===============================================================
-
-    def plot(self, ticker: str):
-        """
-        Plot realized volatility colored by regime and forecast lines.
+        Generate an easy-to-read trader interpretation of forecast results.
         """
         if self.processed is None:
             self.compute()
-
         df = self.processed
-        g = df[df["ticker"] == ticker].copy()
-        if g.empty:
-            raise ValueError(f"No data for {ticker}")
+        if ticker not in df["ticker"].values:
+            return f"{ticker}: no data available."
 
-        plt.figure(figsize=(10, 4))
-        plt.plot(g["date"], g["realized_vol"], color="gray", lw=1.5, label="Realized")
-        plt.scatter(
-            g["date"],
-            g["realized_vol"],
-            c=g["vol_regime"].map(
-                {"Low Vol": "green", "Normal": "orange", "High Vol": "red"}
-            ),
-            label="Vol Regime",
-            s=30,
-            alpha=0.8,
+        row = df[df["ticker"] == ticker].iloc[-1]
+        regime = row["vol_regime"]
+        if horizon not in row:
+            horizon = [c for c in df.columns if c.startswith("pred_vol_")][0]
+
+        ratio = row.get(f"{horizon}_f_r_ratio", np.nan)
+        z = row.get(f"{horizon}_zscore", np.nan)
+
+        if np.isnan(ratio) or np.isnan(z):
+            return f"{ticker}: insufficient data for signal generation."
+
+        direction = "↑ rising" if ratio > 1 else "↓ easing"
+        horizon_label = horizon.replace("pred_vol_", "")
+        return (
+            f"{ticker}: {horizon_label}-day vol {direction} "
+            f"({z:+.2f}σ vs peers), regime: {regime}."
         )
 
-        for col in [c for c in g.columns if c.startswith("pred_vol_")]:
-            plt.axhline(
-                g[col].iloc[-1],
-                linestyle="--",
-                lw=1.2,
-                label=f"{col.replace('pred_vol_', 'Pred ')}",
+    # ============================================================
+    # 🔹 Visualization
+    # ============================================================
+    # ...existing code...
+    def plot(self, horizon: str = "pred_vol_5", show: bool = False):
+        """
+        Plot forecast vs realized volatility for all tickers at the given horizon.
+        Each ticker gets a unique color and label.
+
+        Args:
+            horizon: e.g., "pred_vol_5".
+            show: If True, show the plot inside and close it (returns None).
+                  If False, return the Figure and do not show (use in Streamlit/Jupyter).
+        """
+        if self.processed is None:
+            self.compute()
+        df = self.processed.copy()
+
+        if horizon not in df.columns:
+            horizon = [c for c in df.columns if c.startswith("pred_vol_")][0]
+
+        # --- Generate unique color map per ticker
+        tickers = sorted(df["ticker"].unique())
+        cmap = plt.cm.get_cmap("tab10", len(tickers))
+        colors = {t: cmap(i) for i, t in enumerate(tickers)}
+
+        # --- Plot
+        fig, ax = plt.subplots(figsize=(8, 5))
+        for t in tickers:
+            row = df[df["ticker"] == t].iloc[-1]
+            ax.scatter(
+                row["realized_vol"],
+                row[horizon],
+                s=100,
+                color=colors[t],
+                edgecolor="k",
+                alpha=0.85,
+                label=t,
             )
 
-        plt.title(f"{ticker} — Realized Volatility & Forecast")
-        plt.xlabel("Date")
-        plt.ylabel("Volatility")
-        plt.grid(alpha=0.3)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+        # --- 45-degree reference line
+        min_vol = df[["realized_vol", horizon]].min().min()
+        max_vol = df[["realized_vol", horizon]].max().max()
+        ax.plot([min_vol, max_vol], [min_vol, max_vol], "k--", lw=1)
+
+        ax.set_xlabel("Realized Volatility", fontsize=11)
+        ax.set_ylabel("Forecasted Volatility", fontsize=11)
+        ax.set_title(f"Forecast Snapshot — {horizon.replace('pred_vol_', '')}-Day Horizon")
+        ax.legend(title="Ticker", bbox_to_anchor=(1.05, 1), loc="upper left", frameon=True)
+        ax.grid(alpha=0.3)
+        fig.tight_layout()
+
+        # Notebook/Streamlit-safe: no implicit show unless requested
+        if show:
+            plt.show()
+            plt.close(fig)
+            return None
+
+        fig_out = fig
+        plt.close(fig)
+        return fig_out

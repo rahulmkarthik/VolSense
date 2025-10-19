@@ -69,7 +69,7 @@ class MultiVolDataset(Dataset):
         return self.scaler.inverse_transform(arr).ravel()
     
 
-class LSTMForecaster(nn.Module):
+class BaseLSTM(nn.Module):
     """
     Simple LSTM forecaster that outputs one or more horizons.
     If n_horizons=1, behaves exactly like the old version.
@@ -90,7 +90,7 @@ class LSTMForecaster(nn.Module):
 
 def train_lstm(model, train_loader, val_loader, epochs=20, lr=1e-3, device="cpu"):
     """
-    Trains an LSTMForecaster. Works for single or multi-horizon automatically.
+    Trains an LSTM Forecaster. Works for single or multi-horizon automatically.
     """
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -125,7 +125,7 @@ def train_lstm(model, train_loader, val_loader, epochs=20, lr=1e-3, device="cpu"
 
 def evaluate_lstm(model, loader, device="cpu"):
     """
-    Evaluates an LSTMForecaster on a DataLoader. 
+    Evaluates an LSTM Forecaster on a DataLoader. 
     Returns (preds, actuals) as np arrays. 
     Shapes:
       - single horizon: (N,)

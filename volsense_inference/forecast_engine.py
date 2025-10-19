@@ -7,7 +7,7 @@ from volsense_inference.model_loader import load_model
 from volsense_inference.predictor import predict_batch, attach_realized
 from volsense_core.data_fetching.multi_fetch import fetch_multi_ohlcv
 from volsense_core.data_fetching.fetch_yf import compute_returns_vol
-from volsense_inference.analytics import VolAnalytics
+from volsense_inference.analytics import Analytics
 
 
 
@@ -108,7 +108,7 @@ class Forecast:
         print("✅ Forecast complete.")
 
         # Attach analytics object
-        self.signals = VolAnalytics(preds)
+        self.signals = Analytics(preds)
         self.signals.compute()
 
         return preds
@@ -118,7 +118,7 @@ class Forecast:
     # ------------------------------------------------------------------
 
 
-    def plot(self, ticker: str, show_vix: bool = False, vix_df: pd.DataFrame = None, show: bool = False):
+    def plot(self, ticker: str, show_vix: bool = False, vix_df: pd.DataFrame = None, show: bool = True):
         """Plots realized vs predicted volatility for a given ticker.
 
         Args:

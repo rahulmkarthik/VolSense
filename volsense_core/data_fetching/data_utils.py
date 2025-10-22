@@ -58,3 +58,40 @@ def get_or_fetch_multi(tickers, start="2000-01-01", end=None, lookback=21, use_c
     if use_cache:
         save_to_cache(df, cache_name)
     return df
+
+# ============================================================
+# 🔁 make_rolling_windows: Generate rolling subwindows
+# ============================================================
+
+
+def make_rolling_windows(df: pd.DataFrame, window: int = 30, stride: int = 5):
+    """
+    Generate rolling subwindows of a DataFrame for evaluation or backtesting.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input time series (must include a 'date' column sorted ascending).
+    window : int, default=30
+        Length of each rolling window.
+    stride : int, default=5
+        Step size between window start indices.
+
+    Returns
+    -------
+    list[pd.DataFrame]
+        List of rolling DataFrame segments, each of length `window`.
+    """
+    if "date" not in df.columns:
+        raise ValueError("DataFrame must include a 'date' column for rolling windows.")
+
+    df = df.sort_values("date").reset_index(drop=True)
+    n = len(df)
+    windows = []
+
+    for start in range(0, n - window + 1, stride):
+        sub = df.iloc[start:start + window].copy()
+        windows.append(sub)
+
+    return windows
+

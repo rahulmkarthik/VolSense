@@ -394,7 +394,7 @@ def evaluate_baselstm(model: nn.Module, loader: DataLoader, cfg: TrainConfig, de
         preds   = preds   * cfg.y_std + cfg.y_mean
         actuals = actuals * cfg.y_std + cfg.y_mean
 
-    return preds, actuals, np.array(dates)
+    return preds, actuals
 
 # ============================================================
 # 🔄 Unified Output Standardizer
@@ -430,8 +430,6 @@ def standardize_outputs(
     pd.DataFrame
         Columns: ['date','ticker','horizon','forecast_vol','realized_vol','model']
     """
-    import numpy as np
-    import pandas as pd
 
     dates = np.asarray(dates)
     tickers = np.asarray(tickers)

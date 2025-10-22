@@ -2,7 +2,7 @@
 
 from volsense_core.models.garch_methods import ARCHForecaster
 from volsense_core.models.lstm_forecaster import (
-    LSTMForecaster,
+    BaseLSTM,
     MultiVolDataset,
     train_lstm,
     evaluate_lstm,
@@ -29,8 +29,8 @@ from math import sqrt
 
 
 __all__ = [
-    "GARCHForecaster",
-    "LSTMForecaster",
+    "ARCHForecaster",
+    "BaseLSTM",
     "MultiVolDataset",
     "train_lstm",
     "evaluate_lstm",

@@ -153,31 +153,44 @@ class ARCHForecaster:
             raise RuntimeError("Model not fitted yet. Call .fit() first.")
         return self._result
 
-    def predict(self, horizon: int = 1) -> np.ndarray:
+    def predict(self, horizon: int | list[int] = 1) -> np.ndarray:
         """
-        k-step-ahead volatility forecast.
+        Multi-horizon volatility forecast.
 
         Parameters
         ----------
-        horizon : int
-            Number of steps ahead to forecast.
+        horizon : int | list[int]
+            Single integer or list of horizons to forecast (e.g. [1, 5, 10]).
 
         Returns
         -------
         np.ndarray
-            Shape (horizon,), sigma forecasts on the chosen scale
-            (annualized if cfg.annualize=True).
+            Shape (len(horizons),), containing forecasted (annualized) sigmas.
         """
         res = self.result
+        horizons = horizon if isinstance(horizon, (list, tuple)) else [horizon]
+        forecasts = []
 
-        # EGARCH supports only analytic 1-step; use simulation for multi-step
-        if self.cfg.model == "egarch" and horizon > 1:
-            f = res.forecast(horizon=horizon, method="simulation", reindex=False, simulations=500)
-        else:
-            f = res.forecast(horizon=horizon, reindex=False)
+        for h in horizons:
+            # Use analytic or simulation forecast depending on model type
+            if self.cfg.model == "egarch" and h > 1:
+                f = res.forecast(horizon=h, method="simulation", reindex=False, simulations=500)
+            else:
+                f = res.forecast(horizon=h, reindex=False)
 
-        sigma = np.sqrt(np.asarray(f.variance.iloc[-1].values, dtype=float))
-        return self._postprocess_sigma(sigma)
+            # Extract the last-step variance forecast
+            try:
+                sigma = np.sqrt(np.asarray(f.variance.iloc[-1].values, dtype=float))
+                sigma = self._postprocess_sigma(sigma)
+                forecasts.append(float(sigma[-1]))
+            except Exception as e:
+                print(f"⚠️ GARCH forecast failed for horizon={h}: {e}")
+                forecasts.append(np.nan)
+
+        forecasts = np.array(forecasts, dtype=float)
+        self._last_forecast_ = forecasts  # cache for reference
+        return forecasts
+
 
 
     def rolling_forecast(

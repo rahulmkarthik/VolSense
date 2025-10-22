@@ -574,3 +574,68 @@ def load_checkpoint(path, device="cpu"):
     ticker_to_id = {t: i for i, t in enumerate(meta["tickers"])}
     print(f"✅ Loaded checkpoint for {n_tickers} tickers from {path}")
     return model, ticker_to_id, scalers
+
+# ============================================================
+# 🔄 Unified Output Standardizer
+# ============================================================
+def standardize_outputs(
+    dates,
+    tickers,
+    forecast_vols,
+    realized_vols=None,
+    model_name="UnknownModel",
+    horizons=None,
+):
+    """
+    Standardizes model outputs for evaluation/backtesting.
+
+    Parameters
+    ----------
+    dates : list or array
+        Forecast or validation dates.
+    tickers : list or array
+        Corresponding tickers.
+    forecast_vols : np.ndarray
+        Model-predicted volatilities, shape (N, H) or (N,).
+    realized_vols : np.ndarray or list, optional
+        True realized volatilities (same shape as forecast_vols).
+    model_name : str
+        Model identifier, e.g. 'BaseLSTM', 'GlobalVolForecaster', 'ARCHForecaster'.
+    horizons : list[int] or None
+        Forecast horizons, e.g. [1,5,10]. Defaults to range(H) if not provided.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ['date','ticker','horizon','forecast_vol','realized_vol','model']
+    """
+    import numpy as np
+    import pandas as pd
+
+    dates = np.asarray(dates)
+    tickers = np.asarray(tickers)
+    forecast_vols = np.atleast_2d(forecast_vols)
+    n, h = forecast_vols.shape
+    if realized_vols is None:
+        realized_vols = np.full_like(forecast_vols, np.nan)
+    else:
+        realized_vols = np.atleast_2d(realized_vols)
+
+    if horizons is None:
+        horizons = list(range(1, h + 1))
+
+    records = []
+    for i in range(n):
+        for j, horizon in enumerate(horizons):
+            records.append(
+                dict(
+                    date=pd.to_datetime(dates[i]),
+                    ticker=tickers[i],
+                    horizon=horizon,
+                    forecast_vol=forecast_vols[i, j],
+                    realized_vol=realized_vols[i, j],
+                    model=model_name,
+                )
+            )
+    return pd.DataFrame.from_records(records)
+

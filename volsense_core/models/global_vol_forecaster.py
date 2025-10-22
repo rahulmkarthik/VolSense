@@ -347,7 +347,6 @@ def update_ema(ema: nn.Module, model: nn.Module, decay: float):
 # ============================================================
 def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
     from torch.utils.data import DataLoader
-
     # Datasets / loaders
     train_ds, val_ds, ticker_to_id, scalers = build_global_splits(df, cfg)
     features = ["return"] + (cfg.extra_features or [])
@@ -508,25 +507,103 @@ def make_last_windows(df: pd.DataFrame, window: int):
     return pd.concat(last_windows, ignore_index=True)
 
 
-def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, device="cpu"):
+def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, device="cpu", show_progress=True):
     """
-    Run inference for the next horizon(s) per ticker.
+    Generate next-day (or multi-horizon) volatility forecasts for each ticker
+    using the most recent feature window. Handles feature mismatches between
+    training and inference DataFrames, supports multi-horizon models, and
+    returns a standardized DataFrame suitable for downstream evaluation.
+
+    Parameters
+    ----------
+    model : GlobalVolForecaster
+        Trained global volatility model.
+    df_last_windows : pd.DataFrame
+        DataFrame containing the most recent feature window per ticker.
+        Must include columns ['ticker', 'date', <features>].
+    ticker_to_id : dict
+        Mapping from ticker symbol to integer ID.
+    scalers : dict[str, StandardScaler]
+        Fitted scalers for each ticker (used during training).
+    window : int
+        Window length used during model training.
+    device : str
+        'cpu' or 'cuda'.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns:
+        ['ticker', 'horizon', 'forecast_vol_scaled']
     """
+    import numpy as np
+    import pandas as pd
+    import torch
+    from tqdm import tqdm
+
     model.eval()
     preds = []
-    features = [c for c in df_last_windows.columns if c not in ["date", "ticker", "realized_vol", "realized_vol_log"]]
 
-    with torch.no_grad():
-        for t, g in df_last_windows.groupby("ticker"):
-            t_id = torch.tensor([ticker_to_id[t]], dtype=torch.long, device=device)
-            scaler = scalers[t]
-            X_scaled = scaler.transform(g[features].fillna(0.0))
-            X_tensor = torch.tensor(X_scaled, dtype=torch.float32, device=device).unsqueeze(0)
+    tickers = df_last_windows["ticker"].unique()
+    #print(f"Predicting next-day vols for {len(tickers)} tickers...")
+
+    # Disable tqdm if nested
+    iterator = tqdm(df_last_windows.groupby("ticker"), desc="Predicting next-day vols", disable=not show_progress)
+
+    for t, g in iterator:
+        if t not in ticker_to_id:
+            print(f"⚠️ Skipping {t}: not found in training ticker map.")
+            continue
+
+        t_id = torch.tensor([ticker_to_id[t]], dtype=torch.long, device=device)
+        scaler = scalers[t]
+
+        # --- Align feature sets between training and inference ---
+        fitted_feats = list(getattr(scaler, "feature_names_in_", []))
+        current_feats = list(g.columns)
+
+        if fitted_feats:
+            missing = [f for f in fitted_feats if f not in current_feats]
+            extra = [f for f in current_feats if f not in fitted_feats]
+
+            if missing:
+                print(f"⚠️ Missing features for {t}: {missing} (filled with zeros)")
+                for f in missing:
+                    g[f] = 0.0
+            if extra:
+                g = g.drop(columns=extra, errors="ignore")
+
+            g = g[fitted_feats]
+        else:
+            print(f"⚠️ Scaler for {t} has no feature_names_in_; using numeric columns only.")
+            g = g.select_dtypes(include=np.number)
+
+        # --- Scale and predict ---
+        X_scaled = scaler.transform(g.fillna(0.0))
+        X_tensor = torch.tensor(X_scaled, dtype=torch.float32, device=device).unsqueeze(0)
+
+        with torch.no_grad():
             yhat = model(t_id, X_tensor)
-            preds.append({"ticker": t, "forecast_vol_scaled": yhat.cpu().numpy().flatten().tolist()})
 
+        yhat_np = np.atleast_1d(yhat.cpu().numpy().flatten())
+
+        # --- Expand multi-horizon forecasts ---
+        for i, val in enumerate(yhat_np):
+            preds.append({
+                "ticker": t,
+                "horizon": i + 1,  # or use cfg.horizons if available
+                "forecast_vol_scaled": float(val)
+            })
+
+    # --- Create standardized DataFrame ---
     out = pd.DataFrame(preds)
+
+    # Defensive fallback in case of unexpected output
+    if not isinstance(out, pd.DataFrame):
+        out = pd.DataFrame(out, columns=["ticker", "horizon", "forecast_vol_scaled"])
+
     return out
+
 
 
 def save_checkpoint(path, model, ticker_to_id, scalers):

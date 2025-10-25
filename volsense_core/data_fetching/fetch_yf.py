@@ -70,7 +70,7 @@ def fetch_ohlcv(ticker: str, start="2000-01-01", end=None) -> pd.DataFrame:
 
 
 
-def compute_returns_vol(df, lookback=21, ticker=None):
+def compute_returns_vol(df, window=21, ticker=None):
     out = df.copy()
 
     # detect adjusted close column
@@ -91,7 +91,7 @@ def compute_returns_vol(df, lookback=21, ticker=None):
     out["return"] = out[price_col].pct_change()
 
     # realized volatility
-    out["realized_vol"] = out["return"].rolling(lookback).std() * np.sqrt(252)
+    out["realized_vol"] = out["return"].rolling(window).std() * np.sqrt(252)
 
     # optional ticker
     if ticker:

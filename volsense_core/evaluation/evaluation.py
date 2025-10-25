@@ -6,9 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from statsmodels.stats.stattools import durbin_watson
-from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.api import qqplot
-from volsense_core.evaluation.metrics import rmse, mae, mape, r2_score
+from volsense_core.evaluation.metrics import rmse, mae, mape, r2_score, acf_sum_k10
 
 
 class ModelEvaluator:
@@ -52,10 +51,11 @@ class ModelEvaluator:
                 "R2": r2_score(y_true, y_pred),
                 "Corr": np.corrcoef(y_true, y_pred)[0,1],
                 "DW": durbin_watson(resid),
-                "LjungBox_p": acorr_ljungbox(resid, lags=[10], return_df=True)["lb_pvalue"].iloc[0]
+                "ACF_SumSq": acf_sum_k10(resid)
             })
         self.metrics_df = pd.DataFrame(metrics)
         return self.metrics_df
+
 
     # --------------------------------------------------------
     # 📊 Summary by Horizon

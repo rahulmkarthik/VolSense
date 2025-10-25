@@ -1,6 +1,7 @@
 # volsense_pkg/utils/metrics.py
 import numpy as np
 import pandas as pd
+from statsmodels.tsa.stattools import acf
 
 
 # =====================================================
@@ -45,6 +46,20 @@ def r2_score(y_true, y_pred):
     ss_res = np.sum((y_true - y_pred) ** 2)
     ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
     return 1 - ss_res / (ss_tot + 1e-8)
+
+
+def acf_sum_k10(resid, m=10):
+    """
+    Sum of squared autocorrelations up to lag m.
+    Stable alternative to Ljung–Box p-values.
+    Smaller values → weaker serial correlation.
+    """
+    resid = np.asarray(resid)
+    if len(resid) < m + 2 or np.std(resid) < 1e-8:
+        return np.nan
+    vals = acf(resid, nlags=m, fft=True)[1:]  # skip lag 0
+    return float(np.sum(vals**2))
+
 
 
 # =====================================================

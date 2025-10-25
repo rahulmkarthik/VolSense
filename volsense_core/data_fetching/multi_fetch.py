@@ -50,7 +50,7 @@ def fetch_multi_ohlcv(tickers, start="2000-01-01", end=None):
     return data_dict
 
 
-def build_multi_dataset(data_dict, lookback=21):
+def build_multi_dataset(data_dict, window=21):
     """
     Combine multiple normalized ticker DataFrames into a single long-form DataFrame.
     Output columns: ['date', 'return', 'realized_vol', 'ticker']
@@ -72,7 +72,7 @@ def build_multi_dataset(data_dict, lookback=21):
 
         # Compute returns + realized volatility
         df["return"] = df["Adj Close"].pct_change()
-        df["realized_vol"] = df["return"].rolling(lookback).std() * np.sqrt(252)
+        df["realized_vol"] = df["return"].rolling(window).std() * np.sqrt(252)
 
         temp = df[["date", "return", "realized_vol"]].dropna().copy()
         temp["ticker"] = ticker

@@ -5,48 +5,9 @@ import matplotlib.pyplot as plt
 
 from volsense_inference.model_loader import load_model
 from volsense_inference.predictor import predict_batch, attach_realized
-from volsense_core.data_fetching.multi_fetch import fetch_multi_ohlcv
-from volsense_core.data_fetching.fetch_yf import compute_returns_vol
+from volsense_core.data.fetch import build_dataset
+from volsense_core.data.feature_engineering import build_features
 from volsense_inference.analytics import Analytics
-
-
-
-def build_features(df_all: pd.DataFrame, eps=1e-6):
-    """
-    Recreate the feature pipeline used in training.
-    Works with combined multi-ticker data.
-    """
-    df_all = df_all.copy()
-    df_all = df_all.sort_values(["ticker", "date"]).reset_index(drop=True)
-    g = df_all.groupby("ticker", group_keys=False)
-
-    # Rolling features
-    df_all["vol_3d"]    = g["realized_vol"].apply(lambda s: s.rolling(3,  min_periods=1).mean())
-    df_all["vol_10d"]   = g["realized_vol"].apply(lambda s: s.rolling(10, min_periods=1).mean())
-    df_all["vol_ratio"] = df_all["vol_3d"] / (df_all["vol_10d"] + eps)
-    df_all["vol_chg"]   = df_all["vol_3d"] - df_all["vol_10d"]
-    df_all["vol_vol"]   = g["realized_vol"].apply(lambda s: s.rolling(10, min_periods=2).std())
-    df_all["ewma_vol_10d"] = g["realized_vol"].apply(lambda s: s.ewm(span=10, adjust=False).mean())
-
-    # Market-level and calendar features
-    df_all["market_stress"] = df_all.groupby("date")["return"].transform(lambda x: x.std())
-    df_all["market_stress_1d_lag"] = g["market_stress"].shift(1)
-
-    def _skew5(x):
-        if len(x) < 3:
-            return np.nan
-        m, sd = np.mean(x), np.std(x)
-        sd = sd if sd > 0 else eps
-        return np.mean(((x - m) / sd) ** 3)
-
-    df_all["skew_5d"] = g["return"].apply(lambda s: s.rolling(5, min_periods=3).apply(_skew5, raw=True))
-    df_all["day_of_week"] = df_all["date"].dt.dayofweek / 6.0
-    df_all["month_sin"] = np.sin(2 * np.pi * df_all["date"].dt.month / 12)
-    df_all["month_cos"] = np.cos(2 * np.pi * df_all["date"].dt.month / 12)
-    df_all["abs_return"] = df_all["return"].abs()
-    df_all["ret_sq"] = df_all["return"] ** 2
-
-    return df_all
 
 
 
@@ -59,7 +20,7 @@ class Forecast:
         self,
         model_version: str = "v109",
         checkpoints_dir: str = "models",
-        start: str = "2010-01-01",
+        start: str = "2005-01-01",
     ):
         print(f"🚀 Initializing VolSense.Forecast (model={model_version})")
         self.model_version = model_version
@@ -72,6 +33,12 @@ class Forecast:
         )
 
         self.window = self.meta.get("window", 40)
+        self.vol_window = (
+            self.meta.get("vol_window")
+            or self.meta.get("rv_window")
+            or self.meta.get("realized_window")
+            or 15
+        )
         self.horizons = self.meta.get("horizons", [1])
         print(f"✔ Window={self.window}, Horizons={self.horizons}")
 
@@ -81,17 +48,17 @@ class Forecast:
     # Data & Forecasting
     # ------------------------------------------------------------------
     def _prepare_data(self, tickers):
-        data_dict = fetch_multi_ohlcv(tickers, start=self.start)
-        frames = []
-        for tkr, df in data_dict.items():
-            feat = compute_returns_vol(df, window=self.window, ticker=tkr)
-            feat["ticker"] = tkr
-            frames.append(feat)
-
-        df_recent = pd.concat(frames, ignore_index=True)
-        df_recent = build_features(df_recent)   # <-- New step
+        df_recent = build_dataset(
+            tickers=tickers,
+            start=self.start,
+            end=None,
+            window=self.vol_window,  # <-- use realized-vol lookback, not model window
+            cache_dir=None,
+            show_progress=True,
+        )
+        # Feature engineering to match training
+        df_recent = build_features(df_recent)
         self.df_recent = df_recent
-
         return df_recent
 
     def run(self, tickers):

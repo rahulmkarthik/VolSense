@@ -93,6 +93,7 @@ class VolSenseForecaster:
                 window=self.kwargs.get("window", 30),
                 horizons=self.kwargs.get("horizons", [1, 5, 10]),
                 val_start=self.kwargs.get("val_start", "2023-01-01"),
+                extra_features=None,
                 device=self.device,
                 epochs=self.kwargs.get("epochs", 20),
                 lr=self.kwargs.get("lr", 5e-4),
@@ -100,6 +101,7 @@ class VolSenseForecaster:
                 hidden_dim=self.kwargs.get("hidden_dim", 128),
                 num_layers=self.kwargs.get("num_layers", 3),
                 output_activation="none",
+                extra_features=self.kwargs.get("extra_features", None)
             )
             self.cfg = cfg
             self.model, self.hist, loaders = train_baselstm(data, cfg)

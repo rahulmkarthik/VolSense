@@ -51,6 +51,12 @@ def parse_args():
         help="Forecast horizons to train for."
     )
     parser.add_argument(
+    "--extra_features",
+    nargs="+",
+    default=None,
+    help="Optional list of extra feature column names (e.g. vol_3d vol_10d vol_ratio)."
+    )
+    parser.add_argument(
         "--val_start",
         type=str,
         default="2023-01-01",
@@ -84,6 +90,7 @@ def parse_args():
         default=datetime.now().strftime("%Y%m%d"),
         help="Optional model version tag (default: date)."
     )
+    
     return parser.parse_args()
 
 
@@ -114,6 +121,7 @@ def main():
         epochs=args.epochs,
         lr=args.lr,
         dropout=args.dropout,
+        extra_features=args.extra_features,
     )
 
     # --- Train ---

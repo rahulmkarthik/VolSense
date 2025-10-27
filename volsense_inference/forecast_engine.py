@@ -57,7 +57,7 @@ class Forecast:
 
     def __init__(
         self,
-        model_version: str = "v3",
+        model_version: str = "v109",
         checkpoints_dir: str = "models",
         start: str = "2010-01-01",
     ):

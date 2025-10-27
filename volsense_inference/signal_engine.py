@@ -1,281 +1,299 @@
 """
-VolSense Signal Engine
-----------------------
+VolSense Signal Engine (Snapshot Edition)
+-----------------------------------------
+Transforms snapshot forecasts from ForecastEngine or ForecasterAPI
+into actionable volatility signals and sector-level intelligence.
 
-Converts model forecasts into time-series and cross-sectional signals.
-
-Now supports initializing directly from the `preds` DataFrame returned by
-Forecast.run (wide snapshot with columns like ['ticker','realized_vol','pred_vol_1',...]),
-and will auto-convert to the internal long format:
-
-['date','ticker','horizon','forecast_vol','realized_vol'].
+Key changes vs. prior version:
+  • Removed metrics needing time-series history (EMA, momentum, spillover)
+  • Treats realized_vol as today's realized volatility
+  • Renamed realized_vol → today_vol for interpretability
+  • Cleaned & vectorized computations for speed
+  • Simplified sector-relative rollups and cross-sectional scoring
+  • Added cross-sectional sector z-score computation for single-day analysis
 """
 
-from typing import Optional, List, Union
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from typing import Optional
+import matplotlib.colors as mcolors
+
+from volsense_inference.sector_mapping import get_sector_map, get_color
 
 
+# ============================================================
+# 🔹 Utility: Coerce model outputs into standard format
+# ============================================================
 def _coerce_to_long(df_in: pd.DataFrame) -> pd.DataFrame:
     """
-    Accepts either:
-      - Wide snapshot (one row per ticker): ['ticker','realized_vol','pred_vol_1',...,'date'?]
-      - Already long format: ['date','ticker','horizon','forecast_vol','realized_vol']
-
-    Returns long-format DataFrame with:
-      ['date','ticker','horizon','forecast_vol','realized_vol']
+    Converts wide or standardized forecast DataFrame to canonical format:
+        ['date', 'ticker', 'horizon', 'forecast_vol', 'today_vol']
     """
-    cols = set(df_in.columns)
+    df = df_in.copy()
+    df.columns = [c.lower() for c in df.columns]
 
-    # Already long-format
-    if {"ticker", "horizon", "forecast_vol"}.issubset(cols):
-        out = df_in.copy()
-        if "date" not in out.columns:
-            # If no date, assume today for all rows
-            out["date"] = pd.Timestamp.today().normalize()
-        if "realized_vol" not in out.columns:
-            out["realized_vol"] = np.nan
-        out["date"] = pd.to_datetime(out["date"])
-        out = out[["date", "ticker", "horizon", "forecast_vol", "realized_vol"]]
-        return out.sort_values(["ticker", "horizon", "date"]).reset_index(drop=True)
+    # Case 1: Already in long standardized format
+    if {"ticker", "horizon", "forecast_vol"}.issubset(df.columns):
+        if "today_vol" not in df.columns and "realized_vol" in df.columns:
+            df["today_vol"] = df["realized_vol"]
+        elif "today_vol" not in df.columns:
+            df["today_vol"] = np.nan
+        df["date"] = pd.to_datetime(df.get("date", pd.Timestamp.today().normalize()))
+        return df[["date", "ticker", "horizon", "forecast_vol", "today_vol"]]
 
-    # Wide snapshot from Forecast.run (pred_vol_* columns)
-    pred_cols = [c for c in df_in.columns if c.startswith("pred_vol_")]
-    if "ticker" in cols and pred_cols:
-        df_wide = df_in.copy()
-        # Date handling
-        if "date" in df_wide.columns:
-            df_wide["date"] = pd.to_datetime(df_wide["date"])
-        else:
-            df_wide["date"] = pd.Timestamp.today().normalize()
-
-        # Melt predictions to long format
-        long = df_wide.melt(
-            id_vars=[c for c in ["ticker", "realized_vol", "date"] if c in df_wide.columns],
+    # Case 2: ForecastEngine wide format (pred_vol_1, pred_vol_5, ...)
+    pred_cols = [c for c in df.columns if c.startswith("pred_vol_")]
+    if "ticker" in df.columns and pred_cols:
+        df["date"] = pd.Timestamp.today().normalize()
+        long = df.melt(
+            id_vars=["ticker", "date"],
             value_vars=pred_cols,
-            var_name="pred_col",
+            var_name="horizon_col",
             value_name="forecast_vol",
         )
-        # Extract numeric horizon from "pred_vol_{h}"
-        long["horizon"] = (
-            long["pred_col"].str.replace("pred_vol_", "", regex=False).astype(int)
-        )
-        if "realized_vol" not in long.columns:
-            long["realized_vol"] = np.nan
+        long["horizon"] = long["horizon_col"].str.extract(r"(\d+)").astype(int)
+        long["today_vol"] = df["realized_vol"].reindex(long.index, fill_value=np.nan)
+        return long[["date", "ticker", "horizon", "forecast_vol", "today_vol"]]
 
-        out = long.rename(columns={"date": "date"})  # explicit for clarity
-        out = out[["date", "ticker", "horizon", "forecast_vol", "realized_vol"]]
-        return out.sort_values(["ticker", "horizon", "date"]).reset_index(drop=True)
-
-    raise ValueError(
-        "Unsupported input format. Provide either a wide snapshot with columns "
-        "['ticker','pred_vol_1', ...] (optionally 'realized_vol','date') or a long "
-        "format with ['date','ticker','horizon','forecast_vol' (+'realized_vol')]."
-    )
+    raise ValueError("Input DataFrame format not recognized for SignalEngine.")
 
 
 # ============================================================
-# 🧠 Signal Engine
+# ⚙️ SignalEngine: Cross-Sectional and Sector Intelligence
 # ============================================================
 class SignalEngine:
-    def __init__(self, data: Optional[pd.DataFrame] = None):
-        """
-        Parameters
-        ----------
-        data : pd.DataFrame, optional
-            - Directly pass preds from Forecast.run (wide snapshot), or
-            - A long-format DataFrame with ['date','ticker','horizon','forecast_vol','realized_vol'].
-        """
+    """
+    Converts forecast snapshots into standardized volatility signals.
+    Works on a single as-of date across multiple tickers and horizons.
+    """
+
+    def __init__(self, data: Optional[pd.DataFrame] = None, model_version: str = "v109"):
         self.df: Optional[pd.DataFrame] = None
         self.signals: Optional[pd.DataFrame] = None
+        self.model_version = model_version
+        self.sector_map = get_sector_map(model_version)
+
         if data is not None:
             self.set_data(data)
 
     def set_data(self, data: pd.DataFrame):
-        """Set/replace the engine input data (accepts wide preds or long format)."""
+        """Standardize input."""
         df_long = _coerce_to_long(data)
-        # Normalize types
-        df_long["date"] = pd.to_datetime(df_long["date"])
         df_long["ticker"] = df_long["ticker"].astype(str)
-        df_long["horizon"] = df_long["horizon"].astype(int)
+        df_long["date"] = pd.to_datetime(df_long["date"])
         self.df = df_long
-
-    @classmethod
-    def from_preds(cls, preds: pd.DataFrame) -> "SignalEngine":
-        """Convenience: build from the Forecast.run output (wide snapshot)."""
-        return cls(preds)
 
     # ============================================================
     # 🔹 Core Signal Computation
     # ============================================================
-    def compute_signals(
-        self,
-        z_window: int = 60,
-        cross_sectional: bool = True,
-        regime_thresholds: tuple = (1.5, -1.0),
-    ) -> pd.DataFrame:
+    def compute_signals(self, enrich_with_sectors: bool = True) -> pd.DataFrame:
         """
-        Compute standardized volatility-based trading signals.
-
-        Handles two cases:
-        - Time series (multiple dates per ticker/horizon): rolling z-score over time.
-        - Snapshot (single date): cross-sectional z-score across tickers per horizon.
-
-        Parameters
-        ----------
-        z_window : int
-            Rolling window (days) for z-score computation (time-series case).
-        cross_sectional : bool
-            Whether to compute percentile ranks across tickers per day/horizon.
-        regime_thresholds : (float,float)
-            (high_z, low_z) thresholds for spike/calm regimes.
-
-        Returns
-        -------
-        pd.DataFrame
-            Original data + columns:
-            ['vol_zscore','vol_momentum','vol_spread',
-             'regime_flag','xsec_rank','signal_strength']
+        Computes cross-sectional volatility signals and optional sector enrichment.
         """
         if self.df is None:
-            raise RuntimeError("No data set. Initialize with preds or call set_data(df).")
+            raise RuntimeError("No data loaded into SignalEngine.")
 
-        df = self.df.sort_values(["ticker", "horizon", "date"]).copy()
+        df = self.df.copy().sort_values(["ticker", "horizon"])
+        print(f"⚙️ Computing cross-sectional signals for {df['ticker'].nunique()} tickers...")
 
-        # Detect if we have time series (more than one date per ticker/horizon)
-        ts_counts = df.groupby(["ticker", "horizon"])["date"].nunique()
-        has_timeseries = (ts_counts > 1).any()
+        # --- 1. Z-score (cross-sectional within each horizon)
+        df["vol_zscore"] = df.groupby("horizon")["forecast_vol"].transform(
+            lambda x: (x - x.mean()) / (x.std() + 1e-8)
+        )
 
-        # --- Z-score
-        if has_timeseries:
-            df["vol_zscore"] = (
-                df.groupby(["ticker", "horizon"])["forecast_vol"]
-                  .transform(lambda x: (x - x.rolling(z_window, min_periods=10).mean())
-                                    / (x.rolling(z_window, min_periods=10).std() + 1e-8))
-            )
-            # Momentum over time
-            df["vol_momentum"] = (
-                df.groupby(["ticker", "horizon"])["forecast_vol"]
-                  .diff(5).apply(np.sign).fillna(0)
-            )
-        else:
-            # Snapshot: cross-sectional z-score per horizon/day
-            def _xsec_z(g):
-                mu = g["forecast_vol"].mean()
-                sd = g["forecast_vol"].std(ddof=0)
-                sd = sd if sd > 0 else 1e-8
-                return (g["forecast_vol"] - mu) / sd
-
-            df["vol_zscore"] = (
-                df.groupby(["date", "horizon"], group_keys=False).apply(_xsec_z)
-            )
-            df["vol_momentum"] = 0.0
-
-        # --- Forecast/realized spread
-        if "realized_vol" in df.columns:
-            df["vol_spread"] = (df["forecast_vol"] / (df["realized_vol"] + 1e-8)) - 1
+        # --- 2. Spread vs today's realized vol (interpretable)
+        if "today_vol" in df.columns and df["today_vol"].notna().any():
+            df["vol_spread"] = (df["forecast_vol"] / (df["today_vol"] + 1e-8)) - 1
         else:
             df["vol_spread"] = np.nan
 
-        # --- Regime classification
-        high_thr, low_thr = regime_thresholds
+        # --- 3. Cross-sectional ranks (strength & direction)
+        df["xsec_rank"] = df.groupby("horizon")["vol_zscore"].rank(pct=True)
+        df["signal_strength"] = (df["xsec_rank"] - 0.5) * 2
 
-        def _regime(v):
-            if v > high_thr:
-                return "spike"
-            elif v < low_thr:
-                return "calm"
-            else:
-                return "normal"
+        # --- 4. Regime flags based on z-score thresholds
+        df["regime_flag"] = pd.cut(
+            df["vol_zscore"],
+            bins=[-np.inf, -1.0, 1.0, np.inf],
+            labels=["calm", "normal", "spike"],
+        )
 
-        df["regime_flag"] = df["vol_zscore"].apply(_regime)
+        # --- 5. Sector enrichments
+        if enrich_with_sectors:
+            df = self._attach_sector(df)
+            df = self._sector_rollups(df)
 
-        # --- Cross-sectional normalization and signal strength
-        if cross_sectional:
-            df["xsec_rank"] = df.groupby(["date", "horizon"])["vol_zscore"].rank(pct=True)
-            df["signal_strength"] = (df["xsec_rank"] - 0.5) * 2  # scale [-1,1]
-        else:
-            df["signal_strength"] = df["vol_zscore"].clip(-3, 3) / 3
+        # --- 6. Position Classification
+        df["position"] = pd.cut(
+            df["vol_zscore"],
+            bins=[-np.inf, -1.0, 1.0, np.inf],
+            labels=["long", "neutral", "short"],
+        )
 
         self.signals = df
         return df
 
-        # End compute_signals
+    # ============================================================
+    # 🔹 Sector Utilities
+    # ============================================================
+    def _attach_sector(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Attach sector tags using model-specific sector map."""
+        df["sector"] = df["ticker"].map(self.sector_map).fillna("Unknown")
+        return df
+
+    def _sector_rollups(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Compute sector-level mean, std, and z-score (cross-sectional snapshot)."""
+        grp = df.groupby(["horizon", "sector"])["forecast_vol"]
+        agg = grp.agg(["mean", "std", "median"]).reset_index().rename(
+            columns={
+                "mean": "sector_mean",
+                "std": "sector_std",
+                "median": "sector_median",
+            }
+        )
+        df = df.merge(agg, on=["horizon", "sector"], how="left")
+
+        # --- Cross-sectional sector z-score (snapshot mode) ---
+        # Measures how each sector's average forecast volatility compares
+        # to all other sectors *on the same day*, not over time.
+        # --- Cross-sectional sector z-score per horizon (snapshot mode) ---
+        # Measures how each sector's average forecast volatility compares
+        # to all other sectors *within the same horizon* on this day.
+        sector_summary = (
+            df.groupby(["horizon", "sector"])["sector_mean"]
+            .mean()
+            .reset_index()
+        )
+        sector_summary["sector_z"] = sector_summary.groupby("horizon")["sector_mean"].transform(
+            lambda s: (s - s.mean()) / (s.std(ddof=0) + 1e-9)
+        )
+        df = df.merge(sector_summary[["horizon", "sector", "sector_z"]], on=["horizon", "sector"], how="left")
+
+
+        # Within-sector & universe ranks
+        df["rank_sector"] = df.groupby(["horizon", "sector"])["forecast_vol"].rank(pct=True)
+        df["rank_universe"] = df.groupby(["horizon"])["forecast_vol"].rank(pct=True)
+        return df
 
     # ============================================================
-    # 🔹 Query Utilities
+    # 🔹 Visualization
     # ============================================================
-    def top_signals(
-        self,
-        horizon: int = 5,
-        n: int = 10,
-        direction: str = "long",
-        date: Optional[pd.Timestamp] = None,
-    ) -> pd.DataFrame:
-        """
-        Retrieve strongest volatility signals for a given horizon.
-
-        Parameters
-        ----------
-        horizon : int
-            Forecast horizon to filter (e.g., 1, 5, 10).
-        n : int
-            Number of top signals to return.
-        direction : {"long","short"}
-        date : Timestamp, optional
-            Specific date to filter. Defaults to last date available.
-        """
+    def plot_sector_heatmap(self, date: Optional[pd.Timestamp] = None):
+        """Visualizes sector z-scores as a heatmap by horizon."""
         if self.signals is None:
-            self.compute_signals()
-
-        dfh = self.signals[self.signals["horizon"] == horizon].copy()
-
-        # Pick last available day or user-specified date
+            raise RuntimeError("Run .compute_signals() first.")
+        df = self.signals.copy()
         if date is None:
-            latest_date = dfh["date"].max()
-            dfh = dfh[dfh["date"] == latest_date]
-        else:
-            dfh = dfh[dfh["date"] == pd.to_datetime(date)]
+            date = df["date"].max()
+        dsub = df[df["date"] == pd.to_datetime(date)]
 
-        # Rank by signal direction
-        if direction == "long":
-            out = dfh.sort_values("signal_strength", ascending=False).head(n)
-        else:
-            out = dfh.sort_values("signal_strength", ascending=True).head(n)
+        pivot = (
+            dsub.pivot_table(
+                index="sector", columns="horizon", values="sector_z", aggfunc="mean"
+            )
+            .fillna(0)
+            .sort_index()
+        )
 
-        return out[
-            ["date", "ticker", "horizon", "forecast_vol", "vol_zscore",
-             "vol_momentum", "vol_spread", "signal_strength", "regime_flag"]
-        ]
+        plt.figure(figsize=(10, 6))
+        sns.heatmap(
+            pivot,
+            cmap="coolwarm",
+            center=0,
+            annot=True,
+            fmt=".2f",
+            cbar_kws={"label": "Sector Z-score"},
+        )
+        plt.title(f"Sector Volatility Heatmap ({pd.to_datetime(date).date()})")
+        plt.tight_layout()
+        plt.show()
 
-    def export(self, path: str):
-        """Save computed signals to CSV."""
+    def plot_top_sectors(
+        self, horizon: int = 5, date: Optional[pd.Timestamp] = None, top_n: int = 8
+    ):
+        """Displays top sectors by mean sector z-score."""
         if self.signals is None:
-            raise RuntimeError("Compute signals first using .compute_signals()")
-        self.signals.to_csv(path, index=False)
-
-    # ============================================================
-    # 🔹 Visualization Hooks (Optional)
-    # ============================================================
-    def plot_heatmap(self, date: Optional[pd.Timestamp] = None):
-        """
-        Plot cross-sectional volatility signal heatmap for a given date.
-        """
-
-        if self.signals is None:
-            raise RuntimeError("Compute signals first.")
-        dfh = self.signals.copy()
+            raise RuntimeError("Run .compute_signals() first.")
+        df = self.signals.copy()
         if date is None:
-            date = dfh["date"].max()
-        dfh = dfh[dfh["date"] == pd.to_datetime(date)]
+            date = df["date"].max()
+        dsub = df[df["date"] == pd.to_datetime(date)]
+        sector_stats = dsub.groupby("sector")["sector_z"].mean().sort_values(ascending=False)
+        top = sector_stats.head(top_n)
+        colors = [get_color(s) for s in top.index]
+        plt.figure(figsize=(8, 4))
+        plt.barh(top.index, top.values, color=colors)
+        plt.gca().invert_yaxis()
+        plt.title(f"Top {top_n} Sectors by Mean Z-score ({horizon}d)")
+        plt.xlabel("Mean Sector Z-score")
+        plt.tight_layout()
+        plt.show()
 
-        pivot = dfh.pivot_table(index="ticker", columns="horizon", values="signal_strength")
-        plt.figure(figsize=(10, max(6, len(pivot) / 10)))
-        sns.heatmap(pivot, cmap="coolwarm", center=0, annot=False, cbar_kws={"label": "Signal Strength"})
-        plt.title(f"Volatility Signal Heatmap | {pd.to_datetime(date).date()}")
-        plt.xlabel("Horizon (days)")
+    def sector_summary(self, date: Optional[pd.Timestamp] = None) -> pd.DataFrame:
+        """Tabular summary of per-sector volatility conditions."""
+        if self.signals is None:
+            raise RuntimeError("Run .compute_signals() first.")
+        df = self.signals.copy()
+        if date is None:
+            date = df["date"].max()
+        dsub = df[df["date"] == pd.to_datetime(date)]
+        summary = (
+            dsub.groupby("sector")
+            .agg(
+                sector_mean=("sector_mean", "mean"),
+                sector_std=("sector_std", "mean"),
+                sector_z=("sector_z", "mean"),
+            )
+            .reset_index()
+        )
+        summary["sector_color"] = summary["sector"].map(get_color)
+        summary = summary.sort_values("sector_z", ascending=False)
+        print(f"📊 Sector Summary for {pd.to_datetime(date).date()}")
+        display(summary.style.background_gradient(subset=["sector_z"], cmap="coolwarm"))
+        return summary
+
+    def plot_ticker_heatmap(self, horizon: int = 5, sector: str | None = None):
+        """Displays a cross-sectional heatmap of tickers' z-scores and positions for a given horizon."""
+        if self.signals is None:
+            raise RuntimeError("Run .compute_signals() first.")
+
+        df = self.signals.copy()
+        df = df[df["horizon"] == horizon]
+        if sector:
+            df = df[df["sector"] == sector]
+
+        pivot = df.pivot_table(index="ticker", values="vol_zscore", aggfunc="mean").sort_values("vol_zscore")
+
+        plt.figure(figsize=(8, max(6, len(pivot) * 0.25)))
+        sns.heatmap(
+            pivot,
+            cmap="coolwarm",
+            center=0,
+            annot=True,
+            fmt=".2f",
+            cbar_kws={"label": "Volatility Z-score"},
+        )
+
+        title = f"{'Sector: ' + sector if sector else 'All Sectors'} — Ticker Z-scores ({horizon}d)"
+        plt.title(title)
+        plt.xlabel("")
         plt.ylabel("Ticker")
+        plt.tight_layout()
+        plt.show()
+
+    def plot_position_counts(self, horizon: int = 5):
+        """Plots count of long/neutral/short signals across all tickers."""
+        if self.signals is None:
+            raise RuntimeError("Run .compute_signals() first.")
+
+        df = self.signals[self.signals["horizon"] == horizon]
+        counts = df["position"].value_counts().reindex(["long", "neutral", "short"]).fillna(0)
+
+        plt.figure(figsize=(6, 3))
+        sns.barplot(x=counts.index, y=counts.values, palette=["green", "gray", "red"])
+        plt.title(f"Signal Position Counts ({horizon}d)")
+        plt.ylabel("Number of Tickers")
         plt.tight_layout()
         plt.show()

@@ -36,6 +36,7 @@ class TrainConfig:
     horizons: List[int] = None
     val_start: str = None
     target_col: str = "realized_vol"
+    extra_features: list[str] | None = None
 
     batch_size: int = 128
     epochs: int = 15
@@ -278,6 +279,9 @@ def build_dataloaders(df: pd.DataFrame, cfg: TrainConfig):
 
 def train_baselstm(df: pd.DataFrame, cfg: TrainConfig):
     train_loader, val_loader, feat_cols = build_dataloaders(df, cfg)
+    setattr(cfg, "features", feat_cols)
+    setattr(cfg, "extra_features", [f for f in feat_cols if f != "return"])
+
 
     model = BaseLSTM(
         input_dim=len(feat_cols),

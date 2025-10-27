@@ -2,8 +2,7 @@
 import os
 import pandas as pd
 from pathlib import Path
-from .fetch_yf import fetch_ohlcv, compute_returns_vol
-from .multi_fetch import fetch_multi_ohlcv, build_multi_dataset
+from .fetch import fetch_ohlcv, build_dataset
 
 DATA_CACHE = Path(os.getenv("VOLSENSE_DATA", "./.volsense_cache"))
 DATA_CACHE.mkdir(parents=True, exist_ok=True)
@@ -36,8 +35,7 @@ def get_or_fetch_single(ticker: str, start="2000-01-01", end=None, use_cache=Tru
         except FileNotFoundError:
             pass
     
-    df = fetch_ohlcv(ticker, start=start, end=end)
-    df = compute_returns_vol(df, ticker=ticker)
+    df = build_dataset(ticker, start=start, end=end)
     if use_cache:
         save_to_cache(df, cache_name)
     return df
@@ -52,9 +50,8 @@ def get_or_fetch_multi(tickers, start="2000-01-01", end=None, lookback=21, use_c
             return load_from_cache(cache_name)
         except FileNotFoundError:
             pass
-    
-    raw_dict = fetch_multi_ohlcv(tickers, start=start, end=end)
-    df = build_multi_dataset(raw_dict, lookback=lookback)
+
+    df = build_dataset(tickers=tickers, window=lookback)
     if use_cache:
         save_to_cache(df, cache_name)
     return df

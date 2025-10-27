@@ -104,6 +104,13 @@ class VolSenseForecaster:
                 extra_features=self.kwargs.get("extra_features", None)
             )
             self.cfg = cfg
+
+        # Inject extra feature columns into data if necessary
+        if extra_feats is not None:
+            missing = [c for c in extra_feats if c not in data.columns]
+            if missing:
+                raise KeyError(f"Missing columns for extra_features: {missing}")
+
             self.model, self.hist, loaders = train_baselstm(data, cfg)
             self._val_loader = loaders[1]
 
@@ -115,14 +122,15 @@ class VolSenseForecaster:
             self.model.fit(ret_series)
             print(f"✅ {self.method.upper()} fit complete for {self.ticker} ({len(ret_series)} obs).")
 
-        elif self.method == "global_lstm":
-            print("🌐 Training GlobalVolForecaster...")
+        elif self.method == "global_lstm":  
+            extra_feats = self.kwargs.get("extra_features", None)
             cfg = GlobalTrainConfig(
                 window=self.kwargs.get("window", 30),
                 horizons=self.kwargs.get("horizons", [1, 5, 10]),
                 val_start=self.kwargs.get("val_start", "2023-01-01"),
                 device=self.device,
                 epochs=self.kwargs.get("epochs", 10),
+                extra_features=extra_feats,
             )
             self.cfg = cfg
             model, hist, val_loader, t2i, scalers, feats = train_global_model(data, cfg)

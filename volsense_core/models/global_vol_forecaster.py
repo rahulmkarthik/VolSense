@@ -416,6 +416,8 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
     ema_model = clone_model_like(model) if cfg.use_ema else None
     if ema_model is not None:
         ema_model.load_state_dict(model.state_dict())
+        ema_model.to(device)    # ✅ move EMA model to same device as main model
+
 
     # early stopping
     best_val = float("inf")

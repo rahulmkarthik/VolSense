@@ -1,21 +1,51 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import os
+from tqdm import tqdm
 
 
-def fetch_multi_ohlcv(tickers, start="2000-01-01", end=None):
+def fetch_multi_ohlcv(tickers, start="2000-01-01", end=None, show_progress=True, cache_dir=None):
     """
     Fetch OHLCV data for multiple tickers into a dict of normalized DataFrames.
-    Ensures:
+
     ✅ Flat columns (no MultiIndex)
     ✅ 'date' column always present
     ✅ 'Adj Close' available (fallbacks to 'Close')
-    ✅ Backward compatible with all downstream notebooks
+    ✅ tqdm progress bar for large universes
+    ✅ Optional caching to skip already-downloaded tickers
     """
     data_dict = {}
-    for ticker in tickers:
+
+    # Normalize and deduplicate tickers
+    tickers = list(dict.fromkeys([t.upper().strip() for t in tickers]))
+
+    # Ensure cache directory exists if specified
+    if cache_dir:
+        os.makedirs(cache_dir, exist_ok=True)
+
+    iterator = tqdm(tickers, desc="🌍 Fetching market data", unit="ticker") if show_progress else tickers
+
+    for ticker in iterator:
         try:
-            df = yf.download(ticker, start=start, end=end, auto_adjust=False)
+            # --- Cache handling ---
+            if cache_dir:
+                cache_path = os.path.join(cache_dir, f"{ticker}.csv")
+                if os.path.exists(cache_path):
+                    df = pd.read_csv(cache_path, parse_dates=["date"])
+                    data_dict[ticker] = df
+                    continue
+
+            # --- Fetch data quietly ---
+            df = yf.download(
+                ticker,
+                start=start,
+                end=end,
+                progress=False,  # suppress yfinance’s internal bar
+                threads=False,   # prevent overlapping stdout
+                auto_adjust=False,
+            )
+
             if df is None or df.empty:
                 print(f"⚠️ {ticker}: no data returned.")
                 continue
@@ -24,7 +54,7 @@ def fetch_multi_ohlcv(tickers, start="2000-01-01", end=None):
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
 
-            # --- Ensure 'Adj Close' column exists ---
+            # --- Ensure 'Adj Close' exists ---
             if "Adj Close" not in df.columns:
                 if "Close" in df.columns:
                     df["Adj Close"] = df["Close"]
@@ -38,14 +68,19 @@ def fetch_multi_ohlcv(tickers, start="2000-01-01", end=None):
             df = df.reset_index().rename(columns={"index": "date", "Date": "date"})
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
-            # --- Clean up names ---
+            # --- Clean up ---
             df.columns.name = None
             df.index.name = None
+
+            # --- Cache save ---
+            if cache_dir:
+                df.to_csv(cache_path, index=False)
 
             data_dict[ticker] = df
 
         except Exception as e:
             print(f"⚠️ Failed {ticker}: {e}")
+            continue
 
     return data_dict
 

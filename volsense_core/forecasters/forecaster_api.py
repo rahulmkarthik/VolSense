@@ -86,62 +86,84 @@ class VolSenseForecaster:
     # 🧠 Training
     # ============================================================
     def fit(self, data, **train_kwargs):
-        if self.method == "lstm":
-            print("🧩 Training BaseLSTM Forecaster...")
-            self.ticker = data["ticker"].iloc[0]
-            cfg = LSTMTrainConfig(
-                window=self.kwargs.get("window", 30),
-                horizons=self.kwargs.get("horizons", [1, 5, 10]),
-                val_start=self.kwargs.get("val_start", "2023-01-01"),
-                device=self.device,
-                epochs=self.kwargs.get("epochs", 20),
-                lr=self.kwargs.get("lr", 5e-4),
-                dropout=self.kwargs.get("dropout", 0.2),
-                hidden_dim=self.kwargs.get("hidden_dim", 128),
-                num_layers=self.kwargs.get("num_layers", 3),
-                output_activation="none",
-                extra_features=self.kwargs.get("extra_features", None)
-            )
-            self.cfg = cfg
-
-        # Inject extra feature columns into data if necessary
-        if extra_feats is not None:
-            missing = [c for c in extra_feats if c not in data.columns]
-            if missing:
-                raise KeyError(f"Missing columns for extra_features: {missing}")
-
-            self.model, self.hist, loaders = train_baselstm(data, cfg)
-            self._val_loader = loaders[1]
-
-        elif self.method in ["garch", "egarch", "gjr"]:
-            print(f"📈 Fitting {self.method.upper()} Forecaster...")
-            self.ticker = data["ticker"].iloc[0]
-            self.data = data.copy()
-            ret_series = data.dropna(subset=["return"]).set_index("date")["return"]
-            self.model.fit(ret_series)
-            print(f"✅ {self.method.upper()} fit complete for {self.ticker} ({len(ret_series)} obs).")
-
-        elif self.method == "global_lstm":  
             extra_feats = self.kwargs.get("extra_features", None)
-            cfg = GlobalTrainConfig(
-                window=self.kwargs.get("window", 30),
-                horizons=self.kwargs.get("horizons", [1, 5, 10]),
-                val_start=self.kwargs.get("val_start", "2023-01-01"),
-                device=self.device,
-                epochs=self.kwargs.get("epochs", 10),
-                extra_features=extra_feats,
-            )
-            self.cfg = cfg
-            model, hist, val_loader, t2i, scalers, feats = train_global_model(data, cfg)
-            self.model = model
-            self.global_ticker_to_id = t2i
-            self.global_scalers = scalers
-            self.global_window = cfg.window
-            if self.kwargs.get("global_ckpt_path"):
-                save_checkpoint(self.kwargs["global_ckpt_path"], model, t2i, scalers)
-        else:
-            raise ValueError(f"Unknown method: {self.method}")
-        return self
+
+            if self.method == "lstm":
+                print("🧩 Training BaseLSTM Forecaster...")
+                self.ticker = data["ticker"].iloc[0]
+                cfg = LSTMTrainConfig(
+                    window=self.kwargs.get("window", 30),
+                    horizons=self.kwargs.get("horizons", [1, 5, 10]),
+                    val_start=self.kwargs.get("val_start", "2023-01-01"),
+                    device=self.device,
+                    epochs=self.kwargs.get("epochs", 20),
+                    lr=self.kwargs.get("lr", 5e-4),
+                    dropout=self.kwargs.get("dropout", 0.2),
+                    hidden_dim=self.kwargs.get("hidden_dim", 128),
+                    num_layers=self.kwargs.get("num_layers", 3),
+                    output_activation="none",
+                    extra_features=extra_feats,
+                )
+                self.cfg = cfg
+
+                # Validate extra features for LSTM
+                if extra_feats is not None:
+                    missing = [c for c in extra_feats if c not in data.columns]
+                    if missing:
+                        raise KeyError(f"Missing columns for extra_features: {missing}")
+
+                self.model, self.hist, loaders = train_baselstm(data, cfg)
+                self._val_loader = loaders[1]
+                return self
+
+            elif self.method in ["garch", "egarch", "gjr"]:
+                print(f"📈 Fitting {self.method.upper()} Forecaster...")
+                # Ensure single-ticker data
+                if "ticker" in data.columns and data["ticker"].nunique() > 1:
+                    if not self.ticker:
+                        self.ticker = data["ticker"].iloc[0]
+                    data = data[data["ticker"] == self.ticker].copy()
+
+                if not self.ticker:
+                    self.ticker = data["ticker"].iloc[0]
+
+                self.data = data.copy()
+                ret_series = self.data.dropna(subset=["return"]).set_index("date")["return"]
+                self.model.fit(ret_series)
+                print(f"✅ {self.method.upper()} fit complete for {self.ticker} ({len(ret_series)} obs).")
+                return self
+
+            elif self.method == "global_lstm":
+                print("🌐 Training GlobalVolForecaster...")
+                cfg = GlobalTrainConfig(
+                    window=self.kwargs.get("window", 30),
+                    horizons=self.kwargs.get("horizons", [1, 5, 10]),
+                    val_start=self.kwargs.get("val_start", "2023-01-01"),
+                    device=self.device,
+                    epochs=self.kwargs.get("epochs", 10),
+                    extra_features=extra_feats,
+                )
+                self.cfg = cfg
+
+                # Validate extra features for Global LSTM
+                if extra_feats is not None:
+                    missing = [c for c in extra_feats if c not in data.columns]
+                    if missing:
+                        raise KeyError(f"Missing columns for extra_features: {missing}")
+
+                model, hist, val_loader, t2i, scalers, feats = train_global_model(data, cfg)
+                self.model = model
+                self.hist = hist
+                self._val_loader = val_loader
+                self.global_ticker_to_id = t2i
+                self.global_scalers = scalers
+                self.global_window = cfg.window
+                if self.kwargs.get("global_ckpt_path"):
+                    save_checkpoint(self.kwargs["global_ckpt_path"], model, t2i, scalers)
+                return self
+
+            else:
+                raise ValueError(f"Unknown method: {self.method}")
 
     # ============================================================
     # 🔮 Prediction

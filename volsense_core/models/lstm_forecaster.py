@@ -9,8 +9,12 @@ from typing import List, Tuple
 
 def collate_with_dates(batch):
     """
-    Custom collate function that ignores datetime stacking issues.
-    Keeps date arrays as a plain list instead of converting to tensors.
+    Collate function that stacks tensors and keeps Python datetime objects as a list.
+
+    :param batch: Iterable of (X, y, date) triplets produced by the Dataset.
+    :type batch: list[tuple[torch.Tensor, torch.Tensor, pandas.Timestamp]]
+    :return: Tuple of stacked tensors and a list of dates: (X_batch, y_batch, dates).
+    :rtype: tuple[torch.Tensor, torch.Tensor, list]
     """
     xs, ys, dates = zip(*batch)  # unpack triplets
     xs = torch.stack(xs)
@@ -24,13 +28,48 @@ def collate_with_dates(batch):
 @dataclass
 class TrainConfig:
     """
-    Configuration for BaseLSTM training.
+    Training configuration for BaseLSTM.
 
-    Notes:
-    - Targets are standardized inside the Dataset using train set stats
-      (y_mean, y_std). These are copied back onto cfg and reused by val/test.
-    - For non-negative outputs (when NOT standardizing, e.g. raw vols),
-      set output_activation="softplus". With standardized targets, use "none".
+    :param window: Rolling lookback window length (timesteps).
+    :type window: int
+    :param horizons: Forecast horizons (e.g., [1, 5, 10]).
+    :type horizons: list[int]
+    :param val_start: Validation set start date (inclusive, YYYY-MM-DD).
+    :type val_start: str
+    :param target_col: Target column name to predict.
+    :type target_col: str
+    :param extra_features: Additional feature names beyond 'return' to include.
+    :type extra_features: list[str], optional
+    :param batch_size: Mini-batch size for DataLoader.
+    :type batch_size: int
+    :param epochs: Number of training epochs.
+    :type epochs: int
+    :param lr: Learning rate.
+    :type lr: float
+    :param weight_decay: L2 weight decay.
+    :type weight_decay: float
+    :param device: Compute device ('cpu' or 'cuda').
+    :type device: str
+    :param dropout: Dropout probability used in model modules.
+    :type dropout: float
+    :param hidden_dim: LSTM hidden size.
+    :type hidden_dim: int
+    :param num_layers: Number of stacked LSTM layers.
+    :type num_layers: int
+    :param use_layernorm: Whether to apply LayerNorm to LSTM outputs.
+    :type use_layernorm: bool
+    :param use_attention: Whether to apply self-attention over LSTM outputs.
+    :type use_attention: bool
+    :param feat_dropout_p: Feature-wise dropout probability at input.
+    :type feat_dropout_p: float
+    :param residual_head: Whether to add a residual linear projection to outputs.
+    :type residual_head: bool
+    :param output_activation: Output activation ('none' | 'softplus' | 'relu').
+    :type output_activation: str
+    :param num_workers: DataLoader workers.
+    :type num_workers: int
+    :param pin_memory: DataLoader pin_memory flag.
+    :type pin_memory: bool
     """
     window: int = 30
     horizons: List[int] = None
@@ -74,6 +113,20 @@ class MultiVolDataset(Dataset):
         • Builds rolling windows of length `cfg.window` with multi-horizon labels
     """
     def __init__(self, df: pd.DataFrame, cfg: TrainConfig, scaler: StandardScaler = None):
+        """
+        Build a rolling-window dataset and (optionally) fit a StandardScaler on features.
+
+        :param df: Long-form DataFrame sorted or sortable by ['ticker','date'] with features and target.
+        :type df: pandas.DataFrame
+        :param cfg: Training configuration (window, horizons, target_col, etc.).
+        :type cfg: TrainConfig
+        :param scaler: Optional pre-fitted StandardScaler (use None for training split to fit).
+        :type scaler: sklearn.preprocessing.StandardScaler, optional
+        :raises KeyError: If required 'date' or 'ticker' columns are missing.
+        :raises ValueError: If there are not enough rows to form at least one sample.
+        :return: None
+        :rtype: None
+        """
         df = df.copy()
 
         if "date" not in df.columns:
@@ -151,9 +204,26 @@ class MultiVolDataset(Dataset):
                 self.sample_dates.append(last_date)
 
     def __len__(self) -> int:
+        """
+        Number of samples (rolling windows) in the dataset.
+
+        :return: Count of samples.
+        :rtype: int
+        """
         return len(self.samples)
 
     def __getitem__(self, idx):
+        """
+        Get a single sample containing features, labels, and the window end date.
+
+        :param idx: Sample index.
+        :type idx: int
+        :return: Tuple (X_window, y_horizons, date) where:
+                 - X_window: torch.FloatTensor of shape [window, features]
+                 - y_horizons: torch.FloatTensor of shape [H] or scalar when H=1
+                 - date: pandas.Timestamp of the last row in the window
+        :rtype: tuple[torch.Tensor, torch.Tensor, pandas.Timestamp]
+        """
         X, y_vals = self.samples[idx]
         date = self.sample_dates[idx]
         y = torch.tensor(y_vals, dtype=torch.float32)
@@ -168,10 +238,24 @@ class MultiVolDataset(Dataset):
 class FeatureDropout(nn.Module):
     """Feature-wise dropout mask shared across time steps (stochastic feature erasing)."""
     def __init__(self, p: float = 0.1):
+        """
+        Initialize FeatureDropout.
+
+        :param p: Drop probability for feature channels (0 <= p < 1).
+        :type p: float
+        """
         super().__init__()
         self.p = p
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Apply channel-wise dropout with a single mask per sample across time.
+
+        :param x: Input tensor of shape [B, W, F].
+        :type x: torch.Tensor
+        :return: Tensor with dropped channels, scaled by 1/(1-p) during training.
+        :rtype: torch.Tensor
+        """
         if not self.training or self.p <= 0:
             return x
         B, W, F = x.shape
@@ -199,6 +283,30 @@ class BaseLSTM(nn.Module):
         residual_head: bool = True,
         output_activation: str = "none",  # "none" | "softplus" | "relu"
     ):
+        """
+        Initialize BaseLSTM backbone and heads.
+
+        :param input_dim: Number of input features per timestep.
+        :type input_dim: int
+        :param hidden_dim: LSTM hidden size.
+        :type hidden_dim: int
+        :param num_layers: Number of stacked LSTM layers.
+        :type num_layers: int
+        :param dropout: Dropout probability used in LSTM and MLP head.
+        :type dropout: float
+        :param n_horizons: Number of output horizons.
+        :type n_horizons: int
+        :param use_layernorm: Apply LayerNorm to LSTM outputs.
+        :type use_layernorm: bool
+        :param use_attention: Apply MultiheadAttention over LSTM outputs.
+        :type use_attention: bool
+        :param feat_dropout_p: Feature-wise input dropout probability.
+        :type feat_dropout_p: float
+        :param residual_head: Add residual linear projection to outputs.
+        :type residual_head: bool
+        :param output_activation: Output activation ('none' | 'softplus' | 'relu').
+        :type output_activation: str
+        """
         super().__init__()
         self.use_attention = use_attention
         self.residual_head = residual_head
@@ -233,6 +341,14 @@ class BaseLSTM(nn.Module):
             self.out_act = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through feature-dropout, LSTM, optional attention, and heads.
+
+        :param x: Input tensor of shape [B, W, F].
+        :type x: torch.Tensor
+        :return: Predictions of shape [B, H] (or [B] when H==1).
+        :rtype: torch.Tensor
+        """
         x = self.feat_dropout(x)
         out, _ = self.lstm(x)
         if self.attn is not None:
@@ -250,6 +366,16 @@ class BaseLSTM(nn.Module):
 # 4) Training / evaluation utilities
 # ============================================================
 def build_splits(df: pd.DataFrame, cfg: TrainConfig) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Split a DataFrame into train/validation sets by date.
+
+    :param df: Input feature DataFrame with a 'date' column.
+    :type df: pandas.DataFrame
+    :param cfg: Training configuration with 'val_start'.
+    :type cfg: TrainConfig
+    :return: Tuple of (train_df, val_df).
+    :rtype: tuple[pandas.DataFrame, pandas.DataFrame]
+    """
     val_start = pd.to_datetime(cfg.val_start)
     train_df = df[df["date"] < val_start].copy()
     val_df = df[df["date"] >= val_start].copy()
@@ -257,6 +383,16 @@ def build_splits(df: pd.DataFrame, cfg: TrainConfig) -> Tuple[pd.DataFrame, pd.D
 
 
 def build_dataloaders(df: pd.DataFrame, cfg: TrainConfig):
+    """
+    Create training and validation DataLoaders and return feature columns.
+
+    :param df: Input feature DataFrame.
+    :type df: pandas.DataFrame
+    :param cfg: Training configuration (window, horizons, batch size, etc.).
+    :type cfg: TrainConfig
+    :return: (train_loader, val_loader, feature_columns)
+    :rtype: tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, list[str]]
+    """
     train_df, val_df = build_splits(df, cfg)
 
     train_ds = MultiVolDataset(train_df, cfg)
@@ -278,6 +414,16 @@ def build_dataloaders(df: pd.DataFrame, cfg: TrainConfig):
 
 
 def train_baselstm(df: pd.DataFrame, cfg: TrainConfig):
+    """
+    Train the BaseLSTM model and return the model, history, and loaders.
+
+    :param df: Input feature DataFrame with required columns and target.
+    :type df: pandas.DataFrame
+    :param cfg: Training configuration.
+    :type cfg: TrainConfig
+    :return: Tuple (model, history, (train_loader, val_loader)).
+    :rtype: tuple[torch.nn.Module, dict[str, list[float]], tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]]
+    """
     train_loader, val_loader, feat_cols = build_dataloaders(df, cfg)
     setattr(cfg, "features", feat_cols)
     setattr(cfg, "extra_features", [f for f in feat_cols if f != "return"])
@@ -366,16 +512,21 @@ def train_baselstm(df: pd.DataFrame, cfg: TrainConfig):
 
 def evaluate_baselstm(model: nn.Module, loader: DataLoader, cfg: TrainConfig, device: str = "cpu"):
     """
-    Evaluate model on a DataLoader and return **de-standardized** predictions and targets.
+    Evaluate model on a DataLoader and return de-standardized arrays.
 
-    If cfg was trained with standardization (y_mean/y_std set), this function
-    converts both preds and actuals back to the original volatility scale.
+    If cfg contains y_mean/y_std (set during training), both predictions and targets
+    are transformed back to the original volatility scale.
 
-    Returns
-    -------
-    preds : np.ndarray, shape (N, H)
-    actuals : np.ndarray, shape (N, H)
-    dates : np.ndarray of pd.Timestamp for chronological plotting
+    :param model: Trained PyTorch model to evaluate.
+    :type model: torch.nn.Module
+    :param loader: DataLoader providing batches from the evaluation split.
+    :type loader: torch.utils.data.DataLoader
+    :param cfg: Training config containing target standardization stats.
+    :type cfg: TrainConfig
+    :param device: Compute device for inference ('cpu' or 'cuda').
+    :type device: str
+    :return: Tuple of (preds, actuals) each shaped (N, H).
+    :rtype: tuple[numpy.ndarray, numpy.ndarray]
     """
     model.eval()
     preds, actuals, dates = [], [], []
@@ -412,27 +563,22 @@ def standardize_outputs(
     horizons=None,
 ):
     """
-    Standardizes model outputs for evaluation/backtesting.
+    Standardize model outputs for evaluation/backtesting.
 
-    Parameters
-    ----------
-    dates : list or array
-        Forecast or validation dates.
-    tickers : list or array
-        Corresponding tickers.
-    forecast_vols : np.ndarray
-        Model-predicted volatilities, shape (N, H) or (N,).
-    realized_vols : np.ndarray or list, optional
-        True realized volatilities (same shape as forecast_vols).
-    model_name : str
-        Model identifier, e.g. 'BaseLSTM', 'GlobalVolForecaster', 'ARCHForecaster'.
-    horizons : list[int] or None
-        Forecast horizons, e.g. [1,5,10]. Defaults to range(H) if not provided.
-
-    Returns
-    -------
-    pd.DataFrame
-        Columns: ['date','ticker','horizon','forecast_vol','realized_vol','model']
+    :param dates: Forecast or validation dates aligned to rows in forecast_vols.
+    :type dates: list or numpy.ndarray
+    :param tickers: Ticker symbols aligned to rows in forecast_vols.
+    :type tickers: list or numpy.ndarray
+    :param forecast_vols: Predicted volatilities, shape (N, H) or (N,).
+    :type forecast_vols: numpy.ndarray
+    :param realized_vols: True realized volatilities with same shape as forecast_vols; use None if unavailable.
+    :type realized_vols: numpy.ndarray or None
+    :param model_name: Model identifier to annotate outputs.
+    :type model_name: str
+    :param horizons: Forecast horizons (e.g., [1,5,10]); defaults to 1..H if None.
+    :type horizons: list[int] or None
+    :return: DataFrame with columns ['date','ticker','horizon','forecast_vol','realized_vol','model'].
+    :rtype: pandas.DataFrame
     """
 
     dates = np.asarray(dates)

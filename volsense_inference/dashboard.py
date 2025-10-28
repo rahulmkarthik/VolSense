@@ -87,7 +87,7 @@ with st.sidebar:
     checkpoints_dir = st.text_input("Checkpoints directory", value="models")
     default_tickers = "AAPL, MSFT, NVDA, TSLA, JPM, XOM, TLT, GLD, SPY, QQQ"
     tickers_str = st.text_area("Tickers (comma-separated)", value=default_tickers, height=90)
-    start_date = st.date_input("Start fetch (for features)", value=date(2015,1,1))
+    start_date = st.date_input("Start fetch (for features)", value=date(2005,1,1))
     run_btn = st.button("🚀 Run Forecasts", type="primary", use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────────────────────

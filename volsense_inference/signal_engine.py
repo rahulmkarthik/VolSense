@@ -28,8 +28,17 @@ from volsense_inference.sector_mapping import get_sector_map, get_color
 # ============================================================
 def _coerce_to_long(df_in: pd.DataFrame) -> pd.DataFrame:
     """
-    Converts wide or standardized forecast DataFrame to canonical format:
-        ['date', 'ticker', 'horizon', 'forecast_vol', 'today_vol']
+    Coerce forecast inputs to the canonical snapshot format.
+
+    Accepts either:
+      1) Long standardized format with ['ticker','horizon','forecast_vol',('today_vol'| 'realized_vol'), 'date']
+      2) Wide format from ForecastEngine with ['ticker','pred_vol_<H>', ... , ('realized_vol'), ('date')]
+
+    :param df_in: Input forecast DataFrame in long or wide format.
+    :type df_in: pandas.DataFrame
+    :raises ValueError: If the input columns do not match supported formats.
+    :return: DataFrame with columns ['date','ticker','horizon','forecast_vol','today_vol'].
+    :rtype: pandas.DataFrame
     """
     df = df_in.copy()
     df.columns = [c.lower() for c in df.columns]
@@ -65,11 +74,38 @@ def _coerce_to_long(df_in: pd.DataFrame) -> pd.DataFrame:
 # ============================================================
 class SignalEngine:
     """
-    Converts forecast snapshots into standardized volatility signals.
-    Works on a single as-of date across multiple tickers and horizons.
+    Snapshot signal processor for cross-sectional and sector intelligence.
+
+    Converts a one-day, multi-ticker forecast table into z-scores, spreads,
+    ranks, regime flags, and sector-relative statistics.
+
+    :param data: Optional forecast DataFrame to initialize and standardize.
+    :type data: pandas.DataFrame, optional
+    :param model_version: Sector-map key ('v109' or 'v509') used for enrichment.
+    :type model_version: str
+
+    :ivar df: Canonical input DataFrame after coercion.
+    :vartype df: pandas.DataFrame | None
+    :ivar signals: Computed signal DataFrame after compute_signals().
+    :vartype signals: pandas.DataFrame | None
+    :ivar sector_map: Mapping of ticker to sector label for the chosen universe.
+    :vartype sector_map: dict[str, str]
     """
 
     def __init__(self, data: Optional[pd.DataFrame] = None, model_version: str = "v109"):
+        """
+        Initialize the SignalEngine with optional snapshot data.
+
+        When data is provided, it is immediately standardized to the canonical
+        long format via set_data(). The sector map is loaded based on model_version.
+
+        :param data: Optional forecast snapshot in wide or standardized long format.
+        :type data: pandas.DataFrame, optional
+        :param model_version: Sector-map key ('v109' for compact universe, 'v509' for extended).
+        :type model_version: str
+        :return: None
+        :rtype: None
+        """
         self.df: Optional[pd.DataFrame] = None
         self.signals: Optional[pd.DataFrame] = None
         self.model_version = model_version
@@ -79,7 +115,14 @@ class SignalEngine:
             self.set_data(data)
 
     def set_data(self, data: pd.DataFrame):
-        """Standardize input."""
+        """
+        Standardize and register a forecast snapshot.
+
+        :param data: Input forecast table in wide or standardized long format.
+        :type data: pandas.DataFrame
+        :return: None
+        :rtype: None
+        """
         df_long = _coerce_to_long(data)
         df_long["ticker"] = df_long["ticker"].astype(str)
         df_long["date"] = pd.to_datetime(df_long["date"])
@@ -92,10 +135,22 @@ class SignalEngine:
         decimals: int = 4,
     ) -> str:
         """
-        Returns a human-readable summary string for a single ticker across selected horizons.
+        Create a human-readable summary for a ticker across horizons.
 
-        Example:
-            print(engine.ticker_summary("AAPL", horizons=[1,5,10]))
+        Includes forecast level, today's realized vol, percent spread,
+        z-score, position, regime, sector z-score, and universe rank.
+
+        :param ticker: Ticker symbol to summarize.
+        :type ticker: str
+        :param horizons: Subset of horizons to include; defaults to all present.
+        :type horizons: list[int] | None
+        :param date: Snapshot date; defaults to the max date in signals.
+        :type date: pandas.Timestamp | None
+        :param decimals: Decimal precision for displayed values.
+        :type decimals: int
+        :return: Multi-line summary string for the selected ticker.
+        :rtype: str
+        :raises RuntimeError: If compute_signals() has not been called.
         """
         if self.signals is None:
             raise RuntimeError("Run .compute_signals() first.")
@@ -150,7 +205,21 @@ class SignalEngine:
     # ============================================================
     def compute_signals(self, enrich_with_sectors: bool = True) -> pd.DataFrame:
         """
-        Computes cross-sectional volatility signals and optional sector enrichment.
+        Compute cross-sectional signals from the snapshot.
+
+        Derives per-horizon:
+          - vol_zscore: Cross-sectional z-score of forecast_vol
+          - vol_spread: (forecast_vol / today_vol) - 1 when today_vol is available
+          - xsec_rank: Percentile rank by horizon
+          - signal_strength: Rescaled rank in [-1, 1]
+          - regime_flag: {'calm','normal','spike'} by z-score thresholds
+          - (optional) sector-level rollups and z-scores
+
+        :param enrich_with_sectors: If True, attach sector labels and sector stats.
+        :type enrich_with_sectors: bool
+        :raises RuntimeError: If no data has been loaded via set_data().
+        :return: Signal-enriched DataFrame aligned to the canonical schema.
+        :rtype: pandas.DataFrame
         """
         if self.df is None:
             raise RuntimeError("No data loaded into SignalEngine.")
@@ -199,12 +268,32 @@ class SignalEngine:
     # 🔹 Sector Utilities
     # ============================================================
     def _attach_sector(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Attach sector tags using model-specific sector map."""
+        """
+        Attach sector labels to each row using the configured sector map.
+
+        :param df: Canonical snapshot DataFrame.
+        :type df: pandas.DataFrame
+        :return: DataFrame with a new 'sector' column.
+        :rtype: pandas.DataFrame
+        """
         df["sector"] = df["ticker"].map(self.sector_map).fillna("Unknown")
         return df
 
     def _sector_rollups(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Compute sector-level mean, std, and z-score (cross-sectional snapshot)."""
+        """
+        Compute sector-level aggregates and cross-sectional sector z-scores.
+
+        Adds:
+          - sector_mean, sector_std, sector_median of forecast_vol per (horizon, sector)
+          - sector_z: z-score of sector_mean across sectors within each horizon
+          - rank_sector: within-sector rank of forecast_vol
+          - rank_universe: across-universe rank of forecast_vol per horizon
+
+        :param df: Snapshot DataFrame enriched with 'sector'.
+        :type df: pandas.DataFrame
+        :return: DataFrame augmented with sector rollup statistics.
+        :rtype: pandas.DataFrame
+        """
         grp = df.groupby(["horizon", "sector"])["forecast_vol"]
         agg = grp.agg(["mean", "std", "median"]).reset_index().rename(
             columns={
@@ -241,7 +330,15 @@ class SignalEngine:
     # 🔹 Visualization
     # ============================================================
     def plot_sector_heatmap(self, date: Optional[pd.Timestamp] = None):
-        """Visualizes sector z-scores as a heatmap by horizon."""
+        """
+        Plot a heatmap of sector z-scores by horizon for a snapshot date.
+
+        :param date: Snapshot date to visualize; defaults to max available date.
+        :type date: pandas.Timestamp, optional
+        :return: None
+        :rtype: None
+        :raises RuntimeError: If compute_signals() has not been called.
+        """
         if self.signals is None:
             raise RuntimeError("Run .compute_signals() first.")
         df = self.signals.copy()
@@ -273,7 +370,19 @@ class SignalEngine:
     def plot_top_sectors(
         self, horizon: int = 5, date: Optional[pd.Timestamp] = None, top_n: int = 8
     ):
-        """Displays top sectors by mean sector z-score."""
+        """
+        Plot top-N sectors ranked by mean sector z-score.
+
+        :param horizon: Horizon to label in the plot title (for context only).
+        :type horizon: int
+        :param date: Snapshot date; defaults to max available date.
+        :type date: pandas.Timestamp, optional
+        :param top_n: Number of sectors to display.
+        :type top_n: int
+        :return: None
+        :rtype: None
+        :raises RuntimeError: If compute_signals() has not been called.
+        """
         if self.signals is None:
             raise RuntimeError("Run .compute_signals() first.")
         df = self.signals.copy()
@@ -292,7 +401,15 @@ class SignalEngine:
         plt.show()
 
     def sector_summary(self, date: Optional[pd.Timestamp] = None) -> pd.DataFrame:
-        """Tabular summary of per-sector volatility conditions."""
+        """
+        Produce a tabular summary of sector conditions for a snapshot date.
+
+        :param date: Snapshot date; defaults to max available date.
+        :type date: pandas.Timestamp, optional
+        :return: DataFrame with columns ['sector','sector_mean','sector_std','sector_z','sector_color'].
+        :rtype: pandas.DataFrame
+        :raises RuntimeError: If compute_signals() has not been called.
+        """
         if self.signals is None:
             raise RuntimeError("Run .compute_signals() first.")
         df = self.signals.copy()
@@ -315,7 +432,17 @@ class SignalEngine:
         return summary
 
     def plot_ticker_heatmap(self, horizon: int = 5, sector: str | None = None):
-        """Displays a cross-sectional heatmap of tickers' z-scores and positions for a given horizon."""
+        """
+        Plot a heatmap of ticker z-scores for a given horizon (optionally by sector).
+
+        :param horizon: Forecast horizon to visualize.
+        :type horizon: int
+        :param sector: Optional sector filter.
+        :type sector: str | None
+        :return: None
+        :rtype: None
+        :raises RuntimeError: If compute_signals() has not been called.
+        """
         if self.signals is None:
             raise RuntimeError("Run .compute_signals() first.")
 
@@ -344,7 +471,15 @@ class SignalEngine:
         plt.show()
 
     def plot_position_counts(self, horizon: int = 5):
-        """Plots count of long/neutral/short signals across all tickers."""
+        """
+        Plot counts of long/neutral/short positions across tickers for a horizon.
+
+        :param horizon: Forecast horizon to summarize.
+        :type horizon: int
+        :return: None
+        :rtype: None
+        :raises RuntimeError: If compute_signals() has not been called.
+        """
         if self.signals is None:
             raise RuntimeError("Run .compute_signals() first.")
 

@@ -14,6 +14,41 @@ from volsense_inference.analytics import Analytics
 class Forecast:
     """
     High-level runtime interface for volatility forecasting and visualization.
+
+    Orchestrates:
+      - recent data fetch and feature engineering aligned to the trained model,
+      - batched inference for one or more tickers,
+      - attachment of realized volatility for the snapshot date,
+      - light analytics and plotting helpers.
+
+    Attributes
+    ----------
+    model_version : str
+        Version tag of the pretrained model assets to load.
+    checkpoints_dir : str
+        Directory containing model checkpoints and metadata.
+    start : str
+        Earliest date used when fetching recent data to build features.
+    model : object
+        Loaded model ready for batch prediction.
+    meta : dict
+        Model metadata (e.g., horizons, window).
+    scalers : dict
+        Per-ticker scalers used during training.
+    ticker_to_id : dict
+        Mapping of ticker symbols to integer IDs.
+    features : list[str]
+        Feature columns expected by the model.
+    window : int
+        Input window length used by the model.
+    vol_window : int
+        Lookback window for realized volatility computation in feature prep.
+    horizons : list[int]
+        Forecast horizons supported by the model.
+    predictions : pandas.DataFrame | None
+        Last forecast snapshot produced by run().
+    signals : Analytics
+        Analytics helper attached after run().
     """
 
     def __init__(
@@ -22,6 +57,16 @@ class Forecast:
         checkpoints_dir: str = "models",
         start: str = "2005-01-01",
     ):
+        """
+        Initialize the Forecast runtime by loading pretrained assets.
+
+        :param model_version: Model version tag to load (e.g., 'v109').
+        :type model_version: str
+        :param checkpoints_dir: Directory containing model checkpoints and metadata.
+        :type checkpoints_dir: str
+        :param start: Start date for fetching recent data to build features.
+        :type start: str
+        """
         print(f"🚀 Initializing VolSense.Forecast (model={model_version})")
         self.model_version = model_version
         self.checkpoints_dir = checkpoints_dir
@@ -48,6 +93,18 @@ class Forecast:
     # Data & Forecasting
     # ------------------------------------------------------------------
     def _prepare_data(self, tickers):
+        """
+        Build a recent, feature-engineered dataset aligned to the trained model.
+
+        Steps:
+          1) Fetch recent OHLCV and compute realized volatility with the model's vol_window.
+          2) Apply feature engineering to match training-time feature schema.
+
+        :param tickers: Single ticker or list of tickers to prepare data for.
+        :type tickers: str or list[str]
+        :return: Recent feature DataFrame used for inference.
+        :rtype: pandas.DataFrame
+        """
         df_recent = build_dataset(
             tickers=tickers,
             start=self.start,
@@ -62,6 +119,17 @@ class Forecast:
         return df_recent
 
     def run(self, tickers):
+        """
+        Generate multi-horizon forecasts for one or more tickers.
+
+        Prepares recent data, runs batched predictions, attaches realized volatility,
+        and computes cross-sectional analytics for convenience.
+
+        :param tickers: Ticker symbol or list of symbols to forecast.
+        :type tickers: str or list[str]
+        :return: Forecast snapshot with columns like ['ticker','pred_vol_1','pred_vol_5',...,'realized_vol'].
+        :rtype: pandas.DataFrame
+        """
         tickers = [tickers] if isinstance(tickers, str) else tickers
         print(f"\n🌍 Running forecasts for {len(tickers)} tickers...\n")
 
@@ -86,14 +154,26 @@ class Forecast:
 
 
     def plot(self, ticker: str, show_vix: bool = False, vix_df: pd.DataFrame = None, show: bool = True):
-        """Plots realized vs predicted volatility for a given ticker.
+        """
+        Plot realized volatility history and overlay constant forecast levels by horizon.
 
-        Args:
-            ticker: Ticker symbol to plot.
-            show_vix: Overlay VIX if True and vix_df provided.
-            vix_df: DataFrame with columns ['date','close'] for VIX.
-            show: If True, call plt.show() inside and close the figure (return None).
-                  If False, return the Figure and do not show.
+        Draws:
+          - Realized volatility time series for recent months.
+          - Horizontal dashed lines for each available predicted horizon.
+          - Optional VIX overlay if provided.
+
+        :param ticker: Ticker symbol to visualize.
+        :type ticker: str
+        :param show_vix: Whether to overlay VIX time series (requires vix_df).
+        :type show_vix: bool
+        :param vix_df: DataFrame with columns ['date','close'] representing VIX levels.
+        :type vix_df: pandas.DataFrame, optional
+        :param show: If True, render the plot and return None; if False, return the Figure.
+        :type show: bool
+        :raises RuntimeError: If .run() has not been called prior to plotting.
+        :raises ValueError: If no forecast results are available for the requested ticker.
+        :return: Matplotlib Figure when show=False; otherwise None.
+        :rtype: matplotlib.figure.Figure or None
         """
         if self.predictions is None:
             raise RuntimeError("No forecasts computed yet. Run .run(ticker) first.")

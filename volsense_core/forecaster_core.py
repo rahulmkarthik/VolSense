@@ -31,8 +31,22 @@ __all__ = ["VolSenseForecaster"]
 # ============================================================
 def make_forecast_df(preds, actuals, dates, tickers, horizons, model_name):
     """
-    Vectorized creation of forecast DataFrame for all tickers and horizons.
-    All inputs are aligned NumPy arrays or Pandas Series.
+    Build a standardized forecast-evaluation DataFrame across horizons and tickers.
+
+    :param preds: Predicted volatilities with shape (n_samples, n_horizons) on realized scale.
+    :type preds: numpy.ndarray or pandas.DataFrame
+    :param actuals: Realized future volatilities with shape (n_samples, n_horizons); use None if unavailable.
+    :type actuals: numpy.ndarray or pandas.DataFrame or None
+    :param dates: As-of dates aligned to rows in preds/actuals (length n_samples).
+    :type dates: array-like of datetime-like
+    :param tickers: Ticker identifiers aligned to rows in preds/actuals (length n_samples).
+    :type tickers: array-like of str
+    :param horizons: Forecast horizons corresponding to columns in preds/actuals (length n_horizons).
+    :type horizons: list[int] or tuple[int, ...]
+    :param model_name: Name of the model generating forecasts.
+    :type model_name: str
+    :return: Tidy DataFrame with columns ['asof_date','date','ticker','horizon','forecast_vol','realized_vol','model'].
+    :rtype: pandas.DataFrame
     """
     records = []
     for h_idx, h in enumerate(horizons):
@@ -62,6 +76,22 @@ class VolSenseForecaster:
     """
 
     def __init__(self, method="lstm", device="cpu", mode="eval", **kwargs):
+        """
+        Initialize a VolSense forecaster wrapper for the chosen method.
+
+        :param method: Forecasting backend to use: 'lstm', 'global_lstm', 'garch', 'egarch', or 'gjr'.
+        :type method: str
+        :param device: Compute device for neural models, e.g., 'cpu' or 'cuda'.
+        :type device: str
+        :param mode: Default prediction mode, typically 'eval' (historical backtest).
+        :type mode: str
+        :param kwargs: Additional method-specific configuration:
+            - LSTM/global: window, horizons, epochs, lr, dropout, hidden_dim, num_layers, val_start, extra_features
+            - Global only: global_ckpt_path
+            - GARCH family: p, q, o (GJR only), dist
+            - Common: ticker (to pin a single ticker if needed)
+        :type kwargs: dict
+        """
         self.method = method.lower()
         self.device = device
         self.mode = mode
@@ -86,31 +116,46 @@ class VolSenseForecaster:
     # 🧠 Training
     # ============================================================
     def fit(self, data, **train_kwargs):
-            extra_feats = self.kwargs.get("extra_features", None)
+        """
+        Fit the selected forecasting model.
 
-            if self.method == "lstm":
-                print("🧩 Training BaseLSTM Forecaster...")
-                self.ticker = data["ticker"].iloc[0]
-                cfg = LSTMTrainConfig(
-                    window=self.kwargs.get("window", 30),
-                    horizons=self.kwargs.get("horizons", [1, 5, 10]),
-                    val_start=self.kwargs.get("val_start", "2023-01-01"),
-                    device=self.device,
-                    epochs=self.kwargs.get("epochs", 20),
-                    lr=self.kwargs.get("lr", 5e-4),
-                    dropout=self.kwargs.get("dropout", 0.2),
-                    hidden_dim=self.kwargs.get("hidden_dim", 128),
-                    num_layers=self.kwargs.get("num_layers", 3),
-                    output_activation="none",
-                    extra_features=extra_feats,
+        For 'lstm', trains a per-ticker BaseLSTM. For 'global_lstm', trains a shared model
+        across tickers. For GARCH family, fits a ticker-specific ARCH/GARCH variant.
+
+        :param data: Input DataFrame containing at least ['date','ticker','return','realized_vol'] and any extra features.
+        :type data: pandas.DataFrame
+        :param train_kwargs: Optional overrides for training hyperparameters.
+        :type train_kwargs: dict
+        :raises KeyError: If required extra_features are missing from the input DataFrame.
+        :raises ValueError: If method is unknown.
+        :return: Self, with trained model and configuration attached.
+        :rtype: VolSenseForecaster
+        """
+        extra_feats = self.kwargs.get("extra_features", None)
+
+        if self.method == "lstm":
+            print("🧩 Training BaseLSTM Forecaster...")
+            self.ticker = data["ticker"].iloc[0]
+            cfg = LSTMTrainConfig(
+                window=self.kwargs.get("window", 30),
+                horizons=self.kwargs.get("horizons", [1, 5, 10]),
+                val_start=self.kwargs.get("val_start", "2023-01-01"),
+                device=self.device,
+                epochs=self.kwargs.get("epochs", 20),
+                lr=self.kwargs.get("lr", 5e-4),
+                dropout=self.kwargs.get("dropout", 0.2),
+                hidden_dim=self.kwargs.get("hidden_dim", 128),
+                num_layers=self.kwargs.get("num_layers", 3),
+                output_activation="none",
+                extra_features=extra_feats,
                 )
-                self.cfg = cfg
+            self.cfg = cfg
 
-                # Validate extra features for LSTM
-                if extra_feats is not None:
-                    missing = [c for c in extra_feats if c not in data.columns]
-                    if missing:
-                        raise KeyError(f"Missing columns for extra_features: {missing}")
+            # Validate extra features for LSTM
+            if extra_feats is not None:
+                missing = [c for c in extra_feats if c not in data.columns]
+                if missing:
+                    raise KeyError(f"Missing columns for extra_features: {missing}")
 
                 self.model, self.hist, loaders = train_baselstm(data, cfg)
                 self._val_loader = loaders[1]
@@ -169,6 +214,22 @@ class VolSenseForecaster:
     # 🔮 Prediction
     # ============================================================
     def predict(self, data=None, mode=None):
+        """
+        Generate forecasts (and realized-aligned evaluations when available).
+
+        LSTM: returns eval-set predictions for the trained ticker on realized scale.
+        Global LSTM: performs rolling realized-aligned evaluation across tickers; requires `data`.
+        GARCH family: returns rolling 1-day forecasts with realized vol alignment.
+
+        :param data: Input DataFrame required for 'global_lstm' evaluation; ignored for 'lstm' and GARCH.
+        :type data: pandas.DataFrame or None
+        :param mode: Optional override for prediction mode (unused in current implementations).
+        :type mode: str or None
+        :raises ValueError: If 'global_lstm' is used without providing `data`, or if method is unknown.
+        :raises RuntimeError: If GARCH model has not been fitted prior to prediction.
+        :return: Standardized forecast-evaluation DataFrame with columns ['asof_date','date','ticker','horizon','forecast_vol','realized_vol','model'].
+        :rtype: pandas.DataFrame
+        """
         mode = mode or self.mode
         horizons = getattr(self.cfg, "horizons", [1])
         model_name = "GlobalVolForecaster" if self.method == "global_lstm" else (

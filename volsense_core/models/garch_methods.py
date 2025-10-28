@@ -20,30 +20,25 @@ class GARCHConfig:
     """
     Configuration for ARCH-family forecasters.
 
-    Parameters
-    ----------
-    model : {"garch", "egarch", "gjr"}
-        GARCH = standard GARCH(p,q)
-        EGARCH = exponential GARCH(p,q)
-        GJR    = threshold (a.k.a. GJR/TGARCH) via vol="GARCH" and o>0
-    p : int
-        ARCH order.
-    q : int
-        GARCH order.
-    o : int
-        Asymmetry order (used for GJR when > 0). Ignored for EGARCH.
-    dist : {"normal", "t", "skewt", "ged"}
-        Innovation distribution.
-    mean : {"Zero", "Constant"}
-        Mean model. For daily returns, "Zero" is common.
-    scale : float
-        Multiply returns by this factor before fitting to stabilize
-        numerical optimization (e.g., 100 for percent returns).
-    annualize : bool
-        If True, convert forecasted daily sigma to annualized vol
-        by multiplying by sqrt(252).
-    fit_kwargs : dict
-        Extra kwargs passed to .fit(disp=..., update_freq=...) of arch.
+    :param model: Model family to use: 'garch' (GARCH), 'egarch' (EGARCH), or 'gjr' (GJR/TGARCH).
+    :type model: str
+    :param p: ARCH order.
+    :type p: int
+    :param q: GARCH order.
+    :type q: int
+    :param o: Asymmetry order (used for GJR when > 0). Ignored for EGARCH.
+    :type o: int
+    :param dist: Innovation distribution, e.g., 'normal', 't', 'skewt', or 'ged'.
+    :type dist: str
+    :param mean: Mean model, typically 'Zero' for daily returns.
+    :type mean: str
+    :param scale: Factor to scale returns before fitting (e.g., 100.0 for percent returns).
+    :type scale: float
+    :param annualize: If True, convert daily sigma to annualized volatility using sqrt(252).
+    :type annualize: bool
+    :param fit_kwargs: Extra keyword arguments passed to arch's .fit() (e.g., {'disp': 'off'}).
+    :type fit_kwargs: dict, optional
+    :raises ValueError: If an unsupported model name is provided.
     """
     model: str = "garch"
     p: int = 1
@@ -87,7 +82,14 @@ class ARCHForecaster:
 
     # --------------- internal helpers ----------------
     def _to_series(self, x: ArrayLike) -> Tuple[np.ndarray, Optional[pd.Index]]:
-        """Convert input returns to a clean numpy array, keep index if Series."""
+        """
+        Convert input returns to a clean numpy array and preserve index if Series.
+
+        :param x: Input returns as array-like or pandas Series.
+        :type x: ArrayLike
+        :return: Tuple of (values array without NaNs, original index if provided as Series else None).
+        :rtype: tuple[numpy.ndarray, pandas.Index | None]
+        """
         if isinstance(x, pd.Series):
             vals = x.dropna().astype(float).values
             idx = x.dropna().index
@@ -97,7 +99,14 @@ class ARCHForecaster:
         return x, None
 
     def _build_model(self, y_scaled: np.ndarray):
-        """Construct the underlying arch model based on config."""
+        """
+        Construct the underlying arch model based on configuration.
+
+        :param y_scaled: Scaled return series (already multiplied by cfg.scale).
+        :type y_scaled: numpy.ndarray
+        :return: Configured ARCH model specification ready to fit.
+        :rtype: arch.univariate.base.ARCHModel
+        """
         if self.cfg.model == "egarch":
             vol = "EGARCH"
             p, q, o = self.cfg.p, self.cfg.q, 0
@@ -118,7 +127,14 @@ class ARCHForecaster:
         )
 
     def _postprocess_sigma(self, sigma: np.ndarray) -> np.ndarray:
-        """Undo scaling and annualize if requested."""
+        """
+        Undo scaling and optionally annualize sigma.
+
+        :param sigma: Sigma values on the scaled, daily basis.
+        :type sigma: numpy.ndarray
+        :return: Sigma on original scale; annualized if configured.
+        :rtype: numpy.ndarray
+        """
         sigma = sigma / self.cfg.scale
         if self.cfg.annualize:
             sigma = sigma * np.sqrt(252.0)
@@ -129,14 +145,10 @@ class ARCHForecaster:
         """
         Fit the selected ARCH-family model to a return series.
 
-        Parameters
-        ----------
-        returns : array-like
-            Daily simple returns (e.g., price.pct_change()).
-
-        Returns
-        -------
-        self
+        :param returns: Daily simple returns (e.g., price.pct_change()).
+        :type returns: ArrayLike
+        :return: Self, with fitted result accessible via .result.
+        :rtype: ARCHForecaster
         """
         y, _ = self._to_series(returns)
         y_scaled = y * self.cfg.scale
@@ -148,24 +160,26 @@ class ARCHForecaster:
 
     @property
     def result(self):
-        """Return the underlying `ARCHModelResult` after fit()."""
+        """
+        Access the underlying ARCHModelResult after fit().
+
+        :raises RuntimeError: If the model has not been fitted yet.
+        :return: Fitted result object from arch.
+        :rtype: object
+        """
         if self._result is None:
             raise RuntimeError("Model not fitted yet. Call .fit() first.")
         return self._result
 
     def predict(self, horizon: int | list[int] = 1) -> np.ndarray:
         """
-        Multi-horizon volatility forecast.
+        Generate multi-horizon volatility forecasts.
 
-        Parameters
-        ----------
-        horizon : int | list[int]
-            Single integer or list of horizons to forecast (e.g. [1, 5, 10]).
-
-        Returns
-        -------
-        np.ndarray
-            Shape (len(horizons),), containing forecasted (annualized) sigmas.
+        :param horizon: Single horizon or list of horizons to forecast (e.g., 1 or [1, 5, 10]).
+        :type horizon: int or list[int]
+        :raises RuntimeError: If called before fit() (via the .result accessor).
+        :return: Forecasted sigma values (annualized if configured), shape (len(horizons),).
+        :rtype: numpy.ndarray
         """
         res = self.result
         horizons = horizon if isinstance(horizon, (list, tuple)) else [horizon]
@@ -201,24 +215,19 @@ class ARCHForecaster:
         refit_every: int = 1,
     ) -> Union[pd.Series, np.ndarray]:
         """
-        Rolling one-step-ahead forecasts using an expanding window.
+        Produce rolling one-step-ahead forecasts using an expanding window.
 
-        Parameters
-        ----------
-        returns : array-like
-            Daily simple returns (Series or array). If a Series is provided,
-            the returned forecasts will be a Series indexed by the forecast dates.
-        start : int, optional
-            First index to start forecasting (default: max(p+q+o, 30)).
-        min_obs : int, optional
-            Minimum number of observations before the first fit (overrides `start`).
-        refit_every : int
-            Refit frequency in steps (1 = refit each step). Use >1 for speed.
-
-        Returns
-        -------
-        pandas.Series or np.ndarray
-            One-step-ahead sigma forecasts aligned with the input (annualized if configured).
+        :param returns: Daily simple returns. If a Series is provided, output is a Series aligned to input dates.
+        :type returns: ArrayLike
+        :param start: First index to start forecasting. Defaults to max(p+q+o, 30) if None.
+        :type start: int, optional
+        :param min_obs: Minimum observations before first fit; overrides start when provided.
+        :type min_obs: int, optional
+        :param refit_every: Refit frequency in steps (1 = refit each step).
+        :type refit_every: int
+        :raises ValueError: If there are fewer than ~50 observations.
+        :return: One-step-ahead sigma forecasts (annualized if configured), as Series or ndarray.
+        :rtype: pandas.Series or numpy.ndarray
         """
         y, idx = self._to_series(returns)
         n = len(y)
@@ -255,7 +264,12 @@ class ARCHForecaster:
 
     # convenience
     def get_config(self) -> Dict[str, Any]:
-        """Return a dict copy of the current configuration."""
+        """
+        Get a dictionary copy of the current configuration.
+
+        :return: Configuration as a plain dictionary.
+        :rtype: dict
+        """
         return asdict(self.cfg)
 
 
@@ -276,7 +290,29 @@ def fit_arch(
 ):
     """
     Quick-fit a GARCH/EGARCH/GJR model and return the fitted result.
-    This mirrors your earlier helper but fixes GJR handling.
+
+    :param returns: Daily simple returns to fit on.
+    :type returns: ArrayLike
+    :param model_type: Model family: 'garch', 'egarch', or 'gjr'.
+    :type model_type: str
+    :param dist: Innovation distribution, e.g., 'normal', 't', 'skewt', 'ged'.
+    :type dist: str
+    :param p: ARCH order.
+    :type p: int
+    :param q: GARCH order.
+    :type q: int
+    :param o: Asymmetry order (GJR) when > 0; ignored for EGARCH.
+    :type o: int
+    :param mean: Mean model, typically 'Zero' for daily returns.
+    :type mean: str
+    :param scale: Factor to scale returns before fitting.
+    :type scale: float
+    :param annualize: If True, annualize sigma via sqrt(252).
+    :type annualize: bool
+    :param fit_kwargs: Extra keyword args forwarded to arch .fit().
+    :type fit_kwargs: dict
+    :return: Fitted ARCH model result object.
+    :rtype: object
     """
     cfg = GARCHConfig(
         model=model_type, p=p, q=q, o=o,
@@ -290,8 +326,16 @@ def forecast_arch(fitted_model, horizon: int = 1, scale: float = 100.0, annualiz
     """
     Generate volatility forecasts from a fitted ARCHModelResult.
 
-    Returns a numpy array of length `horizon`. Kept for compatibility with
-    older code paths that had a separate `forecast_arch(...)`.
+    :param fitted_model: Result object returned by arch after fitting.
+    :type fitted_model: object
+    :param horizon: Number of steps to forecast ahead.
+    :type horizon: int
+    :param scale: Scale factor used during fitting to unscale sigma.
+    :type scale: float
+    :param annualize: If True, annualize sigma via sqrt(252).
+    :type annualize: bool
+    :return: Array of forecasted sigma values of length `horizon`.
+    :rtype: numpy.ndarray
     """
     f = fitted_model.forecast(horizon=horizon, reindex=False)
     sigma = np.sqrt(np.asarray(f.variance.iloc[-1].values, dtype=float)) / scale
@@ -311,31 +355,23 @@ def standardize_outputs(
     horizons=None,
 ):
     """
-    Standardizes model outputs for evaluation/backtesting.
+    Standardize model outputs for evaluation/backtesting.
 
-    Parameters
-    ----------
-    dates : list or array
-        Forecast or validation dates.
-    tickers : list or array
-        Corresponding tickers.
-    forecast_vols : np.ndarray
-        Model-predicted volatilities, shape (N, H) or (N,).
-    realized_vols : np.ndarray or list, optional
-        True realized volatilities (same shape as forecast_vols).
-    model_name : str
-        Model identifier, e.g. 'BaseLSTM', 'GlobalVolForecaster', 'ARCHForecaster'.
-    horizons : list[int] or None
-        Forecast horizons, e.g. [1,5,10]. Defaults to range(H) if not provided.
-
-    Returns
-    -------
-    pd.DataFrame
-        Columns: ['date','ticker','horizon','forecast_vol','realized_vol','model']
+    :param dates: Forecast or validation dates.
+    :type dates: list or numpy.ndarray
+    :param tickers: Corresponding tickers for each row.
+    :type tickers: list or numpy.ndarray
+    :param forecast_vols: Predicted volatilities, shape (N, H) or (N,).
+    :type forecast_vols: numpy.ndarray
+    :param realized_vols: True realized volatilities, same shape as forecast_vols.
+    :type realized_vols: numpy.ndarray or list, optional
+    :param model_name: Model identifier, e.g., 'BaseLSTM', 'GlobalVolForecaster', 'ARCHForecaster'.
+    :type model_name: str
+    :param horizons: Forecast horizons, e.g., [1, 5, 10]. Defaults to 1..H if None.
+    :type horizons: list[int], optional
+    :return: DataFrame with columns ['date','ticker','horizon','forecast_vol','realized_vol','model'].
+    :rtype: pandas.DataFrame
     """
-    import numpy as np
-    import pandas as pd
-
     dates = np.asarray(dates)
     tickers = np.asarray(tickers)
     forecast_vols = np.atleast_2d(forecast_vols)

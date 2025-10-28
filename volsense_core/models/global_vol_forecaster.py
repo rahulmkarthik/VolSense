@@ -1,5 +1,5 @@
 # ============================================================
-# volsense_pkg/models/global_vol_forecaster.py  (v3)
+# volsense_core/models/global_vol_forecaster.py  (v3)
 # GlobalVolForecaster with attention, per-horizon heads,
 # feature-dropout, variational (recurrent) dropout, EMA weights,
 # cosine restarts, early stopping — still backward-compatible.

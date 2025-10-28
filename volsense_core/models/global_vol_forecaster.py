@@ -7,11 +7,13 @@
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import os
 from sklearn.preprocessing import StandardScaler
 from dataclasses import dataclass
+from torch.utils.data import DataLoader
 from typing import List, Dict
 
 
@@ -20,6 +22,76 @@ from typing import List, Dict
 # ============================================================
 @dataclass
 class TrainConfig:
+    """
+    Training configuration for GlobalVolForecaster.
+
+    :param window: Rolling lookback window length (timesteps).
+    :type window: int
+    :param horizons: Forecast horizons; either an int (max horizon) or explicit list (e.g., [1,5,10]).
+    :type horizons: int or list[int]
+    :param stride: Step size between training samples (larger reduces overlap).
+    :type stride: int
+    :param val_start: Validation window start date (inclusive).
+    :type val_start: str
+    :param val_end: Optional validation window end date (exclusive). If None, uses all data after val_start.
+    :type val_end: str, optional
+    :param val_mode: Validation mode; "causal" (train strictly before val_start) or "holdout_slice".
+    :type val_mode: str
+    :param embargo_days: Days excluded on both sides of validation slice in holdout mode.
+    :type embargo_days: int
+    :param target_col: Target column name (typically realized_vol_log).
+    :type target_col: str
+    :param extra_features: Additional feature column names to include beyond "return".
+    :type extra_features: list[str], optional
+    :param epochs: Number of training epochs.
+    :type epochs: int
+    :param lr: Learning rate for optimizer.
+    :type lr: float
+    :param batch_size: Mini-batch size.
+    :type batch_size: int
+    :param device: Compute device ("cpu" or "cuda").
+    :type device: str
+    :param dropout: Inter-layer dropout probability in the LSTM and heads.
+    :type dropout: float
+    :param use_layernorm: Whether to apply LayerNorm to the backbone output.
+    :type use_layernorm: bool
+    :param separate_heads: If True, use independent heads per horizon; else a single multi-output head.
+    :type separate_heads: bool
+    :param attention: If True, apply a MultiheadAttention layer over LSTM outputs.
+    :type attention: bool
+    :param residual_head: If True, add a residual linear head to improve gradient flow.
+    :type residual_head: bool
+    :param feat_dropout_p: Channel-wise (feature) dropout probability at input.
+    :type feat_dropout_p: float
+    :param variational_dropout_p: Variational (time-consistent) input dropout probability.
+    :type variational_dropout_p: float
+    :param loss_horizon_weights: Optional per-horizon loss weights.
+    :type loss_horizon_weights: list[float], optional
+    :param dynamic_window_jitter: Random jitter (+/-) applied to window size during training.
+    :type dynamic_window_jitter: int
+    :param grad_clip: Gradient norm clip value; set None/0 to disable.
+    :type grad_clip: float
+    :param cosine_schedule: Use cosine LR schedule.
+    :type cosine_schedule: bool
+    :param cosine_restarts: Use cosine schedule with warm restarts (SGDR).
+    :type cosine_restarts: bool
+    :param oversample_high_vol: Deprecated knob; kept for compatibility.
+    :type oversample_high_vol: bool
+    :param use_ema: Maintain an exponential moving average (EMA) of model weights.
+    :type use_ema: bool
+    :param ema_decay: EMA decay factor in (0,1).
+    :type ema_decay: float
+    :param early_stop: Enable early stopping on validation loss.
+    :type early_stop: bool
+    :param patience: Epochs to wait without improvement before stopping.
+    :type patience: int
+    :param min_delta: Minimum improvement in validation loss to reset patience.
+    :type min_delta: float
+    :param num_workers: DataLoader workers.
+    :type num_workers: int
+    :param pin_memory: DataLoader pin_memory flag.
+    :type pin_memory: bool
+    """
     window: int = 30
     horizons: int | list = 1
     stride: int = 2                     # 👈 default stride=3 for decorrelation
@@ -76,9 +148,23 @@ class TrainConfig:
 class FeatureDropout(nn.Module):
     """Channel-wise (feature) dropout: same mask for all time-steps."""
     def __init__(self, p: float):
+        """
+        Initialize feature dropout.
+
+        :param p: Drop probability for feature channels (0 <= p < 1).
+        :type p: float
+        """
         super().__init__()
         self.p = p
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Apply channel-wise dropout to inputs.
+
+        :param x: Input tensor of shape [B, W, F].
+        :type x: torch.Tensor
+        :return: Tensor with dropped feature channels, scaled by 1/(1-p) during training.
+        :rtype: torch.Tensor
+        """
         # x: [B, W, F]
         if not self.training or self.p <= 0:
             return x
@@ -90,9 +176,23 @@ class FeatureDropout(nn.Module):
 class VariationalInputDropout(nn.Module):
     """Variational (recurrent) dropout on inputs — same mask across time."""
     def __init__(self, p: float):
+        """
+        Initialize variational input dropout.
+
+        :param p: Drop probability for feature channels (0 <= p < 1).
+        :type p: float
+        """
         super().__init__()
         self.p = p
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Apply a time-consistent dropout mask across the input sequence.
+
+        :param x: Input tensor of shape [B, W, F].
+        :type x: torch.Tensor
+        :return: Tensor with per-batch feature mask applied across all time-steps.
+        :rtype: torch.Tensor
+        """
         if not self.training or self.p <= 0:
             return x
         B, W, F = x.shape
@@ -104,6 +204,12 @@ class VariationalInputDropout(nn.Module):
 # 🧠 GlobalVolForecaster Model
 # ============================================================
 class GlobalVolForecaster(nn.Module):
+    """
+    Global sequence model for multi-ticker, multi-horizon volatility forecasting.
+
+    Combines LSTM backbone, optional temporal self-attention, per-horizon heads,
+    and optional residual head. Ticker identity is injected via learned embeddings.
+    """
     def __init__(
         self,
         n_tickers: int,
@@ -121,6 +227,38 @@ class GlobalVolForecaster(nn.Module):
         feat_dropout_p: float = 0.1,
         variational_dropout_p: float = 0.1,
     ):
+        """
+        Initialize GlobalVolForecaster.
+
+        :param n_tickers: Number of distinct tickers (size of embedding vocabulary).
+        :type n_tickers: int
+        :param window: Fixed input sequence length expected by the model.
+        :type window: int
+        :param n_horizons: Number of horizons (int) or explicit list; controls output size.
+        :type n_horizons: int or list[int]
+        :param emb_dim: Ticker embedding dimensionality.
+        :type emb_dim: int
+        :param hidden_dim: LSTM hidden size.
+        :type hidden_dim: int
+        :param num_layers: Number of stacked LSTM layers.
+        :type num_layers: int
+        :param dropout: Dropout rate used in LSTM and MLP heads.
+        :type dropout: float
+        :param attention: If True, apply MultiheadAttention over LSTM outputs.
+        :type attention: bool
+        :param residual_head: Add residual linear projection from backbone to outputs.
+        :type residual_head: bool
+        :param input_size: Number of input features per timestep.
+        :type input_size: int, optional
+        :param use_layernorm: Apply LayerNorm to backbone output.
+        :type use_layernorm: bool
+        :param separate_heads: Use separate 1-unit heads per horizon when True; else a multi-output head.
+        :type separate_heads: bool
+        :param feat_dropout_p: Channel-wise feature dropout probability at input.
+        :type feat_dropout_p: float
+        :param variational_dropout_p: Variational input dropout probability at input.
+        :type variational_dropout_p: float
+        """
         super().__init__()
         self.window = window
         self.input_size = int(input_size) if input_size is not None else 1
@@ -178,6 +316,16 @@ class GlobalVolForecaster(nn.Module):
             self.residual = nn.Linear(hidden_dim, self.n_horizons)
 
     def forward(self, tkr_id: torch.Tensor, X: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass.
+
+        :param tkr_id: Integer ticker IDs of shape [B].
+        :type tkr_id: torch.Tensor
+        :param X: Input features of shape [B, W, F] (or [B, F], which will be unsqueezed).
+        :type X: torch.Tensor
+        :return: Horizon outputs of shape [B, H] (or [B] when H==1).
+        :rtype: torch.Tensor
+        """
         # X: [B, W, F] or [B, F]
         if X.ndim == 2:
             X = X.unsqueeze(1)
@@ -212,6 +360,20 @@ class GlobalVolForecaster(nn.Module):
 # 🧮 Dataset Builder (per-ticker feature scaling; no target scaling)
 # ============================================================
 def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
+    """
+    Build per-ticker scaled datasets and temporal train/validation splits.
+
+    Performs per-ticker StandardScaler fitting on features, maps tickers to IDs,
+    and constructs Dataset objects that emit (ticker_id, windowed features, targets).
+
+    :param df: Input long-form DataFrame with columns ['date','ticker', cfg.target_col, 'return', ...].
+    :type df: pandas.DataFrame
+    :param cfg: Training configuration with window, horizons, validation window, and feature list.
+    :type cfg: TrainConfig
+    :raises KeyError: If required columns are missing from df.
+    :return: (train_dataset, val_dataset, ticker_to_id, scalers)
+    :rtype: tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, dict[str,int], dict[str,StandardScaler]]
+    """
     df = df.copy()
     df["date"] = pd.to_datetime(df["date"])
     df.sort_values(["ticker", "date"], inplace=True)
@@ -326,6 +488,14 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
 # 🔁 EMA helper
 # ============================================================
 def clone_model_like(model: nn.Module) -> nn.Module:
+    """
+    Create a non-trainable copy of a model for EMA tracking.
+
+    :param model: Source model to clone.
+    :type model: torch.nn.Module
+    :return: Cloned model with requires_grad=False for all parameters.
+    :rtype: torch.nn.Module
+    """
     ema = type(model)(**model._init_args) if hasattr(model, "_init_args") else None
     if ema is None:
         # generic fallback: deep copy of state dict to identically-constructed model
@@ -335,6 +505,18 @@ def clone_model_like(model: nn.Module) -> nn.Module:
     return ema
 
 def update_ema(ema: nn.Module, model: nn.Module, decay: float):
+    """
+    Update EMA model weights and buffers from a source model.
+
+    :param ema: EMA model to be updated in-place.
+    :type ema: torch.nn.Module
+    :param model: Source model providing current parameters/buffers.
+    :type model: torch.nn.Module
+    :param decay: EMA decay factor in (0,1); closer to 1 gives slower updates.
+    :type decay: float
+    :return: None
+    :rtype: None
+    """
     with torch.no_grad():
         for (n_e, p_e), (_, p_m) in zip(ema.named_parameters(), model.named_parameters()):
             p_e.data.mul_(decay).add_(p_m.data, alpha=1 - decay)
@@ -346,7 +528,19 @@ def update_ema(ema: nn.Module, model: nn.Module, decay: float):
 # 🚀 Training Loop (no manual loops outside; returns artifacts)
 # ============================================================
 def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
-    from torch.utils.data import DataLoader
+    """
+    Train GlobalVolForecaster end-to-end and return artifacts.
+
+    Includes optional cosine scheduling with restarts, EMA tracking, gradient clipping,
+    early stopping, and horizon-weighted MSE.
+
+    :param df: Input DataFrame containing ['date','ticker','return', cfg.target_col, ...].
+    :type df: pandas.DataFrame
+    :param cfg: Training configuration.
+    :type cfg: TrainConfig
+    :return: Tuple of (model, history, val_loader, ticker_to_id, scalers, features).
+    :rtype: tuple[torch.nn.Module, dict[str, list[float]], torch.utils.data.DataLoader, dict[str,int], dict[str,StandardScaler], list[str]]
+    """
     # Datasets / loaders
     train_ds, val_ds, ticker_to_id, scalers = build_global_splits(df, cfg)
     features = ["return"] + (cfg.extra_features or [])
@@ -499,7 +693,14 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
 
 def make_last_windows(df: pd.DataFrame, window: int):
     """
-    Extract last `window` timesteps per ticker for prediction.
+    Extract the last `window` timesteps per ticker for inference.
+
+    :param df: Feature DataFrame with ['ticker','date', <features...>] sorted by date within ticker.
+    :type df: pandas.DataFrame
+    :param window: Number of trailing rows to keep per ticker.
+    :type window: int
+    :return: Concatenated DataFrame of last windows for all tickers.
+    :rtype: pandas.DataFrame
     """
     df = df.copy().sort_values(["ticker", "date"])
     last_windows = []
@@ -512,37 +713,28 @@ def make_last_windows(df: pd.DataFrame, window: int):
 
 def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, device="cpu", show_progress=True):
     """
-    Generate next-day (or multi-horizon) volatility forecasts for each ticker
-    using the most recent feature window. Handles feature mismatches between
-    training and inference DataFrames, supports multi-horizon models, and
-    returns a standardized DataFrame suitable for downstream evaluation.
+    Predict next-day (multi-horizon) volatility for each ticker using the latest window.
 
-    Parameters
-    ----------
-    model : GlobalVolForecaster
-        Trained global volatility model.
-    df_last_windows : pd.DataFrame
-        DataFrame containing the most recent feature window per ticker.
-        Must include columns ['ticker', 'date', <features>].
-    ticker_to_id : dict
-        Mapping from ticker symbol to integer ID.
-    scalers : dict[str, StandardScaler]
-        Fitted scalers for each ticker (used during training).
-    window : int
-        Window length used during model training.
-    device : str
-        'cpu' or 'cuda'.
+    Aligns inference features to the per-ticker scaler schema (fills missing features with 0,
+    drops extras), scales inputs, runs the model, and returns a tidy table.
 
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with columns:
-        ['ticker', 'horizon', 'forecast_vol_scaled']
+    :param model: Trained GlobalVolForecaster.
+    :type model: torch.nn.Module
+    :param df_last_windows: DataFrame with the most recent window per ticker; must include ['ticker','date', <features>].
+    :type df_last_windows: pandas.DataFrame
+    :param ticker_to_id: Mapping from ticker symbol to integer ID used by the model.
+    :type ticker_to_id: dict[str, int]
+    :param scalers: Per-ticker fitted StandardScaler objects (from training).
+    :type scalers: dict[str, StandardScaler]
+    :param window: Window length used during training (for validation of shapes).
+    :type window: int
+    :param device: Compute device for inference ('cpu' or 'cuda').
+    :type device: str
+    :param show_progress: Show a tqdm progress bar during prediction.
+    :type show_progress: bool
+    :return: DataFrame with ['ticker','horizon','forecast_vol_scaled'].
+    :rtype: pandas.DataFrame
     """
-    import numpy as np
-    import pandas as pd
-    import torch
-    from tqdm import tqdm
 
     model.eval()
     preds = []
@@ -611,7 +803,23 @@ def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, devi
 
 def save_checkpoint(path, model, ticker_to_id, scalers):
     """
-    Save model weights + metadata.
+    Save model weights and metadata to disk.
+
+    Writes:
+      - model state dict (.pt)
+      - metadata JSON with tickers (_meta.json)
+      - per-ticker scalers (_scalers.pt)
+
+    :param path: Filesystem path for the model state dict.
+    :type path: str
+    :param model: Trained model to save.
+    :type model: torch.nn.Module
+    :param ticker_to_id: Mapping from ticker to integer ID.
+    :type ticker_to_id: dict[str, int]
+    :param scalers: Per-ticker fitted StandardScalers.
+    :type scalers: dict[str, StandardScaler]
+    :return: None
+    :rtype: None
     """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     torch.save(model.state_dict(), path)
@@ -626,7 +834,17 @@ def save_checkpoint(path, model, ticker_to_id, scalers):
 
 def load_checkpoint(path, device="cpu"):
     """
-    Load model + metadata.
+    Load model weights and metadata from disk.
+
+    Constructs a model with default architecture, loads weights, and returns
+    the model (in eval mode), ticker_to_id map, and scalers.
+
+    :param path: Filesystem path for the model state dict (.pt).
+    :type path: str
+    :param device: Device to load the model on ('cpu' or 'cuda').
+    :type device: str
+    :return: Tuple of (model, ticker_to_id, scalers).
+    :rtype: tuple[torch.nn.Module, dict[str, int], dict[str, StandardScaler]]
     """
     meta_path = os.path.splitext(path)[0] + "_meta.json"
     scaler_path = os.path.splitext(path)[0] + "_scalers.pt"
@@ -667,30 +885,23 @@ def standardize_outputs(
     horizons=None,
 ):
     """
-    Standardizes model outputs for evaluation/backtesting.
+    Standardize model outputs for evaluation/backtesting.
 
-    Parameters
-    ----------
-    dates : list or array
-        Forecast or validation dates.
-    tickers : list or array
-        Corresponding tickers.
-    forecast_vols : np.ndarray
-        Model-predicted volatilities, shape (N, H) or (N,).
-    realized_vols : np.ndarray or list, optional
-        True realized volatilities (same shape as forecast_vols).
-    model_name : str
-        Model identifier, e.g. 'BaseLSTM', 'GlobalVolForecaster', 'ARCHForecaster'.
-    horizons : list[int] or None
-        Forecast horizons, e.g. [1,5,10]. Defaults to range(H) if not provided.
-
-    Returns
-    -------
-    pd.DataFrame
-        Columns: ['date','ticker','horizon','forecast_vol','realized_vol','model']
+    :param dates: Forecast or validation dates aligned to rows in forecast_vols.
+    :type dates: list or numpy.ndarray
+    :param tickers: Tickers aligned to rows in forecast_vols.
+    :type tickers: list or numpy.ndarray
+    :param forecast_vols: Predicted volatilities, shape (N, H) or (N,).
+    :type forecast_vols: numpy.ndarray
+    :param realized_vols: True realized volatilities with same shape as forecast_vols; use None if unavailable.
+    :type realized_vols: numpy.ndarray or None
+    :param model_name: Model identifier to annotate outputs.
+    :type model_name: str
+    :param horizons: Forecast horizons (e.g., [1,5,10]); defaults to 1..H if None.
+    :type horizons: list[int] or None
+    :return: DataFrame with columns ['date','ticker','horizon','forecast_vol','realized_vol','model'].
+    :rtype: pandas.DataFrame
     """
-    import numpy as np
-    import pandas as pd
 
     dates = np.asarray(dates)
     tickers = np.asarray(tickers)

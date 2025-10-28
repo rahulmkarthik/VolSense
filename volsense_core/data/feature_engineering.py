@@ -4,7 +4,15 @@ import pandas as pd
 EPS = 1e-6
 
 def _flatten_cols(df: pd.DataFrame) -> pd.DataFrame:
-    """If columns are MultiIndex (common from yfinance), flatten them."""
+    """
+    Flatten MultiIndex columns (common from yfinance) into a single level.
+
+    :param df: Input DataFrame that may contain MultiIndex columns.
+    :type df: pandas.DataFrame
+    :return: DataFrame with a single-level column index.
+    :rtype: pandas.DataFrame
+    """
+
     if isinstance(df.columns, pd.MultiIndex):
         df = df.copy()
         df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
@@ -13,16 +21,29 @@ def _flatten_cols(df: pd.DataFrame) -> pd.DataFrame:
 
 def compute_base_features(df: pd.DataFrame, eps: float = EPS, vol_lookback: int = 10) -> pd.DataFrame:
     """
-    Ensure the core columns exist:
-      - date (datetime), ticker (if missing, fill with 'UNK')
-      - return (pct change)  -> computed from Adj Close or Close if missing
-      - realized_vol (rolling std of return) -> computed if missing
-      - realized_vol_log = log(realized_vol + eps)
+    Compute and ensure core features exist on the input DataFrame.
 
-    Accepts either:
-      (A) raw OHLCV with 'Adj Close' or 'Close'
-      (B) already-processed long table with 'return' and maybe 'realized_vol'
+    Ensures and/or computes:
+      - date (datetime) and ticker (defaults to 'UNK' if missing)
+      - return: pct-change of Adj Close (or Close if Adj Close is absent)
+      - realized_vol: rolling std of return over vol_lookback, annualized by sqrt(252)
+      - realized_vol_log: log(realized_vol + eps)
+
+    Accepts either raw OHLCV (with 'Adj Close'/'Close') or a long-form dataset that
+    already contains 'return' and optionally 'realized_vol'.
+
+    :param df: Input DataFrame with either raw OHLCV or precomputed returns/volatility.
+    :type df: pandas.DataFrame
+    :param eps: Numerical stability constant added before log.
+    :type eps: float
+    :param vol_lookback: Rolling window (in days) for realized volatility.
+    :type vol_lookback: int
+    :raises ValueError: If 'date' is missing and index is not a DatetimeIndex.
+    :raises KeyError: If 'return' must be computed but neither 'Adj Close' nor 'Close' is present.
+    :return: DataFrame with core columns computed and sorted by ['ticker','date'].
+    :rtype: pandas.DataFrame
     """
+
     df = _flatten_cols(df.copy())
 
     # date column
@@ -75,7 +96,25 @@ def compute_base_features(df: pd.DataFrame, eps: float = EPS, vol_lookback: int 
 
 
 def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
-    """Add short/long vol, ratios, changes, and vol-of-vol."""
+    """
+    Add rolling volatility features and related derivatives.
+
+    Computes per-ticker:
+      - vol_3d: 3-day mean of realized_vol
+      - vol_10d: 10-day mean of realized_vol
+      - vol_ratio: vol_3d / (vol_10d + eps)
+      - vol_chg: vol_3d - vol_10d
+      - vol_vol: 10-day std of realized_vol
+      - ewma_vol_10d: EWMA of realized_vol with span=10
+
+    :param df: Input DataFrame containing at least ['ticker','realized_vol'].
+    :type df: pandas.DataFrame
+    :param eps: Numerical stability constant used in vol_ratio denominator.
+    :type eps: float
+    :return: DataFrame with added rolling features.
+    :rtype: pandas.DataFrame
+    """
+
     g = df.groupby("ticker", group_keys=False)
     df["vol_3d"]    = g["realized_vol"].apply(lambda s: s.rolling(3,  min_periods=1).mean())
     df["vol_10d"]   = g["realized_vol"].apply(lambda s: s.rolling(10, min_periods=1).mean())
@@ -88,7 +127,22 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
 
 
 def add_market_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
-    """Add cross-sectional market stress and lag, plus 5d skew of returns."""
+    """
+    Add cross-sectional market stress, its lag, and short-horizon return skew.
+
+    Computes:
+      - market_stress: cross-sectional std of 'return' within each date
+      - market_stress_1d_lag: per-ticker 1-day lag of market_stress
+      - skew_5d: rolling 5-day skewness of returns (standardized), requires >= 3 observations
+
+    :param df: Input DataFrame with at least ['date','ticker','return'].
+    :type df: pandas.DataFrame
+    :param eps: Numerical stability constant used in skewness computation.
+    :type eps: float
+    :return: DataFrame with added market-level features.
+    :rtype: pandas.DataFrame
+    """
+
     df["market_stress"] = df.groupby("date")["return"].transform(lambda x: x.std())
     g = df.groupby("ticker", group_keys=False)
     df["market_stress_1d_lag"] = g["market_stress"].shift(1)
@@ -105,7 +159,21 @@ def add_market_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
 
 
 def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add simple calendar encodings and absolute return moments."""
+    """
+    Add calendar encodings and absolute return moments.
+
+    Computes:
+      - day_of_week: normalized day index in [0,1] (Mon=0, Sun=1 via 6.0 divisor)
+      - month_sin, month_cos: cyclical month encodings
+      - abs_return: absolute daily return
+      - ret_sq: squared daily return
+
+    :param df: Input DataFrame containing 'date' and 'return'.
+    :type df: pandas.DataFrame
+    :return: DataFrame with added calendar features.
+    :rtype: pandas.DataFrame
+    """
+
     df["day_of_week"] = df["date"].dt.dayofweek / 6.0
     df["month_sin"]   = np.sin(2 * np.pi * df["date"].dt.month / 12)
     df["month_cos"]   = np.cos(2 * np.pi * df["date"].dt.month / 12)
@@ -116,15 +184,27 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame:
     """
-    Build all features with inclusion/exclusion control.
+    Build a full feature set with inclusion/exclusion controls.
 
-    Works with:
-      - raw OHLCV (has 'Adj Close'/'Close'), or
-      - processed long table from build_multi_dataset (has 'return' and 'realized_vol').
+    Pipeline:
+      1) compute_base_features
+      2) add_rolling_features
+      3) add_market_features
+      4) add_calendar_features
+      5) Filter to core columns + requested engineered features
 
-    Example:
-        df = build_features(raw_df, exclude=["skew_5d", "ret_sq"])
+    :param df: Input DataFrame (raw OHLCV or long table with 'return' and 'realized_vol').
+    :type df: pandas.DataFrame
+    :param include: Feature names to include; if None, uses the default feature list.
+    :type include: list[str] or None
+    :param exclude: Feature names to exclude from the final set.
+    :type exclude: list[str] or set[str] or None
+    :raises ValueError: Propagated if base feature computation cannot infer dates.
+    :raises KeyError: Propagated if required columns for returns are missing.
+    :return: Feature-enriched DataFrame sorted by ['ticker','date'].
+    :rtype: pandas.DataFrame
     """
+    
     include = include or [
         "vol_3d","vol_10d","vol_ratio","vol_chg","vol_vol","ewma_vol_10d",
         "market_stress","market_stress_1d_lag","skew_5d",

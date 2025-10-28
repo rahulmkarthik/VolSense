@@ -16,13 +16,22 @@ import sys
 import os
 import pandas as pd
 from datetime import datetime
-from volsense_core.forecasters.forecaster_api import VolSenseForecaster
+from volsense_core.forecaster_core import VolSenseForecaster
 
 
 # ============================================================
 # 🧩 Argument Parser
 # ============================================================
 def parse_args():
+    """
+    Parse CLI arguments for training VolSense models.
+
+    Defines flags for data path, model method, window, horizons, extra features,
+    validation start, epochs, learning rate, dropout, device, save directory, and version tag.
+
+    :return: Parsed arguments namespace with attributes matching CLI flags.
+    :rtype: argparse.Namespace
+    """
     parser = argparse.ArgumentParser(
         description="Train VolSense volatility forecasting models."
     )
@@ -98,6 +107,17 @@ def parse_args():
 # 🚀 Main Entry
 # ============================================================
 def main():
+    """
+    Main entry point for the volsense-train CLI.
+
+    Loads a dataset CSV, initializes a VolSenseForecaster according to CLI args,
+    trains the selected model (LSTM, Global LSTM, or GARCH family), and saves
+    a checkpoint to the specified directory.
+
+    :raises SystemExit: If the dataset path is missing/invalid or required columns are absent.
+    :return: None
+    :rtype: None
+    """
     args = parse_args()
     print(f"\n🚀 Starting VolSense training (method={args.method}, device={args.device})")
 

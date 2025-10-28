@@ -1,6 +1,22 @@
 # ============================================================
 # 🧭 VolSense Sector Mappings + Color Maps
 # ============================================================
+"""
+VolSense Inference — Sector mappings and color palettes.
+
+This module centralizes:
+  1) Ticker-to-sector dictionaries for different model universes:
+     - SECTOR_MAP_109: compact universe used by v109 models
+     - SECTOR_MAP_509: extended universe used by v509 models
+  2) SECTOR_COLORS: consistent hex colors per sector for plots/dashboards
+
+Helpers:
+  - get_sector_map(version): obtain the appropriate ticker→sector map
+  - export_to_json(path): write both maps to a JSON file for external use
+  - get_color(sector): fetch a stable color for a sector label
+
+Intended for analytics, dashboards, and reporting layers in volsense_inference.
+"""
 import json
 from pathlib import Path
 
@@ -195,6 +211,15 @@ SECTOR_MAP_509 = {
 # ------------------------------------------------------------
 
 def get_sector_map(version: str = "v109") -> dict[str, str]:
+    """
+    Return the ticker-to-sector mapping for a given model version.
+
+    :param version: Model version key ('v109' for small map, 'v509' for large map).
+    :type version: str
+    :raises ValueError: If the version key is not recognized.
+    :return: Dictionary mapping ticker symbols to sector names.
+    :rtype: dict[str, str]
+    """
     version = version.lower()
     if version in ("v109", "109", "small"):
         return SECTOR_MAP_109
@@ -205,6 +230,16 @@ def get_sector_map(version: str = "v109") -> dict[str, str]:
 
 
 def export_to_json(path="sector_map.json"):
+    """
+    Export available sector maps to a single JSON file.
+
+    The JSON contains two top-level keys: "v109" and "v509".
+
+    :param path: Filesystem path to write the JSON file.
+    :type path: str
+    :return: None
+    :rtype: None
+    """
     combined = {"v109": SECTOR_MAP_109, "v509": SECTOR_MAP_509}
     Path(path).write_text(json.dumps(combined, indent=2))
     print(f"💾 Sector mappings exported to {path}")
@@ -236,5 +271,13 @@ SECTOR_COLORS = {
 }
 
 def get_color(sector: str) -> str:
+    """
+    Get a consistent hex color for a given sector label.
+
+    :param sector: Sector name (e.g., 'Technology', 'Financials').
+    :type sector: str
+    :return: Hex color string (e.g., '#1f77b4'); defaults to light gray if unknown.
+    :rtype: str
+    """
     """Return a consistent color hex code for the given sector."""
     return SECTOR_COLORS.get(sector, "#cccccc")

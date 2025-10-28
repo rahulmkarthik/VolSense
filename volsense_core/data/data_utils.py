@@ -10,6 +10,13 @@ DATA_CACHE.mkdir(parents=True, exist_ok=True)
 def save_to_cache(df: pd.DataFrame, name: str):
     """
     Save a DataFrame to local parquet cache.
+
+    :param df: DataFrame to be saved.
+    :type df: pandas.DataFrame
+    :param name: Logical cache key (filename without extension).
+    :type name: str
+    :return: Filesystem path of the saved parquet file.
+    :rtype: pathlib.Path
     """
     path = DATA_CACHE / f"{name}.parquet"
     df.to_parquet(path, index=False)
@@ -18,6 +25,12 @@ def save_to_cache(df: pd.DataFrame, name: str):
 def load_from_cache(name: str) -> pd.DataFrame:
     """
     Load a DataFrame from parquet cache if it exists.
+
+    :param name: Logical cache key (filename without extension).
+    :type name: str
+    :raises FileNotFoundError: If no cached parquet file exists for the given name.
+    :return: Cached DataFrame loaded from parquet.
+    :rtype: pandas.DataFrame
     """
     path = DATA_CACHE / f"{name}.parquet"
     if path.exists():
@@ -26,7 +39,22 @@ def load_from_cache(name: str) -> pd.DataFrame:
 
 def get_or_fetch_single(ticker: str, start="2000-01-01", end=None, use_cache=True):
     """
-    Fetch OHLCV + realized vol for a single ticker with optional caching.
+    Fetch OHLCV and realized volatility for a single ticker with optional caching.
+
+    On cache hit, returns the cached parquet. Otherwise, downloads data and builds the dataset,
+    then writes it to cache (if enabled) before returning.
+
+    :param ticker: Ticker symbol to fetch.
+    :type ticker: str
+    :param start: Start date (YYYY-MM-DD) for the time series.
+    :type start: str
+    :param end: End date (YYYY-MM-DD). If None, fetches up to the latest available date.
+    :type end: str, optional
+    :param use_cache: Whether to read/write from local cache.
+    :type use_cache: bool
+    :raises ValueError: If the underlying fetch/build returns no valid data.
+    :return: Long-form dataset with ['date','ticker','return','realized_vol'].
+    :rtype: pandas.DataFrame
     """
     cache_name = f"{ticker}_{start}_{end}".replace(":", "-")
     if use_cache:
@@ -42,7 +70,24 @@ def get_or_fetch_single(ticker: str, start="2000-01-01", end=None, use_cache=Tru
 
 def get_or_fetch_multi(tickers, start="2000-01-01", end=None, lookback=21, use_cache=True):
     """
-    Fetch OHLCV + realized vol for multiple tickers with optional caching.
+    Fetch OHLCV and realized volatility for multiple tickers with optional caching.
+
+    On cache hit, returns the cached parquet. Otherwise, downloads data for all tickers and
+    builds a unified dataset, then writes it to cache (if enabled) before returning.
+
+    :param tickers: Collection of ticker symbols to fetch.
+    :type tickers: list[str] or tuple[str, ...]
+    :param start: Start date (YYYY-MM-DD) for the time series.
+    :type start: str
+    :param end: End date (YYYY-MM-DD). If None, fetches up to the latest available date.
+    :type end: str, optional
+    :param lookback: Rolling window length used to compute realized volatility.
+    :type lookback: int
+    :param use_cache: Whether to read/write from local cache.
+    :type use_cache: bool
+    :raises ValueError: If the underlying fetch/build returns no valid data.
+    :return: Long-form dataset with ['date','ticker','return','realized_vol'] across all tickers.
+    :rtype: pandas.DataFrame
     """
     cache_name = f"{'_'.join(tickers)}_{start}_{end}_{lookback}".replace(":", "-")
     if use_cache:
@@ -65,19 +110,18 @@ def make_rolling_windows(df: pd.DataFrame, window: int = 30, stride: int = 5):
     """
     Generate rolling subwindows of a DataFrame for evaluation or backtesting.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input time series (must include a 'date' column sorted ascending).
-    window : int, default=30
-        Length of each rolling window.
-    stride : int, default=5
-        Step size between window start indices.
+    The function creates overlapping slices of length `window`, advancing the start
+    index by `stride` each step. Assumes the DataFrame includes a 'date' column.
 
-    Returns
-    -------
-    list[pd.DataFrame]
-        List of rolling DataFrame segments, each of length `window`.
+    :param df: Input time series; must include a 'date' column sorted ascending.
+    :type df: pandas.DataFrame
+    :param window: Length of each rolling window.
+    :type window: int
+    :param stride: Step size between window start indices.
+    :type stride: int
+    :raises ValueError: If 'date' column is missing from the input DataFrame.
+    :return: List of rolling DataFrame segments, each of length `window` (except potentially the last if filtered elsewhere).
+    :rtype: list[pandas.DataFrame]
     """
     if "date" not in df.columns:
         raise ValueError("DataFrame must include a 'date' column for rolling windows.")
@@ -91,4 +135,3 @@ def make_rolling_windows(df: pd.DataFrame, window: int = 30, stride: int = 5):
         windows.append(sub)
 
     return windows
-

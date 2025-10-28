@@ -15,7 +15,17 @@ sys.modules["volsense_pkg"] = __import__("volsense_core")
 
 
 def _abs_repo_path(relative_dir: str) -> str:
-    """Resolve a relative path to repo root, regardless of current working dir."""
+    """
+    Resolve a path relative to the repository root into an absolute path.
+
+    If relative_dir is already absolute, it is returned unchanged. Otherwise,
+    the path is resolved relative to the volsense_inference package root.
+
+    :param relative_dir: Relative directory or file path to resolve.
+    :type relative_dir: str
+    :return: Absolute path corresponding to the provided relative path.
+    :rtype: str
+    """
     if os.path.isabs(relative_dir):
         return relative_dir
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -23,7 +33,18 @@ def _abs_repo_path(relative_dir: str) -> str:
 
 
 def _import_class(module_path: str, class_name: str):
-    """Dynamically import model class from recorded module path."""
+    """
+    Dynamically import a class given its module path and class name.
+
+    :param module_path: Dotted module path (e.g., 'volsense_core.models.global_vol_forecaster').
+    :type module_path: str
+    :param class_name: Name of the class to retrieve from the module.
+    :type class_name: str
+    :raises ModuleNotFoundError: If the module cannot be imported.
+    :raises AttributeError: If the class name does not exist in the module.
+    :return: Imported class object.
+    :rtype: type
+    """
     mod = importlib.import_module(module_path)
     return getattr(mod, class_name)
 
@@ -33,10 +54,24 @@ def load_model(
     checkpoints_dir: str = "models",
 ) -> Tuple[Any, Dict[str, Any], Optional[Dict[str, Any]], Optional[Dict[str, int]], Optional[list]]:
     """
-    Dynamically loads a trained VolSense model and its assets.
+    Load a trained VolSense model and assets from disk.
 
-    Returns:
-        model, meta/config, scalers, ticker_to_id, features
+    Search order:
+      1) '<base>_full.pkl'   → pickled model object, optional '<base>.meta.json' for meta.
+      2) '<base>_bundle.pkl' → dict with {'module_path','arch','state_dict','config','scalers','ticker_to_id','features'}.
+      3) '<base>.pth' + '<base>.meta.json' → raw state_dict with metadata for dynamic reconstruction.
+
+    Returns a tuple of (model, meta, scalers, ticker_to_id, features). On bundle/raw paths,
+    attempts dynamic import and reconstruction using recorded module/class info; falls back
+    to torch.load(path_pth) if dynamic rebuild fails.
+
+    :param model_version: Version tag identifying which checkpoint set to load.
+    :type model_version: str
+    :param checkpoints_dir: Directory containing saved model artifacts.
+    :type checkpoints_dir: str
+    :raises FileNotFoundError: If no compatible artifacts are found for the version.
+    :return: Loaded model, metadata/config, optional scalers, ticker-to-id map, and feature list.
+    :rtype: tuple[typing.Any, dict, dict | None, dict[str, int] | None, list | None]
     """
     ckpt_dir = _abs_repo_path(checkpoints_dir)
     base = os.path.join(ckpt_dir, f"global_vol_forecaster_multi_{model_version}")

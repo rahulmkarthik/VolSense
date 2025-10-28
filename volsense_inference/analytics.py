@@ -18,15 +18,23 @@ class Analytics:
     """
     Trader-facing analytics for VolSense forecasts.
 
-    Parameters
-    ----------
-    preds : pd.DataFrame
-        DataFrame with columns ["ticker", "realized_vol", "pred_vol_1", ...].
-    vol_regime_quantiles : list, optional
-        Quantile thresholds for regime classification, default [0.2, 0.8].
+    :param preds: DataFrame with columns like ['ticker','realized_vol','pred_vol_1', ...].
+    :type preds: pandas.DataFrame
+    :param vol_regime_quantiles: Quantile thresholds (low, high) for regime classification.
+    :type vol_regime_quantiles: list[float], optional
+    :raises ValueError: If an empty or None forecast DataFrame is provided.
     """
 
     def __init__(self, preds: pd.DataFrame, vol_regime_quantiles: List[float] = [0.2, 0.8]):
+        """
+        Initialize the Analytics module with a single-snapshot forecast table.
+
+        :param preds: Forecast snapshot containing realized and predicted vol columns.
+        :type preds: pandas.DataFrame
+        :param vol_regime_quantiles: Quantile thresholds (low, high) for regime classification.
+        :type vol_regime_quantiles: list[float], optional
+        :raises ValueError: If preds is None or empty.
+        """
         if preds is None or preds.empty:
             raise ValueError("Empty forecast DataFrame passed to Analytics.")
 
@@ -39,8 +47,16 @@ class Analytics:
     # ============================================================
     def compute(self) -> pd.DataFrame:
         """
-        Compute cross-sectional volatility analytics for traders.
-        Adds f/r ratio, z-scores, signal strengths, and regime tags.
+        Compute cross-sectional volatility analytics for a single snapshot.
+
+        Derives per-horizon metrics:
+          - f/r ratio: forecast_vol / realized_vol
+          - z-score: cross-sectional z-score vs realized_vol mean/std
+          - signal_strength: clipped z-score in [-3, 3]
+          - vol_regime: 'Low Vol' | 'Normal' | 'High Vol' via quantiles
+
+        :return: Processed DataFrame with added per-horizon columns and 'vol_regime'.
+        :rtype: pandas.DataFrame
         """
         df = self.raw.copy()
         horizons = [c for c in df.columns if c.startswith("pred_vol_")]
@@ -76,8 +92,17 @@ class Analytics:
     # ============================================================
     def summary(self, horizon: str = "pred_vol_5") -> pd.DataFrame:
         """
-        Return summarized metrics for each ticker:
-        realized vol, forecast vol, f/r ratio, z-score, and regime.
+        Summarize realized vs forecast metrics for each ticker.
+
+        Returns a compact table with:
+          ['ticker','realized_vol','forecast_vol','f/r_ratio','zscore','vol_regime'].
+
+        If the requested horizon is absent, falls back to the first available 'pred_vol_*' column.
+
+        :param horizon: Horizon column to summarize (e.g., 'pred_vol_5').
+        :type horizon: str
+        :return: Ticker-level summary sorted by descending z-score.
+        :rtype: pandas.DataFrame
         """
         if self.processed is None:
             self.compute()
@@ -110,7 +135,17 @@ class Analytics:
     # ============================================================
     def describe(self, ticker: str, horizon: str = "pred_vol_5") -> str:
         """
-        Generate an easy-to-read trader interpretation of forecast results.
+        Produce a human-readable interpretation for a single ticker.
+
+        The message encodes direction via f/r ratio (>1 rising, <1 easing), the
+        cross-sectional z-score, and the volatility regime.
+
+        :param ticker: Ticker to describe.
+        :type ticker: str
+        :param horizon: Horizon column to reference (e.g., 'pred_vol_5').
+        :type horizon: str
+        :return: Short interpretation string for trader consumption.
+        :rtype: str
         """
         if self.processed is None:
             self.compute()
@@ -142,13 +177,16 @@ class Analytics:
     # ...existing code...
     def plot(self, horizon: str = "pred_vol_5", show: bool = False):
         """
-        Plot forecast vs realized volatility for all tickers at the given horizon.
-        Each ticker gets a unique color and label.
+        Scatter plot of forecast vs realized volatility at a selected horizon.
 
-        Args:
-            horizon: e.g., "pred_vol_5".
-            show: If True, show the plot inside and close it (returns None).
-                  If False, return the Figure and do not show (use in Streamlit/Jupyter).
+        Each ticker is plotted as a labeled point; includes a 45-degree reference line.
+
+        :param horizon: Horizon column to plot (e.g., 'pred_vol_5').
+        :type horizon: str
+        :param show: If True, render and close the figure; if False, return the Figure.
+        :type show: bool
+        :return: Matplotlib Figure when show=False; otherwise None.
+        :rtype: matplotlib.figure.Figure or None
         """
         if self.processed is None:
             self.compute()

@@ -62,7 +62,7 @@ class TrainConfig:
 
     # early stop
     early_stop: bool = True
-    patience: int = 4
+    patience: int = 7
     min_delta: float = 0.0
 
     # dataloader
@@ -465,8 +465,9 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
                 scheduler.step(ep - 1)  # epoch-based step for restarts
             else:
                 scheduler.step()
+        cur_lr = optimizer.param_groups[0]["lr"]
 
-        print(f"Epoch {ep}/{cfg.epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+        print(f"Epoch {ep}/{cfg.epochs}| LR: {cur_lr:.4e} |  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
         history["train"].append(train_loss); history["val"].append(val_loss)
 
         # Early stopping

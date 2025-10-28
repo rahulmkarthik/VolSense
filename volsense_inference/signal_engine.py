@@ -84,6 +84,66 @@ class SignalEngine:
         df_long["ticker"] = df_long["ticker"].astype(str)
         df_long["date"] = pd.to_datetime(df_long["date"])
         self.df = df_long
+    def ticker_summary(
+        self,
+        ticker: str,
+        horizons: list[int] | None = None,
+        date: pd.Timestamp | None = None,
+        decimals: int = 4,
+    ) -> str:
+        """
+        Returns a human-readable summary string for a single ticker across selected horizons.
+
+        Example:
+            print(engine.ticker_summary("AAPL", horizons=[1,5,10]))
+        """
+        if self.signals is None:
+            raise RuntimeError("Run .compute_signals() first.")
+
+        df = self.signals.copy()
+        if date is None:
+            date = df["date"].max()
+        dsub = df[(df["date"] == pd.to_datetime(date)) & (df["ticker"] == str(ticker))].copy()
+
+        if dsub.empty:
+            return f"{ticker} — no data for {pd.to_datetime(date).date()}"
+
+        if horizons is None:
+            horizons = sorted(dsub["horizon"].dropna().unique().tolist())
+
+        lines = [f"{ticker} — {pd.to_datetime(date).date()}"]
+        # Use the first row for static attributes (sector)
+        sector = dsub["sector"].iloc[0] if "sector" in dsub.columns else "Unknown"
+
+        for h in horizons:
+            row = dsub[dsub["horizon"] == h]
+            if row.empty:
+                lines.append(f"  {h}d: no data")
+                continue
+            r = row.iloc[0]
+
+            fvol = float(r.get("forecast_vol", np.nan))
+            tvol = float(r.get("today_vol", np.nan))
+            spread = float(r.get("vol_spread", np.nan)) * 100 if pd.notna(r.get("vol_spread", np.nan)) else np.nan
+            z = float(r.get("vol_zscore", np.nan))
+            pos = str(r.get("position", "")) if pd.notna(r.get("position", np.nan)) else ""
+            reg = str(r.get("regime_flag", "")) if pd.notna(r.get("regime_flag", np.nan)) else ""
+            sect_z = float(r.get("sector_z", np.nan)) if "sector_z" in r else np.nan
+            rank_u = float(r.get("rank_universe", np.nan)) if "rank_universe" in r else np.nan
+
+            fvol_str = f"{fvol:.{decimals}f}" if np.isfinite(fvol) else "NaN"
+            tvol_str = f"{tvol:.{decimals}f}" if np.isfinite(tvol) else "NaN"
+            spr_str = f"{spread:+.1f}%" if np.isfinite(spread) else "NaN"
+            z_str = f"{z:+.2f}" if np.isfinite(z) else "NaN"
+            sectz_str = f"{sect_z:+.2f}" if np.isfinite(sect_z) else "NaN"
+            ranku_str = f"{rank_u:.0%}" if np.isfinite(rank_u) else "NaN"
+
+            lines.append(
+                f"  {h}d: fc={fvol_str}, today={tvol_str if tvol_str != 'NaN' else 'N/A'} ({spr_str}), z={z_str}, "
+                f"pos={pos or '-'}, regime={reg or '-'}, sector={sector} (z={sectz_str}, uni-rank={ranku_str})"
+            )
+
+        return "\n".join(lines)
 
     # ============================================================
     # 🔹 Core Signal Computation

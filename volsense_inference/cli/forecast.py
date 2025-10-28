@@ -16,6 +16,15 @@ from volsense_inference.forecast_engine import Forecast
 
 
 def parse_args():
+    """
+    Parse CLI arguments for VolSense forecasts.
+
+    Defines flags for tickers, model version, checkpoints directory, display horizon,
+    plotting, and optional CSV save path.
+
+    :return: Parsed arguments namespace with keys: tickers, model, checkpoints_dir, horizon, plot, save.
+    :rtype: argparse.Namespace
+    """
     parser = argparse.ArgumentParser(
         description="Run volatility forecasts using pretrained VolSense models."
     )
@@ -57,6 +66,16 @@ def parse_args():
 
 
 def main():
+    """
+    Run the volsense-forecast CLI.
+
+    Initializes the Forecast engine, generates forecasts for the requested tickers,
+    optionally saves results to CSV, and renders per-ticker plots.
+
+    :raises SystemExit: If forecasting fails or no results are produced.
+    :return: None
+    :rtype: None
+    """
     args = parse_args()
 
     print(f"\n🚀 Initializing VolSense Forecast (model={args.model})")

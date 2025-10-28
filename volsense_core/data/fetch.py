@@ -19,22 +19,18 @@ def fetch_ohlcv(
     """
     Fetch OHLCV data for one or more tickers from Yahoo Finance.
 
-    Parameters
-    ----------
-    tickers : str | list[str]
-        Single ticker symbol or list of tickers.
-    start, end : str
-        Start and end dates for download (YYYY-MM-DD).
-    show_progress : bool
-        Show tqdm progress bar for multi-ticker requests.
-    cache_dir : str | None
-        If set, saves each ticker’s data to CSV cache and reloads if present.
-
-    Returns
-    -------
-    pd.DataFrame | dict[str, pd.DataFrame]
-        • Single ticker → DataFrame with columns ['date','open','high','low','close','adj_close','volume']  
-        • Multiple tickers → dict[ticker → DataFrame]
+    :param tickers: Single ticker symbol or list of tickers.
+    :type tickers: str or list[str]
+    :param start: Start date for the download (YYYY-MM-DD).
+    :type start: str
+    :param end: End date for the download (YYYY-MM-DD). If None, fetches up to the latest available date.
+    :type end: str, optional
+    :param show_progress: Whether to display a tqdm progress bar for multi-ticker requests.
+    :type show_progress: bool
+    :param cache_dir: Optional directory to cache each ticker’s data as CSV. If provided and a cache exists, it will be reused.
+    :type cache_dir: str, optional
+    :return: For a single ticker, a DataFrame with columns ['date','open','high','low','close','adj_close','volume']. For multiple tickers, a dict mapping ticker to its DataFrame.
+    :rtype: pandas.DataFrame or dict[str, pandas.DataFrame]
     """
     # Normalize tickers
     single_mode = isinstance(tickers, str)
@@ -101,11 +97,26 @@ def build_dataset(
     show_progress: bool = True,
 ) -> pd.DataFrame:
     """
-    Fetches raw OHLCV data (single or multi-ticker) and builds
-    a standardized volatility dataset.
+    Fetch raw OHLCV data and build a standardized volatility dataset.
 
-    Output columns:
-        ['date','ticker','return','realized_vol']
+    Computes daily returns from adjusted close (if available, else close) and realized volatility
+    as a rolling standard deviation over the given window, annualized by sqrt(252).
+
+    :param tickers: Single ticker symbol or list of tickers to include.
+    :type tickers: str or list[str]
+    :param start: Start date for the download (YYYY-MM-DD).
+    :type start: str
+    :param end: End date for the download (YYYY-MM-DD). If None, fetches up to the latest available date.
+    :type end: str, optional
+    :param window: Rolling window length (in trading days) used to compute realized volatility.
+    :type window: int
+    :param cache_dir: Optional directory for CSV caching during fetch.
+    :type cache_dir: str, optional
+    :param show_progress: Whether to display a tqdm progress bar for multi-ticker fetches.
+    :type show_progress: bool
+    :raises ValueError: If no valid data is returned for any ticker.
+    :return: Tidy DataFrame sorted by ['ticker','date'] with columns ['date','ticker','return','realized_vol'].
+    :rtype: pandas.DataFrame
     """
     data = fetch_ohlcv(
         tickers=tickers,

@@ -62,14 +62,20 @@ def _detect_horizons(df: pd.DataFrame) -> List[int]:
             pass
     return sorted(set(hs))
 
+@st.cache_resource(show_spinner=False)
+def _load_forecast_model(model_version: str, checkpoints_dir: str):
+    """Cache the model object so it's not reloaded on runs"""
+    fcast = Forecast(
+        model_version=model_version, checkpoints_dir=checkpoints_dir, start="2005-01-01"
+    )
+    return fcast
+
 
 @st.cache_data(show_spinner=False, ttl=60 * 30)
 def run_volsense(
     model_version: str, checkpoints_dir: str, start: str, tickers: List[str]
 ):
-    fcast = Forecast(
-        model_version=model_version, checkpoints_dir=checkpoints_dir, start=start
-    )
+    fcast = _load_forecast_model(model_version, checkpoints_dir)
     preds = fcast.run(
         tickers
     )  # attaches fcast.signals (Analytics) internally  :contentReference[oaicite:4]{index=4}
@@ -97,19 +103,54 @@ def _pretty_number(x, nd=3):
         return ""
     return f"{x:.{nd}f}"
 
+# ──────────────────────────────────────────────────────────────────────────────
+# CSV Export helper
+# ──────────────────────────────────────────────────────────────────────────────
+
+def export_csv_button(df:pd.DataFrame,
+filename: str, label: str = "📥 Export CSV"):
+    """Generate a download button for a DataFrame as CSV."""
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label=label,
+        data=csv,
+        file_name=filename,
+        mime='text/csv',
+        use_container_width=True,
+    )
+
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Sidebar
 # ──────────────────────────────────────────────────────────────────────────────
-st.sidebar.title("⚡ VolSense Dashboard")
-st.sidebar.caption("Trader-facing volatility analytics & signals")
+st.sidebar.title("VolSense Dashboard")
+st.sidebar.caption("Trader-facing Volatility Analytics & Signals")
+
+TICKERS = [  # Index / ETF
+    "SPY","QQQ","DIA","IWM","GLD","SLV","TLT","HYG","EEM",
+    # Tech
+    "AAPL","MSFT","GOOG","AMZN","META","NVDA","AVGO","AMD","INTC","ORCL",
+    "CRM","TXN","QCOM","ADI","MU","CSCO",
+    # Financials
+    "JPM","BAC","C","WFC","GS","MS","V","MA","AXP","SCHW",
+    # Healthcare
+    "JNJ","PFE","MRK","UNH","ABBV","ABT","LLY","BMY","TMO","CVS",
+    # Energy / Materials
+    "XOM","CVX","COP","SLB","HAL","BP","BHP","RIO","FCX",
+    # Consumer Discretionary
+    "TSLA","HD","MCD","NKE","SBUX","TGT","BKNG","CMG",
+    # Industrials
+    "CAT","BA","HON","UPS","FDX","LMT","GE",
+    # Consumer Staples
+    "PG","KO","PEP","COST","WMT"]
 
 with st.sidebar:
     model_version = st.text_input(
         "Model version", value="v109"
     )  # matches your checkpoints naming
     checkpoints_dir = st.text_input("Checkpoints directory", value="models")
-    default_tickers = "AAPL, MSFT, NVDA, TSLA, JPM, XOM, TLT, GLD, SPY, QQQ"
+    default_tickers = ", ".join(TICKERS)
     tickers_str = st.text_area(
         "Tickers (comma-separated)", value=default_tickers, height=90
     )
@@ -188,6 +229,7 @@ if run_btn or st.session_state.forecast_data is not None:
                 use_container_width=True,
                 height=380,
             )
+            #export_csv_button(preds, f"volsense_forecast_{date.today()}.csv", "Export Predictions")
 
         with tab_tickers:
             st.subheader("Per-Ticker Forecast vs Realized")

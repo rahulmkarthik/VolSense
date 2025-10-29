@@ -6,9 +6,9 @@ from datetime import date
 from typing import List, Optional
 
 # VolSense imports
-from volsense_inference.forecast_engine import Forecast          # runs models + features  📦
-from volsense_inference.analytics import Analytics               # cross-sectional analytics
-from volsense_inference.signal_engine import SignalEngine        # sector-aware signals
+from volsense_inference.forecast_engine import Forecast  # runs models + features  📦
+from volsense_inference.analytics import Analytics  # cross-sectional analytics
+from volsense_inference.signal_engine import SignalEngine  # sector-aware signals
 from volsense_inference.sector_mapping import get_sector_map, get_color
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -28,7 +28,12 @@ if "forecast_data" not in st.session_state:
 if "active_tab" not in st.session_state:
     st.session_state.active_tab = "Overview"
 if "tabs_list" not in st.session_state:
-    st.session_state.tabs_list = ["Overview", "Ticker Analytics", "Sector View", "Signal Table"]
+    st.session_state.tabs_list = [
+        "Overview",
+        "Ticker Analytics",
+        "Sector View",
+        "Signal Table",
+    ]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -36,6 +41,7 @@ if "tabs_list" not in st.session_state:
 # ──────────────────────────────────────────────────────────────────────────────
 def _parse_tickers(s: str) -> List[str]:
     return sorted({t.strip().upper() for t in s.split(",") if t.strip()})
+
 
 def _safe_style_format(df: pd.DataFrame, formatter):
     """
@@ -52,29 +58,46 @@ def _detect_horizons(df: pd.DataFrame) -> List[int]:
     hs = []
     for c in cols:
         try:
-            hs.append(int(c.split("_")[-1].replace("d","")))
+            hs.append(int(c.split("_")[-1].replace("d", "")))
         except Exception:
             pass
     return sorted(set(hs))
 
-@st.cache_data(show_spinner=False, ttl=60*30)
-def run_volsense(model_version: str, checkpoints_dir: str, start: str, tickers: List[str]):
-    fcast = Forecast(model_version=model_version, checkpoints_dir=checkpoints_dir, start=start)
-    preds = fcast.run(tickers)  # attaches fcast.signals (Analytics) internally  :contentReference[oaicite:4]{index=4}
-    analytics = fcast.signals   # Analytics(preds).compute() already called        :contentReference[oaicite:5]{index=5}
-    ae_summary = analytics.summary(horizon="pred_vol_5") if "pred_vol_5" in preds.columns else analytics.summary()
+
+@st.cache_data(show_spinner=False, ttl=60 * 30)
+def run_volsense(
+    model_version: str, checkpoints_dir: str, start: str, tickers: List[str]
+):
+    fcast = Forecast(
+        model_version=model_version, checkpoints_dir=checkpoints_dir, start=start
+    )
+    preds = fcast.run(
+        tickers
+    )  # attaches fcast.signals (Analytics) internally  :contentReference[oaicite:4]{index=4}
+    analytics = (
+        fcast.signals
+    )  # Analytics(preds).compute() already called        :contentReference[oaicite:5]{index=5}
+    ae_summary = (
+        analytics.summary(horizon="pred_vol_5")
+        if "pred_vol_5" in preds.columns
+        else analytics.summary()
+    )
 
     # Signal engine (sector-aware)
     se = SignalEngine(model_version=model_version)
-    se.set_data(preds)                                 # coerce wide → long if needed  :contentReference[oaicite:6]{index=6}
+    se.set_data(
+        preds
+    )  # coerce wide → long if needed  :contentReference[oaicite:6]{index=6}
     sig_df = se.compute_signals(enrich_with_sectors=True)
 
     return fcast, preds, analytics, ae_summary, se, sig_df
+
 
 def _pretty_number(x, nd=3):
     if pd.isna(x):
         return ""
     return f"{x:.{nd}f}"
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Sidebar
@@ -83,11 +106,15 @@ st.sidebar.title("⚡ VolSense Dashboard")
 st.sidebar.caption("Trader-facing volatility analytics & signals")
 
 with st.sidebar:
-    model_version = st.text_input("Model version", value="v109")  # matches your checkpoints naming
+    model_version = st.text_input(
+        "Model version", value="v109"
+    )  # matches your checkpoints naming
     checkpoints_dir = st.text_input("Checkpoints directory", value="models")
     default_tickers = "AAPL, MSFT, NVDA, TSLA, JPM, XOM, TLT, GLD, SPY, QQQ"
-    tickers_str = st.text_area("Tickers (comma-separated)", value=default_tickers, height=90)
-    start_date = st.date_input("Start fetch (for features)", value=date(2005,1,1))
+    tickers_str = st.text_area(
+        "Tickers (comma-separated)", value=default_tickers, height=90
+    )
+    start_date = st.date_input("Start fetch (for features)", value=date(2005, 1, 1))
     run_btn = st.button("🚀 Run Forecasts", type="primary", use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -159,13 +186,16 @@ if run_btn or st.session_state.forecast_data is not None:
             )
             st.dataframe(
                 _safe_style_format(preds[ordered_cols], _pretty_number),
-                use_container_width=True, height=380,
+                use_container_width=True,
+                height=380,
             )
 
         with tab_tickers:
             st.subheader("Per-Ticker Forecast vs Realized")
             horizons = _detect_horizons(preds)
-            selected_ticker = st.selectbox("Ticker", preds["ticker"].unique(), key="ticker_ta")
+            selected_ticker = st.selectbox(
+                "Ticker", preds["ticker"].unique(), key="ticker_ta"
+            )
             chosen_horizon = st.selectbox("Horizon", horizons, key="horizon_ta")
 
             fig = fcast.plot(selected_ticker, show=False)
@@ -180,7 +210,9 @@ if run_btn or st.session_state.forecast_data is not None:
 
             # Controls
             all_horizons = sorted(sig_df["horizon"].unique().tolist())
-            h_sel = st.select_slider("Horizon", options=all_horizons, value=all_horizons[0])
+            h_sel = st.select_slider(
+                "Horizon", options=all_horizons, value=all_horizons[0]
+            )
             sector_map = get_sector_map(model_version)
 
             # Build sector pivot for heatmap (sector z per horizon)
@@ -216,7 +248,12 @@ if run_btn or st.session_state.forecast_data is not None:
 
             # Top sectors by mean z at selected horizon
             top_n = st.slider("Top sectors to display", 3, 12, 8)
-            sec_slice = dsub[dsub["horizon"] == h_sel].groupby("sector")["sector_z"].mean().sort_values(ascending=False)
+            sec_slice = (
+                dsub[dsub["horizon"] == h_sel]
+                .groupby("sector")["sector_z"]
+                .mean()
+                .sort_values(ascending=False)
+            )
             top = sec_slice.head(top_n)
 
             # Horizontal bar with sector colors
@@ -235,21 +272,34 @@ if run_btn or st.session_state.forecast_data is not None:
             st.subheader("Cross-Sectional Signal Table")
             # Filters
             sectors = ["All"] + sorted(sig_df["sector"].dropna().unique().tolist())
-            c1, c2, c3, c4 = st.columns([1,1,1,1.4])
+            c1, c2, c3, c4 = st.columns([1, 1, 1, 1.4])
             with c1:
-                sector_filter = st.selectbox("Sector", sectors, index=0, key="sig_sector")
+                sector_filter = st.selectbox(
+                    "Sector", sectors, index=0, key="sig_sector"
+                )
             with c2:
                 horizon_filter = st.selectbox(
-                    "Horizon", sorted(sig_df["horizon"].unique().tolist()), key="sig_horizon"
+                    "Horizon",
+                    sorted(sig_df["horizon"].unique().tolist()),
+                    key="sig_horizon",
                 )
             with c3:
                 regime = st.selectbox(
-                    "Regime", ["All", "calm", "normal", "spike"], index=0, key="sig_regime"
+                    "Regime",
+                    ["All", "calm", "normal", "spike"],
+                    index=0,
+                    key="sig_regime",
                 )
             with c4:
                 sort_by = st.selectbox(
                     "Sort by",
-                    ["vol_zscore", "vol_spread", "rank_universe", "rank_sector", "ticker"],
+                    [
+                        "vol_zscore",
+                        "vol_spread",
+                        "rank_universe",
+                        "rank_sector",
+                        "ticker",
+                    ],
                     key="sig_sort",
                 )
 
@@ -278,11 +328,17 @@ if run_btn or st.session_state.forecast_data is not None:
 
             # Subset and display
             cols = [
-                "ticker", "sector", "horizon",
-                "forecast_vol", "today_vol",
-                "vol_spread", "vol_zscore",
-                "rank_universe", "rank_sector",
-                "position", "regime_flag"
+                "ticker",
+                "sector",
+                "horizon",
+                "forecast_vol",
+                "today_vol",
+                "vol_spread",
+                "vol_zscore",
+                "rank_universe",
+                "rank_sector",
+                "position",
+                "regime_flag",
             ]
             cols = [c for c in cols if c in table.columns]
             table = table[cols].sort_values(sort_by, ascending=False)
@@ -291,21 +347,24 @@ if run_btn or st.session_state.forecast_data is not None:
                 st.warning("⚠️ No signals available for the selected filters.")
             else:
                 st.dataframe(
-                    table.style.format({
-                        "forecast_vol": "{:.4f}".format,
-                        "today_vol": "{:.4f}".format,
-                        "vol_spread": "{:+.2%}".format,
-                        "vol_zscore": "{:+.2f}".format,
-                        "rank_universe": lambda x: f"{x:.2f}",
-                        "rank_sector": lambda x: f"{x:.2f}",
-                    }),
+                    table.style.format(
+                        {
+                            "forecast_vol": "{:.4f}".format,
+                            "today_vol": "{:.4f}".format,
+                            "vol_spread": "{:+.2%}".format,
+                            "vol_zscore": "{:+.2f}".format,
+                            "rank_universe": lambda x: f"{x:.2f}",
+                            "rank_sector": lambda x: f"{x:.2f}",
+                        }
+                    ),
                     use_container_width=True,
                     height=520,
                 )
-
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
 else:
-    st.info("Set model, tickers and press **Run Forecasts** to generate analytics & signals.")
+    st.info(
+        "Set model, tickers and press **Run Forecasts** to generate analytics & signals."
+    )

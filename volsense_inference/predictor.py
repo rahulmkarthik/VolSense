@@ -24,7 +24,10 @@ from tqdm import tqdm
 # 🔧 Helper functions
 # ---------------------------------------------------------------------------
 
-def _get_feature_list(meta: Dict[str, Any], user_feats: Optional[List[str]] = None) -> List[str]:
+
+def _get_feature_list(
+    meta: Dict[str, Any], user_feats: Optional[List[str]] = None
+) -> List[str]:
     """
     Determine the feature list to use for inference.
 
@@ -50,8 +53,9 @@ def _get_feature_list(meta: Dict[str, Any], user_feats: Optional[List[str]] = No
     return ["return"]
 
 
-def _scale_features(df_t: pd.DataFrame, feats: List[str], ticker: str,
-                    scalers: Optional[Dict[str, Any]]) -> pd.DataFrame:
+def _scale_features(
+    df_t: pd.DataFrame, feats: List[str], ticker: str, scalers: Optional[Dict[str, Any]]
+) -> pd.DataFrame:
     """
     Apply per-ticker feature scaling with training scalers, with fallback.
 
@@ -76,9 +80,8 @@ def _scale_features(df_t: pd.DataFrame, feats: List[str], ticker: str,
     sc = scalers.get(ticker)
     if sc is None:
         # fallback: mean-std normalize with recent window
-        df_scaled[feats] = (
-            (df_scaled[feats] - df_scaled[feats].mean()) /
-            (df_scaled[feats].std() + 1e-8)
+        df_scaled[feats] = (df_scaled[feats] - df_scaled[feats].mean()) / (
+            df_scaled[feats].std() + 1e-8
         )
         return df_scaled
     try:
@@ -119,7 +122,8 @@ def _forward(model, X: torch.Tensor, tid_tensor: Optional[torch.Tensor]) -> np.n
 # 🎯 Core prediction logic
 # ---------------------------------------------------------------------------
 
-#TODO fix flat outputs in volatility forecsting. Likely a problem with feature parsing
+# TODO fix flat outputs in volatility forecsting. Likely a problem with feature parsing
+
 
 def predict_single(
     model: Any,
@@ -163,7 +167,9 @@ def predict_single(
         for f in missing:
             df[f] = 0.0
 
-    extra = [f for f in df.columns if f not in feats + ["date","ticker","realized_vol"]]
+    extra = [
+        f for f in df.columns if f not in feats + ["date", "ticker", "realized_vol"]
+    ]
     if extra:
         df = df.drop(columns=extra)
 
@@ -171,7 +177,9 @@ def predict_single(
     df_t = df[df["ticker"] == ticker].sort_values("date")
 
     if len(df_t) < window:
-        raise ValueError(f"{ticker}: insufficient data ({len(df_t)} rows, need {window})")
+        raise ValueError(
+            f"{ticker}: insufficient data ({len(df_t)} rows, need {window})"
+        )
 
     df_t = _scale_features(df_t, feats, ticker, scalers)
     X_df = df_t.iloc[-window:][feats]
@@ -189,8 +197,10 @@ def predict_single(
         yhat = np.exp(yhat)
 
     horizons = meta.get("horizons", [1])
-    preds = {f"pred_vol_{h}": float(yhat[i]) if i < len(yhat) else np.nan
-             for i, h in enumerate(horizons)}
+    preds = {
+        f"pred_vol_{h}": float(yhat[i]) if i < len(yhat) else np.nan
+        for i, h in enumerate(horizons)
+    }
 
     return {"ticker": ticker, **preds}
 
@@ -229,7 +239,9 @@ def predict_batch(
     rows = []
     for t in tqdm(tickers, desc="Forecasting"):
         try:
-            rows.append(predict_single(model, meta, df, t, scalers, ticker_to_id, features))
+            rows.append(
+                predict_single(model, meta, df, t, scalers, ticker_to_id, features)
+            )
         except Exception as e:
             print(f"⚠️ {t}: {e}")
     return pd.DataFrame(rows)
@@ -238,6 +250,7 @@ def predict_batch(
 # ---------------------------------------------------------------------------
 # 📊 Post-processing utilities
 # ---------------------------------------------------------------------------
+
 
 def attach_realized(df_preds: pd.DataFrame, df_recent: pd.DataFrame) -> pd.DataFrame:
     """

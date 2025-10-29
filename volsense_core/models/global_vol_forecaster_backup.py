@@ -111,7 +111,6 @@ class GlobalVolForecaster(nn.Module):
         return yhat.squeeze(-1)
 
 
-
 # ============================================================
 # 🧮 Dataset Builder
 # ============================================================
@@ -155,7 +154,9 @@ def build_global_splits(df, cfg):
         def __init__(self, df, cfg):
             self.df = df
             self.cfg = cfg
-            self.grouped = {t: g.reset_index(drop=True) for t, g in df.groupby("ticker_id")}
+            self.grouped = {
+                t: g.reset_index(drop=True) for t, g in df.groupby("ticker_id")
+            }
             self.samples = []
             for tid, g in self.grouped.items():
                 for i in range(0, len(g) - cfg.window - cfg.horizons, cfg.stride):
@@ -167,8 +168,10 @@ def build_global_splits(df, cfg):
         def __getitem__(self, idx):
             tid, start = self.samples[idx]
             g = self.grouped[tid]
-            X = g.iloc[start:start + self.cfg.window]
-            y = g.iloc[start + self.cfg.window + self.cfg.horizons - 1][self.cfg.target_col]
+            X = g.iloc[start : start + self.cfg.window]
+            y = g.iloc[start + self.cfg.window + self.cfg.horizons - 1][
+                self.cfg.target_col
+            ]
             feats = ["return"] + (self.cfg.extra_features or [])
             X = torch.tensor(X[feats].values, dtype=torch.float32)
             y = torch.tensor(y, dtype=torch.float32)
@@ -255,12 +258,15 @@ def train_global_model(df, cfg):
         if scheduler:
             scheduler.step()
 
-        print(f"Epoch {ep}/{cfg.epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+        print(
+            f"Epoch {ep}/{cfg.epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}"
+        )
         history["train"].append(train_loss)
         history["val"].append(val_loss)
 
     print(f"\n✅ Training complete with feature set: {features}\n")
     return model, history, val_loader, ticker_to_id, scalers, features
+
 
 # Backup of v2
 # ============================================================
@@ -298,13 +304,13 @@ class TrainConfig:
     device: str = "cpu"
 
     # 🔧 New knobs (all optional / sane defaults)
-    dropout: float = 0.3                 # stronger regularization
-    use_layernorm: bool = True           # layer norm on LSTM outputs
-    separate_heads: bool = True          # per-horizon decoders
+    dropout: float = 0.3  # stronger regularization
+    use_layernorm: bool = True  # layer norm on LSTM outputs
+    separate_heads: bool = True  # per-horizon decoders
     loss_horizon_weights: list | None = None  # e.g., [0.5, 0.3, 0.2]
-    dynamic_window_jitter: int = 0       # e.g., 5 → sample window∈[W-5,W+5] for train
-    grad_clip: float = 1.0               # gradient clipping
-    num_workers: int = 0                 # speedup if you have CPU cores
+    dynamic_window_jitter: int = 0  # e.g., 5 → sample window∈[W-5,W+5] for train
+    grad_clip: float = 1.0  # gradient clipping
+    num_workers: int = 0  # speedup if you have CPU cores
     pin_memory: bool = False
 
 
@@ -360,14 +366,17 @@ class GlobalVolForecaster(nn.Module):
 
         # Decoders
         if self.separate_heads and self.n_horizons > 1:
-            self.heads = nn.ModuleList([
-                nn.Sequential(
-                    nn.Linear(hidden_dim, hidden_dim // 2),
-                    nn.ReLU(),
-                    nn.Dropout(dropout),
-                    nn.Linear(hidden_dim // 2, 1),
-                ) for _ in range(self.n_horizons)
-            ])
+            self.heads = nn.ModuleList(
+                [
+                    nn.Sequential(
+                        nn.Linear(hidden_dim, hidden_dim // 2),
+                        nn.ReLU(),
+                        nn.Dropout(dropout),
+                        nn.Linear(hidden_dim // 2, 1),
+                    )
+                    for _ in range(self.n_horizons)
+                ]
+            )
         else:
             self.head = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim // 2),
@@ -395,10 +404,10 @@ class GlobalVolForecaster(nn.Module):
         last = out[:, -1, :]
 
         if self.separate_heads and self.n_horizons > 1:
-            ys = [head(last) for head in self.heads]      # list of [B,1]
-            yhat = torch.cat(ys, dim=-1)                  # [B, H]
+            ys = [head(last) for head in self.heads]  # list of [B,1]
+            yhat = torch.cat(ys, dim=-1)  # [B, H]
         else:
-            yhat = self.head(last)                        # [B, H]
+            yhat = self.head(last)  # [B, H]
 
         if self.residual_head:
             yhat = yhat + self.residual(last)
@@ -406,7 +415,6 @@ class GlobalVolForecaster(nn.Module):
         if self.n_horizons == 1:
             return yhat.squeeze(-1)
         return yhat
-
 
 
 # ============================================================
@@ -449,7 +457,7 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
 
     # --- Train / Val split
     train_df = df_scaled[df_scaled["date"] < cfg.val_start].reset_index(drop=True)
-    val_df   = df_scaled[df_scaled["date"] >= cfg.val_start].reset_index(drop=True)
+    val_df = df_scaled[df_scaled["date"] >= cfg.val_start].reset_index(drop=True)
 
     # --- Dataset
     class GlobalVolDataset(torch.utils.data.Dataset):
@@ -457,14 +465,21 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
             self.df = df
             self.cfg = cfg
             self.is_train = is_train
-            self.grouped = {t: g.reset_index(drop=True) for t, g in df.groupby("ticker_id")}
+            self.grouped = {
+                t: g.reset_index(drop=True) for t, g in df.groupby("ticker_id")
+            }
             self.samples = []
-            horizon_max = max(cfg.horizons) if isinstance(cfg.horizons, (list, tuple)) else cfg.horizons
+            horizon_max = (
+                max(cfg.horizons)
+                if isinstance(cfg.horizons, (list, tuple))
+                else cfg.horizons
+            )
             for tid, g in self.grouped.items():
                 for i in range(0, len(g) - cfg.window - horizon_max, cfg.stride):
                     self.samples.append((tid, i))
 
-        def __len__(self): return len(self.samples)
+        def __len__(self):
+            return len(self.samples)
 
         def __getitem__(self, idx):
             tid, start = self.samples[idx]
@@ -473,12 +488,13 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
             # --- Window jitter ---
             W = self.cfg.window
             if self.is_train and self.cfg.dynamic_window_jitter > 0:
-                delta = np.random.randint(-self.cfg.dynamic_window_jitter,
-                                        self.cfg.dynamic_window_jitter + 1)
+                delta = np.random.randint(
+                    -self.cfg.dynamic_window_jitter, self.cfg.dynamic_window_jitter + 1
+                )
                 W = max(10, self.cfg.window + int(delta))  # clamp small windows
 
             feats = ["return"] + (self.cfg.extra_features or [])
-            X_df = g.iloc[start:start + W]
+            X_df = g.iloc[start : start + W]
 
             # --- Targets ---
             if isinstance(self.cfg.horizons, int):
@@ -489,7 +505,9 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
                 y_vals = []
                 for h in self.cfg.horizons:
                     t_idx = start + W + h - 1
-                    y_vals.append(g.iloc[t_idx][self.cfg.target_col] if t_idx < len(g) else np.nan)
+                    y_vals.append(
+                        g.iloc[t_idx][self.cfg.target_col] if t_idx < len(g) else np.nan
+                    )
 
             X = torch.tensor(X_df[feats].values, dtype=torch.float32)
             y = torch.tensor(y_vals, dtype=torch.float32)
@@ -501,14 +519,12 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
                 pad = torch.zeros((pad_len, X.shape[1]), dtype=torch.float32)
                 X = torch.cat([X, pad], dim=0)
             elif W > self.cfg.window:
-                X = X[:self.cfg.window]
+                X = X[: self.cfg.window]
 
             return torch.tensor(tid, dtype=torch.long), X, y
 
-
-
     train_ds = GlobalVolDataset(train_df, cfg, is_train=True)
-    val_ds   = GlobalVolDataset(val_df, cfg, is_train=False)
+    val_ds = GlobalVolDataset(val_df, cfg, is_train=False)
     return train_ds, val_ds, ticker_to_id, scalers
 
 
@@ -534,22 +550,31 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
         emb_dim=16,
         hidden_dim=160,
         num_layers=3,
-        dropout=cfg.dropout,           # <- use cfg
+        dropout=cfg.dropout,  # <- use cfg
         attention=True,
         residual_head=True,
-        input_size=len(features),      # features only (embedding is added inside the model)
+        input_size=len(features),  # features only (embedding is added inside the model)
         use_layernorm=cfg.use_layernorm,
         separate_heads=cfg.separate_heads,
     )
 
-
     device = torch.device(cfg.device)
     model.to(device)
 
-    train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True,
-                            num_workers=cfg.num_workers, pin_memory=cfg.pin_memory)
-    val_loader   = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False,
-                            num_workers=cfg.num_workers, pin_memory=cfg.pin_memory)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
+    )
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
+    )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
 
@@ -564,9 +589,13 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
         # broadcast to [B,H], average across batch
         return torch.mean(((pred - target) ** 2) * w)
 
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.epochs, eta_min=1e-6) \
-                if cfg.cosine_schedule else None
-
+    scheduler = (
+        torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=cfg.epochs, eta_min=1e-6
+        )
+        if cfg.cosine_schedule
+        else None
+    )
 
     history = {"train": [], "val": []}
     print(f"\n🚀 Training GlobalVolForecaster on {len(ticker_to_id)} tickers...\n")
@@ -595,11 +624,14 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
                 val_loss += mh_mse(yhat, y).item() * len(t_id)
         val_loss /= len(val_loader.dataset)
 
-        if scheduler: scheduler.step()
+        if scheduler:
+            scheduler.step()
 
-        print(f"Epoch {ep}/{cfg.epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
-        history["train"].append(train_loss); history["val"].append(val_loss)
-
+        print(
+            f"Epoch {ep}/{cfg.epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}"
+        )
+        history["train"].append(train_loss)
+        history["val"].append(val_loss)
 
     print(f"\n✅ Training complete with feature set: {features}\n")
     return model, history, val_loader, ticker_to_id, scalers, features
@@ -608,6 +640,7 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
 # ============================================================
 # 🔹 Helper Utilities for Inference and Checkpointing
 # ============================================================
+
 
 def make_last_windows(df: pd.DataFrame, window: int):
     """
@@ -622,22 +655,35 @@ def make_last_windows(df: pd.DataFrame, window: int):
     return pd.concat(last_windows, ignore_index=True)
 
 
-def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, device="cpu"):
+def predict_next_day(
+    model, df_last_windows, ticker_to_id, scalers, window, device="cpu"
+):
     """
     Run inference for the next horizon(s) per ticker.
     """
     model.eval()
     preds = []
-    features = [c for c in df_last_windows.columns if c not in ["date", "ticker", "realized_vol", "realized_vol_log"]]
+    features = [
+        c
+        for c in df_last_windows.columns
+        if c not in ["date", "ticker", "realized_vol", "realized_vol_log"]
+    ]
 
     with torch.no_grad():
         for t, g in df_last_windows.groupby("ticker"):
             t_id = torch.tensor([ticker_to_id[t]], dtype=torch.long, device=device)
             scaler = scalers[t]
             X_scaled = scaler.transform(g[features].fillna(0.0))
-            X_tensor = torch.tensor(X_scaled, dtype=torch.float32, device=device).unsqueeze(0)
+            X_tensor = torch.tensor(
+                X_scaled, dtype=torch.float32, device=device
+            ).unsqueeze(0)
             yhat = model(t_id, X_tensor)
-            preds.append({"ticker": t, "forecast_vol_scaled": yhat.cpu().numpy().flatten().tolist()})
+            preds.append(
+                {
+                    "ticker": t,
+                    "forecast_vol_scaled": yhat.cpu().numpy().flatten().tolist(),
+                }
+            )
 
     out = pd.DataFrame(preds)
     return out
@@ -688,5 +734,3 @@ def load_checkpoint(path, device="cpu"):
     ticker_to_id = {t: i for i, t in enumerate(meta["tickers"])}
     print(f"✅ Loaded checkpoint for {n_tickers} tickers from {path}")
     return model, ticker_to_id, scalers
-
-

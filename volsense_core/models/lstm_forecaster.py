@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from dataclasses import dataclass
 from typing import List, Tuple
 
+
 def collate_with_dates(batch):
     """
     Collate function that stacks tensors and keeps Python datetime objects as a list.
@@ -71,6 +72,7 @@ class TrainConfig:
     :param pin_memory: DataLoader pin_memory flag.
     :type pin_memory: bool
     """
+
     window: int = 30
     horizons: List[int] = None
     val_start: str = None
@@ -112,7 +114,10 @@ class MultiVolDataset(Dataset):
         • Drops constant features to avoid StandardScaler NaNs
         • Builds rolling windows of length `cfg.window` with multi-horizon labels
     """
-    def __init__(self, df: pd.DataFrame, cfg: TrainConfig, scaler: StandardScaler = None):
+
+    def __init__(
+        self, df: pd.DataFrame, cfg: TrainConfig, scaler: StandardScaler = None
+    ):
         """
         Build a rolling-window dataset and (optionally) fit a StandardScaler on features.
 
@@ -141,7 +146,9 @@ class MultiVolDataset(Dataset):
         df = df.sort_values(["ticker", "date"]).reset_index(drop=True)
 
         self.window = cfg.window
-        self.horizons = cfg.horizons if isinstance(cfg.horizons, (list, tuple)) else [cfg.horizons]
+        self.horizons = (
+            cfg.horizons if isinstance(cfg.horizons, (list, tuple)) else [cfg.horizons]
+        )
         self.scaler = scaler or StandardScaler()
 
         # ----- Target standardization (fit on train, reuse on val/test) -----
@@ -160,7 +167,9 @@ class MultiVolDataset(Dataset):
         df[cfg.target_col] = (df[cfg.target_col] - self.y_mean) / (self.y_std + 1e-8)
 
         # ----- Feature prep -----
-        feat_cols = [c for c in df.columns if c not in ["date", "ticker", cfg.target_col]]
+        feat_cols = [
+            c for c in df.columns if c not in ["date", "ticker", cfg.target_col]
+        ]
         X = (
             df[feat_cols]
             .replace([np.inf, -np.inf], np.nan)
@@ -197,7 +206,7 @@ class MultiVolDataset(Dataset):
             y_series = group[cfg.target_col].values.astype(np.float32)
             dates = group["date"].values
             for i in range(len(arr) - cfg.window - max_h + 1):
-                X_window = arr[i:i + cfg.window]
+                X_window = arr[i : i + cfg.window]
                 y_vals = [y_series[i + cfg.window + h - 1] for h in self.horizons]
                 last_date = dates[i + cfg.window - 1]
                 self.samples.append((X_window, y_vals))
@@ -237,6 +246,7 @@ class MultiVolDataset(Dataset):
 # ============================================================
 class FeatureDropout(nn.Module):
     """Feature-wise dropout mask shared across time steps (stochastic feature erasing)."""
+
     def __init__(self, p: float = 0.1):
         """
         Initialize FeatureDropout.
@@ -270,6 +280,7 @@ class BaseLSTM(nn.Module):
     Input:  (B, W, F)   where W=window, F=features
     Output: (B, H)      where H=len(horizons)
     """
+
     def __init__(
         self,
         input_dim: int,
@@ -322,8 +333,11 @@ class BaseLSTM(nn.Module):
         )
         self.ln = nn.LayerNorm(hidden_dim) if use_layernorm else nn.Identity()
         self.attn = (
-            nn.MultiheadAttention(hidden_dim, num_heads=2, dropout=dropout, batch_first=True)
-            if use_attention else None
+            nn.MultiheadAttention(
+                hidden_dim, num_heads=2, dropout=dropout, batch_first=True
+            )
+            if use_attention
+            else None
         )
         self.head = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim // 2),
@@ -365,7 +379,9 @@ class BaseLSTM(nn.Module):
 # ============================================================
 # 4) Training / evaluation utilities
 # ============================================================
-def build_splits(df: pd.DataFrame, cfg: TrainConfig) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def build_splits(
+    df: pd.DataFrame, cfg: TrainConfig
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Split a DataFrame into train/validation sets by date.
 
@@ -396,18 +412,24 @@ def build_dataloaders(df: pd.DataFrame, cfg: TrainConfig):
     train_df, val_df = build_splits(df, cfg)
 
     train_ds = MultiVolDataset(train_df, cfg)
-    val_ds   = MultiVolDataset(val_df, cfg, scaler=train_ds.scaler)
+    val_ds = MultiVolDataset(val_df, cfg, scaler=train_ds.scaler)
 
     # Use custom collate_fn to safely handle datetime objects
     train_loader = DataLoader(
-        train_ds, batch_size=cfg.batch_size, shuffle=True,
-        num_workers=cfg.num_workers, pin_memory=cfg.pin_memory,
-        collate_fn=collate_with_dates
+        train_ds,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
+        collate_fn=collate_with_dates,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=cfg.batch_size, shuffle=False,
-        num_workers=cfg.num_workers, pin_memory=cfg.pin_memory,
-        collate_fn=collate_with_dates
+        val_ds,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
+        collate_fn=collate_with_dates,
     )
 
     return train_loader, val_loader, train_ds.feat_cols
@@ -428,7 +450,6 @@ def train_baselstm(df: pd.DataFrame, cfg: TrainConfig):
     setattr(cfg, "features", feat_cols)
     setattr(cfg, "extra_features", [f for f in feat_cols if f != "return"])
 
-
     model = BaseLSTM(
         input_dim=len(feat_cols),
         hidden_dim=cfg.hidden_dim,
@@ -446,7 +467,9 @@ def train_baselstm(df: pd.DataFrame, cfg: TrainConfig):
     model.to(device)
 
     opt = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=cfg.epochs, eta_min=1e-6)
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+        opt, T_max=cfg.epochs, eta_min=1e-6
+    )
     crit = nn.MSELoss(reduction="mean")
 
     hist = {"train": [], "val": []}
@@ -465,7 +488,7 @@ def train_baselstm(df: pd.DataFrame, cfg: TrainConfig):
 
             preds = model(X)
             preds = torch.nan_to_num(preds, nan=0.0, posinf=1e6, neginf=-1e6)
-            y     = torch.nan_to_num(y,     nan=0.0, posinf=1e6, neginf=-1e6)
+            y = torch.nan_to_num(y, nan=0.0, posinf=1e6, neginf=-1e6)
 
             loss = crit(preds, y)
             if torch.isnan(loss):
@@ -505,12 +528,16 @@ def train_baselstm(df: pd.DataFrame, cfg: TrainConfig):
         hist["train"].append(tr_loss)
         hist["val"].append(val_loss)
         cur_lr = opt.param_groups[0]["lr"]
-        print(f"Epoch {ep+1}/{cfg.epochs} | LR: {cur_lr:.2e} | Train: {tr_loss:.6f} | Val: {val_loss:.6f}")
+        print(
+            f"Epoch {ep+1}/{cfg.epochs} | LR: {cur_lr:.2e} | Train: {tr_loss:.6f} | Val: {val_loss:.6f}"
+        )
 
     return model, hist, (train_loader, val_loader)
 
 
-def evaluate_baselstm(model: nn.Module, loader: DataLoader, cfg: TrainConfig, device: str = "cpu"):
+def evaluate_baselstm(
+    model: nn.Module, loader: DataLoader, cfg: TrainConfig, device: str = "cpu"
+):
     """
     Evaluate model on a DataLoader and return de-standardized arrays.
 
@@ -546,10 +573,11 @@ def evaluate_baselstm(model: nn.Module, loader: DataLoader, cfg: TrainConfig, de
     actuals = np.vstack(actuals)
 
     if hasattr(cfg, "y_mean") and hasattr(cfg, "y_std"):
-        preds   = preds   * cfg.y_std + cfg.y_mean
+        preds = preds * cfg.y_std + cfg.y_mean
         actuals = actuals * cfg.y_std + cfg.y_mean
 
     return preds, actuals
+
 
 # ============================================================
 # 🔄 Unified Output Standardizer
@@ -607,4 +635,3 @@ def standardize_outputs(
                 )
             )
     return pd.DataFrame.from_records(records)
-

@@ -26,6 +26,7 @@ from volsense_core.data.data_utils import make_rolling_windows
 
 __all__ = ["VolSenseForecaster"]
 
+
 # ============================================================
 # 🔧 Utility: Unified forecast DataFrame builder
 # ============================================================
@@ -50,17 +51,21 @@ def make_forecast_df(preds, actuals, dates, tickers, horizons, model_name):
     """
     records = []
     for h_idx, h in enumerate(horizons):
-        df = pd.DataFrame({
-            "asof_date": pd.to_datetime(dates),
-            "date": pd.to_datetime(dates) + BDay(h),
-            "ticker": tickers,
-            "horizon": h,
-            "forecast_vol": preds[:, h_idx],
-            "realized_vol": actuals[:, h_idx] if actuals is not None else np.nan,
-            "model": model_name,
-        })
+        df = pd.DataFrame(
+            {
+                "asof_date": pd.to_datetime(dates),
+                "date": pd.to_datetime(dates) + BDay(h),
+                "ticker": tickers,
+                "horizon": h,
+                "forecast_vol": preds[:, h_idx],
+                "realized_vol": actuals[:, h_idx] if actuals is not None else np.nan,
+                "model": model_name,
+            }
+        )
         records.append(df)
-    return pd.concat(records, ignore_index=True).sort_values(["ticker", "asof_date", "horizon"])
+    return pd.concat(records, ignore_index=True).sort_values(
+        ["ticker", "asof_date", "horizon"]
+    )
 
 
 # ============================================================
@@ -148,7 +153,7 @@ class VolSenseForecaster:
                 num_layers=self.kwargs.get("num_layers", 3),
                 output_activation="none",
                 extra_features=extra_feats,
-                )
+            )
             self.cfg = cfg
 
             # Validate extra features for LSTM
@@ -173,9 +178,13 @@ class VolSenseForecaster:
                     self.ticker = data["ticker"].iloc[0]
 
                 self.data = data.copy()
-                ret_series = self.data.dropna(subset=["return"]).set_index("date")["return"]
+                ret_series = self.data.dropna(subset=["return"]).set_index("date")[
+                    "return"
+                ]
                 self.model.fit(ret_series)
-                print(f"✅ {self.method.upper()} fit complete for {self.ticker} ({len(ret_series)} obs).")
+                print(
+                    f"✅ {self.method.upper()} fit complete for {self.ticker} ({len(ret_series)} obs)."
+                )
                 return self
 
             elif self.method == "global_lstm":
@@ -196,7 +205,9 @@ class VolSenseForecaster:
                     if missing:
                         raise KeyError(f"Missing columns for extra_features: {missing}")
 
-                model, hist, val_loader, t2i, scalers, feats = train_global_model(data, cfg)
+                model, hist, val_loader, t2i, scalers, feats = train_global_model(
+                    data, cfg
+                )
                 self.model = model
                 self.hist = hist
                 self._val_loader = val_loader
@@ -204,7 +215,9 @@ class VolSenseForecaster:
                 self.global_scalers = scalers
                 self.global_window = cfg.window
                 if self.kwargs.get("global_ckpt_path"):
-                    save_checkpoint(self.kwargs["global_ckpt_path"], model, t2i, scalers)
+                    save_checkpoint(
+                        self.kwargs["global_ckpt_path"], model, t2i, scalers
+                    )
                 return self
 
             else:
@@ -232,44 +245,58 @@ class VolSenseForecaster:
         """
         mode = mode or self.mode
         horizons = getattr(self.cfg, "horizons", [1])
-        model_name = "GlobalVolForecaster" if self.method == "global_lstm" else (
-            "BaseLSTM" if self.method == "lstm" else self.method.upper()
+        model_name = (
+            "GlobalVolForecaster"
+            if self.method == "global_lstm"
+            else ("BaseLSTM" if self.method == "lstm" else self.method.upper())
         )
 
         # -------------------------------
         # LSTM (Ticker-specific)
         # -------------------------------
         if self.method == "lstm":
-            preds, actuals = evaluate_baselstm(self.model, self._val_loader, self.cfg, device=self.device)
+            preds, actuals = evaluate_baselstm(
+                self.model, self._val_loader, self.cfg, device=self.device
+            )
             preds = np.asarray(preds)
             actuals = np.asarray(actuals)
-            dates = getattr(self._val_loader.dataset, "sample_dates", [None] * len(preds))
+            dates = getattr(
+                self._val_loader.dataset, "sample_dates", [None] * len(preds)
+            )
             tickers = np.repeat(self.ticker, len(preds))
 
             # convert from log-vol to realized scale
             preds_realized = np.exp(preds)
             actuals_realized = np.exp(actuals)
 
-            return make_forecast_df(preds_realized, actuals_realized, dates, tickers, horizons, model_name)
+            return make_forecast_df(
+                preds_realized, actuals_realized, dates, tickers, horizons, model_name
+            )
 
         # -------------------------------
         # Global LSTM (Multi-Ticker, Realized-Aligned Evaluation)
         # -------------------------------
         elif self.method == "global_lstm":
             if data is None:
-                raise ValueError("GlobalLSTM requires input DataFrame with multiple tickers.")
+                raise ValueError(
+                    "GlobalLSTM requires input DataFrame with multiple tickers."
+                )
 
             data = data.sort_values(["ticker", "date"]).reset_index(drop=True)
             horizons = self.cfg.horizons
 
             # Compute future realized vols for alignment
             for h in horizons:
-                data[f"realized_shift_{h}d"] = data.groupby("ticker")["realized_vol"].shift(-h)
+                data[f"realized_shift_{h}d"] = data.groupby("ticker")[
+                    "realized_vol"
+                ].shift(-h)
 
             preds_all, actuals_all, dates_all, tickers_all = [], [], [], []
 
             # Rolling evaluation (vectorized within ticker)
-            for ticker, df_t in tqdm(data.groupby("ticker"), desc="Rolling eval forecasts"):
+            for ticker, df_t in tqdm(
+                data.groupby("ticker"), desc="Rolling eval forecasts"
+            ):
                 df_t = df_t.dropna(subset=["realized_vol"]).reset_index(drop=True)
 
                 # generate all valid windows
@@ -291,7 +318,7 @@ class VolSenseForecaster:
                         self.global_scalers,
                         window=self.global_window,
                         device=self.device,
-                        show_progress=False
+                        show_progress=False,
                     )
                     preds = np.stack(preds_df["forecast_vol_scaled"].values)
                     preds_realized = np.exp(preds)
@@ -325,7 +352,9 @@ class VolSenseForecaster:
             )
 
             df_out = df_out.dropna(subset=["realized_vol"]).reset_index(drop=True)
-            print(f"✅ GlobalVolForecaster realized-aligned evaluation complete ({len(df_out)} rows).")
+            print(
+                f"✅ GlobalVolForecaster realized-aligned evaluation complete ({len(df_out)} rows)."
+            )
             return df_out
         # -------------------------------
         # GARCH Family (Ticker-specific)
@@ -340,7 +369,10 @@ class VolSenseForecaster:
             rolling_preds = self.model.rolling_forecast(ret_series, refit_every=5)
             df_eval = (
                 pd.concat(
-                    [rolling_preds.rename("forecast_vol"), realized_vol.rename("realized_vol")],
+                    [
+                        rolling_preds.rename("forecast_vol"),
+                        realized_vol.rename("realized_vol"),
+                    ],
                     axis=1,
                 )
                 .dropna()
@@ -353,9 +385,16 @@ class VolSenseForecaster:
             df_eval["model"] = self.method.upper()
 
             return df_eval[
-                ["asof_date", "date", "ticker", "horizon", "forecast_vol", "realized_vol", "model"]
+                [
+                    "asof_date",
+                    "date",
+                    "ticker",
+                    "horizon",
+                    "forecast_vol",
+                    "realized_vol",
+                    "model",
+                ]
             ]
-
 
         else:
             raise ValueError(f"Unknown method: {self.method}")

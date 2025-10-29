@@ -11,6 +11,7 @@ Automatically imports and rebuilds any class using its recorded module path.
 import os, json, pickle, importlib, torch
 from typing import Any, Dict, Tuple, Optional
 import sys
+
 sys.modules["volsense_pkg"] = __import__("volsense_core")
 
 
@@ -52,7 +53,13 @@ def _import_class(module_path: str, class_name: str):
 def load_model(
     model_version: str = "v6a",
     checkpoints_dir: str = "models",
-) -> Tuple[Any, Dict[str, Any], Optional[Dict[str, Any]], Optional[Dict[str, int]], Optional[list]]:
+) -> Tuple[
+    Any,
+    Dict[str, Any],
+    Optional[Dict[str, Any]],
+    Optional[Dict[str, int]],
+    Optional[list],
+]:
     """
     Load a trained VolSense model and assets from disk.
 
@@ -76,10 +83,10 @@ def load_model(
     ckpt_dir = _abs_repo_path(checkpoints_dir)
     base = os.path.join(ckpt_dir, f"global_vol_forecaster_multi_{model_version}")
 
-    path_full   = base + "_full.pkl"
+    path_full = base + "_full.pkl"
     path_bundle = base + "_bundle.pkl"
-    path_pth    = base + ".pth"
-    path_meta   = base + ".meta.json"
+    path_pth = base + ".pth"
+    path_meta = base + ".meta.json"
 
     # --- 1️⃣ FULL PICKLE ---
     if os.path.exists(path_full):
@@ -89,7 +96,13 @@ def load_model(
         if os.path.exists(path_meta):
             with open(path_meta, "r") as f:
                 meta = json.load(f)
-        return model, meta, meta.get("scalers"), meta.get("ticker_to_id"), meta.get("features")
+        return (
+            model,
+            meta,
+            meta.get("scalers"),
+            meta.get("ticker_to_id"),
+            meta.get("features"),
+        )
 
     # --- 2️⃣ BUNDLE PICKLE ---
     if os.path.exists(path_bundle):
@@ -107,16 +120,25 @@ def load_model(
 
         try:
             ModelClass = _import_class(module_path, arch)
-            model = ModelClass(**{
-                k: v for k, v in meta.items()
-                if isinstance(v, (int, float, bool, list, str))
-            })
+            model = ModelClass(
+                **{
+                    k: v
+                    for k, v in meta.items()
+                    if isinstance(v, (int, float, bool, list, str))
+                }
+            )
             model.load_state_dict(state_dict)
         except Exception as e:
             print(f"⚠️ Dynamic rebuild failed ({e}); attempting fallback torch.load")
             model = torch.load(path_pth, map_location="cpu")
 
-        return model, meta, scalers, ticker_to_id, features or meta.get("extra_features")
+        return (
+            model,
+            meta,
+            scalers,
+            ticker_to_id,
+            features or meta.get("extra_features"),
+        )
 
     # --- 3️⃣ RAW STATE_DICT + META.JSON ---
     if os.path.exists(path_pth) and os.path.exists(path_meta):
@@ -126,13 +148,18 @@ def load_model(
 
         # dynamic import if meta recorded module/class
         arch = meta.get("arch") or "GlobalVolForecaster"
-        module_path = meta.get("module_path") or "volsense_core.models.global_vol_forecaster"
+        module_path = (
+            meta.get("module_path") or "volsense_core.models.global_vol_forecaster"
+        )
         ModelClass = _import_class(module_path, arch)
 
-        model = ModelClass(**{
-            k: v for k, v in meta.get("config", {}).items()
-            if isinstance(v, (int, float, bool, list, str))
-        })
+        model = ModelClass(
+            **{
+                k: v
+                for k, v in meta.get("config", {}).items()
+                if isinstance(v, (int, float, bool, list, str))
+            }
+        )
         model.load_state_dict(state_dict)
 
         scalers = meta.get("scalers")

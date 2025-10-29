@@ -3,6 +3,7 @@ import pandas as pd
 
 EPS = 1e-6
 
+
 def _flatten_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
     Flatten MultiIndex columns (common from yfinance) into a single level.
@@ -19,7 +20,10 @@ def _flatten_cols(df: pd.DataFrame) -> pd.DataFrame:
         df.columns.name = None
     return df
 
-def compute_base_features(df: pd.DataFrame, eps: float = EPS, vol_lookback: int = 10) -> pd.DataFrame:
+
+def compute_base_features(
+    df: pd.DataFrame, eps: float = EPS, vol_lookback: int = 10
+) -> pd.DataFrame:
     """
     Compute and ensure core features exist on the input DataFrame.
 
@@ -52,7 +56,9 @@ def compute_base_features(df: pd.DataFrame, eps: float = EPS, vol_lookback: int 
         if isinstance(df.index, pd.DatetimeIndex):
             df = df.reset_index().rename(columns={"Date": "date", "index": "date"})
         else:
-            raise ValueError("Input DataFrame must contain a 'date' column or a DatetimeIndex.")
+            raise ValueError(
+                "Input DataFrame must contain a 'date' column or a DatetimeIndex."
+            )
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
     # ticker column
@@ -79,13 +85,9 @@ def compute_base_features(df: pd.DataFrame, eps: float = EPS, vol_lookback: int 
     # realized volatility
     if "realized_vol" not in df.columns:
         df = df.sort_values(["ticker", "date"]).reset_index(drop=True)
-        df["realized_vol"] = (
-            df.groupby("ticker")["return"]
-              .rolling(vol_lookback, min_periods=3)
-              .std()
-              .reset_index(level=0, drop=True)
-            * np.sqrt(252)
-        )
+        df["realized_vol"] = df.groupby("ticker")["return"].rolling(
+            vol_lookback, min_periods=3
+        ).std().reset_index(level=0, drop=True) * np.sqrt(252)
 
     # log target
     df["realized_vol_log"] = np.log(df["realized_vol"].astype(float) + eps)
@@ -116,13 +118,19 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     """
 
     g = df.groupby("ticker", group_keys=False)
-    df["vol_3d"]    = g["realized_vol"].apply(lambda s: s.rolling(3,  min_periods=1).mean())
-    df["vol_10d"]   = g["realized_vol"].apply(lambda s: s.rolling(10, min_periods=1).mean())
+    df["vol_3d"] = g["realized_vol"].apply(lambda s: s.rolling(3, min_periods=1).mean())
+    df["vol_10d"] = g["realized_vol"].apply(
+        lambda s: s.rolling(10, min_periods=1).mean()
+    )
     df["vol_ratio"] = df["vol_3d"] / (df["vol_10d"] + eps)
-    df["vol_chg"]   = df["vol_3d"] - df["vol_10d"]
-    df["vol_vol"]   = g["realized_vol"].apply(lambda s: s.rolling(10, min_periods=2).std())
+    df["vol_chg"] = df["vol_3d"] - df["vol_10d"]
+    df["vol_vol"] = g["realized_vol"].apply(
+        lambda s: s.rolling(10, min_periods=2).std()
+    )
     # long-term EWMA proxy (used by later models)
-    df["ewma_vol_10d"] = g["realized_vol"].apply(lambda s: s.ewm(span=10, adjust=False).mean())
+    df["ewma_vol_10d"] = g["realized_vol"].apply(
+        lambda s: s.ewm(span=10, adjust=False).mean()
+    )
     return df
 
 
@@ -154,7 +162,9 @@ def add_market_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
         sd = sd if sd > 0 else eps
         return np.mean(((x - m) / sd) ** 3)
 
-    df["skew_5d"] = g["return"].apply(lambda s: s.rolling(5, min_periods=3).apply(_skew5, raw=True))
+    df["skew_5d"] = g["return"].apply(
+        lambda s: s.rolling(5, min_periods=3).apply(_skew5, raw=True)
+    )
     return df
 
 
@@ -175,10 +185,10 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     df["day_of_week"] = df["date"].dt.dayofweek / 6.0
-    df["month_sin"]   = np.sin(2 * np.pi * df["date"].dt.month / 12)
-    df["month_cos"]   = np.cos(2 * np.pi * df["date"].dt.month / 12)
-    df["abs_return"]  = df["return"].abs()
-    df["ret_sq"]      = df["return"] ** 2
+    df["month_sin"] = np.sin(2 * np.pi * df["date"].dt.month / 12)
+    df["month_cos"] = np.cos(2 * np.pi * df["date"].dt.month / 12)
+    df["abs_return"] = df["return"].abs()
+    df["ret_sq"] = df["return"] ** 2
     return df
 
 
@@ -204,15 +214,26 @@ def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame
     :return: Feature-enriched DataFrame sorted by ['ticker','date'].
     :rtype: pandas.DataFrame
     """
-    
+
     include = include or [
-        "vol_3d","vol_10d","vol_ratio","vol_chg","vol_vol","ewma_vol_10d",
-        "market_stress","market_stress_1d_lag","skew_5d",
-        "day_of_week","month_sin","month_cos","abs_return","ret_sq",
+        "vol_3d",
+        "vol_10d",
+        "vol_ratio",
+        "vol_chg",
+        "vol_vol",
+        "ewma_vol_10d",
+        "market_stress",
+        "market_stress_1d_lag",
+        "skew_5d",
+        "day_of_week",
+        "month_sin",
+        "month_cos",
+        "abs_return",
+        "ret_sq",
     ]
     exclude = set(exclude or [])
 
-    df = compute_base_features(df)          # <- safe on both raw or processed
+    df = compute_base_features(df)  # <- safe on both raw or processed
     df = add_rolling_features(df)
     df = add_market_features(df)
     df = add_calendar_features(df)

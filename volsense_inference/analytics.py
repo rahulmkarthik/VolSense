@@ -25,7 +25,9 @@ class Analytics:
     :raises ValueError: If an empty or None forecast DataFrame is provided.
     """
 
-    def __init__(self, preds: pd.DataFrame, vol_regime_quantiles: List[float] = [0.2, 0.8]):
+    def __init__(
+        self, preds: pd.DataFrame, vol_regime_quantiles: List[float] = [0.2, 0.8]
+    ):
         """
         Initialize the Analytics module with a single-snapshot forecast table.
 
@@ -221,8 +223,12 @@ class Analytics:
 
         ax.set_xlabel("Realized Volatility", fontsize=11)
         ax.set_ylabel("Forecasted Volatility", fontsize=11)
-        ax.set_title(f"Forecast Snapshot — {horizon.replace('pred_vol_', '')}-Day Horizon")
-        ax.legend(title="Ticker", bbox_to_anchor=(1.05, 1), loc="upper left", frameon=True)
+        ax.set_title(
+            f"Forecast Snapshot — {horizon.replace('pred_vol_', '')}-Day Horizon"
+        )
+        ax.legend(
+            title="Ticker", bbox_to_anchor=(1.05, 1), loc="upper left", frameon=True
+        )
         ax.grid(alpha=0.3)
         fig.tight_layout()
 

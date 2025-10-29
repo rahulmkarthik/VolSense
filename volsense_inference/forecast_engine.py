@@ -10,7 +10,6 @@ from volsense_core.data.feature_engineering import build_features
 from volsense_inference.analytics import Analytics
 
 
-
 class Forecast:
     """
     High-level runtime interface for volatility forecasting and visualization.
@@ -73,8 +72,8 @@ class Forecast:
         self.start = start
 
         # Load model and assets
-        self.model, self.meta, self.scalers, self.ticker_to_id, self.features = load_model(
-            model_version=model_version, checkpoints_dir=checkpoints_dir
+        self.model, self.meta, self.scalers, self.ticker_to_id, self.features = (
+            load_model(model_version=model_version, checkpoints_dir=checkpoints_dir)
         )
 
         self.window = self.meta.get("window", 40)
@@ -135,8 +134,13 @@ class Forecast:
 
         df_recent = self._prepare_data(tickers)
         preds = predict_batch(
-            self.model, self.meta, df_recent, tickers,
-            scalers=self.scalers, ticker_to_id=self.ticker_to_id, features=self.features
+            self.model,
+            self.meta,
+            df_recent,
+            tickers,
+            scalers=self.scalers,
+            ticker_to_id=self.ticker_to_id,
+            features=self.features,
         )
         preds = attach_realized(preds, df_recent)
         self.predictions = preds
@@ -152,8 +156,13 @@ class Forecast:
     # Visualization
     # ------------------------------------------------------------------
 
-
-    def plot(self, ticker: str, show_vix: bool = False, vix_df: pd.DataFrame = None, show: bool = True):
+    def plot(
+        self,
+        ticker: str,
+        show_vix: bool = False,
+        vix_df: pd.DataFrame = None,
+        show: bool = True,
+    ):
         """
         Plot realized volatility history and overlay constant forecast levels by horizon.
 
@@ -186,27 +195,46 @@ class Forecast:
         df_t = df_t.sort_values("date").tail(180)  # last ~6 months
 
         fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(df_t["date"], df_t["realized_vol"], label="Realized Volatility", color="tab:blue")
+        ax.plot(
+            df_t["date"],
+            df_t["realized_vol"],
+            label="Realized Volatility",
+            color="tab:blue",
+        )
 
         # Collect horizons we actually have predictions for
-        present_horizons = [h for h in sorted(set(getattr(self, "horizons", [])))
-                            if f"pred_vol_{h}" in preds.columns]
+        present_horizons = [
+            h
+            for h in sorted(set(getattr(self, "horizons", [])))
+            if f"pred_vol_{h}" in preds.columns
+        ]
 
         # Unique colors per horizon (skip index 0 in tab10 to avoid blue clash)
         palette = plt.get_cmap("tab10").colors
         start_idx = 1  # 0 is blue; we already used that for realized vol
-        color_map = {h: palette[(start_idx + i) % len(palette)] for i, h in enumerate(present_horizons)}
+        color_map = {
+            h: palette[(start_idx + i) % len(palette)]
+            for i, h in enumerate(present_horizons)
+        }
 
         # Plot all horizons with distinct colors
         for h in present_horizons:
             col = f"pred_vol_{h}"
             y = preds[col].values[0]
-            ax.axhline(y, color=color_map[h], linestyle="--", alpha=0.9, label=f"Pred {h}d")
+            ax.axhline(
+                y, color=color_map[h], linestyle="--", alpha=0.9, label=f"Pred {h}d"
+            )
 
         if show_vix and vix_df is not None:
             vix_df = vix_df.copy()
             vix_df["date"] = pd.to_datetime(vix_df["date"], errors="coerce")
-            ax.plot(vix_df["date"], vix_df["close"], color="tab:red", alpha=0.5, label="VIX Index")
+            ax.plot(
+                vix_df["date"],
+                vix_df["close"],
+                color="tab:red",
+                alpha=0.5,
+                label="VIX Index",
+            )
 
         ax.set_title(f"{ticker} — Forecast vs Realized Volatility")
         ax.set_xlabel("Date")
@@ -223,4 +251,3 @@ class Forecast:
             return None
 
         return fig
-

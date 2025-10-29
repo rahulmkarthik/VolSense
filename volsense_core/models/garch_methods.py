@@ -40,6 +40,7 @@ class GARCHConfig:
     :type fit_kwargs: dict, optional
     :raises ValueError: If an unsupported model name is provided.
     """
+
     model: str = "garch"
     p: int = 1
     q: int = 1
@@ -119,11 +120,7 @@ class ARCHForecaster:
             p, q, o = self.cfg.p, self.cfg.q, 0
 
         return arch_model(
-            y_scaled,
-            vol=vol,
-            p=p, o=o, q=q,
-            dist=self.cfg.dist,
-            mean=self.cfg.mean
+            y_scaled, vol=vol, p=p, o=o, q=q, dist=self.cfg.dist, mean=self.cfg.mean
         )
 
     def _postprocess_sigma(self, sigma: np.ndarray) -> np.ndarray:
@@ -188,7 +185,9 @@ class ARCHForecaster:
         for h in horizons:
             # Use analytic or simulation forecast depending on model type
             if self.cfg.model == "egarch" and h > 1:
-                f = res.forecast(horizon=h, method="simulation", reindex=False, simulations=500)
+                f = res.forecast(
+                    horizon=h, method="simulation", reindex=False, simulations=500
+                )
             else:
                 f = res.forecast(horizon=h, reindex=False)
 
@@ -204,8 +203,6 @@ class ARCHForecaster:
         forecasts = np.array(forecasts, dtype=float)
         self._last_forecast_ = forecasts  # cache for reference
         return forecasts
-
-
 
     def rolling_forecast(
         self,
@@ -232,7 +229,9 @@ class ARCHForecaster:
         y, idx = self._to_series(returns)
         n = len(y)
         if n < 50:
-            raise ValueError("Not enough observations for rolling forecast (need ~50+).")
+            raise ValueError(
+                "Not enough observations for rolling forecast (need ~50+)."
+            )
 
         warm = max(self.cfg.p + self.cfg.q + max(0, self.cfg.o), 30)
         if min_obs is not None:
@@ -315,14 +314,22 @@ def fit_arch(
     :rtype: object
     """
     cfg = GARCHConfig(
-        model=model_type, p=p, q=q, o=o,
-        dist=dist, mean=mean, scale=scale,
-        annualize=annualize, fit_kwargs=fit_kwargs or dict(disp="off", update_freq=0)
+        model=model_type,
+        p=p,
+        q=q,
+        o=o,
+        dist=dist,
+        mean=mean,
+        scale=scale,
+        annualize=annualize,
+        fit_kwargs=fit_kwargs or dict(disp="off", update_freq=0),
     )
     return ARCHForecaster(cfg).fit(returns).result
 
 
-def forecast_arch(fitted_model, horizon: int = 1, scale: float = 100.0, annualize: bool = True):
+def forecast_arch(
+    fitted_model, horizon: int = 1, scale: float = 100.0, annualize: bool = True
+):
     """
     Generate volatility forecasts from a fitted ARCHModelResult.
 
@@ -342,6 +349,7 @@ def forecast_arch(fitted_model, horizon: int = 1, scale: float = 100.0, annualiz
     if annualize:
         sigma = sigma * np.sqrt(252.0)
     return sigma
+
 
 # ============================================================
 # 🔄 Unified Output Standardizer

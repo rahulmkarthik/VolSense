@@ -62,19 +62,21 @@ class ModelEvaluator:
             y_true, y_pred = g["realized_vol"].values, g["forecast_vol"].values
             resid = y_true - y_pred
 
-            metrics.append({
-                "ticker": t, "horizon": h,
-                "RMSE": rmse(y_true, y_pred),
-                "MAE": mae(y_true, y_pred),
-                "MAPE": mape(y_true, y_pred),
-                "R2": r2_score(y_true, y_pred),
-                "Corr": np.corrcoef(y_true, y_pred)[0,1],
-                "DW": durbin_watson(resid),
-                "ACF_SumSq": acf_sum_k10(resid)
-            })
+            metrics.append(
+                {
+                    "ticker": t,
+                    "horizon": h,
+                    "RMSE": rmse(y_true, y_pred),
+                    "MAE": mae(y_true, y_pred),
+                    "MAPE": mape(y_true, y_pred),
+                    "R2": r2_score(y_true, y_pred),
+                    "Corr": np.corrcoef(y_true, y_pred)[0, 1],
+                    "DW": durbin_watson(resid),
+                    "ACF_SumSq": acf_sum_k10(resid),
+                }
+            )
         self.metrics_df = pd.DataFrame(metrics)
         return self.metrics_df
-
 
     # --------------------------------------------------------
     # 📊 Summary by Horizon
@@ -92,7 +94,16 @@ class ModelEvaluator:
             self.compute_metrics()
         self.summary_df = (
             self.metrics_df.groupby("horizon")
-            .agg({"RMSE":"mean","MAE":"mean","MAPE":"mean","R2":"mean","Corr":"mean","DW":"mean"})
+            .agg(
+                {
+                    "RMSE": "mean",
+                    "MAE": "mean",
+                    "MAPE": "mean",
+                    "R2": "mean",
+                    "Corr": "mean",
+                    "DW": "mean",
+                }
+            )
             .reset_index()
         )
         print(f"\n📈 Horizon-Level Summary for {self.model_name}")
@@ -114,18 +125,20 @@ class ModelEvaluator:
         df = self.df.copy()
         df["period"] = pd.to_datetime(df["date"]).dt.to_period(freq).dt.to_timestamp()
         slices = []
-        for (h, p), g in df.groupby(["horizon","period"]):
-            if len(g) < 10: 
+        for (h, p), g in df.groupby(["horizon", "period"]):
+            if len(g) < 10:
                 continue
-            slices.append({
-                "horizon": h,
-                "period": p,
-                "R2": r2_score(g["realized_vol"], g["forecast_vol"]),
-                "Corr": np.corrcoef(g["realized_vol"], g["forecast_vol"])[0,1],
-                "RMSE": rmse(g["realized_vol"], g["forecast_vol"])
-            })
+            slices.append(
+                {
+                    "horizon": h,
+                    "period": p,
+                    "R2": r2_score(g["realized_vol"], g["forecast_vol"]),
+                    "Corr": np.corrcoef(g["realized_vol"], g["forecast_vol"])[0, 1],
+                    "RMSE": rmse(g["realized_vol"], g["forecast_vol"]),
+                }
+            )
         regime_df = pd.DataFrame(slices)
-        plt.figure(figsize=(10,5))
+        plt.figure(figsize=(10, 5))
         sns.lineplot(x="period", y="R2", hue="horizon", data=regime_df, marker="o")
         plt.title(f"{self.model_name}: R² Over Time (Regime Robustness)")
         plt.xticks(rotation=45)
@@ -145,11 +158,15 @@ class ModelEvaluator:
         :return: None
         :rtype: None
         """
-        g = self.df[self.df["horizon"] == horizon].dropna(subset=["forecast_vol", "realized_vol"])
-        plt.figure(figsize=(5,5))
+        g = self.df[self.df["horizon"] == horizon].dropna(
+            subset=["forecast_vol", "realized_vol"]
+        )
+        plt.figure(figsize=(5, 5))
         sns.scatterplot(x="realized_vol", y="forecast_vol", data=g, s=15, alpha=0.6)
-        lims = [min(g["realized_vol"].min(), g["forecast_vol"].min()),
-                max(g["realized_vol"].max(), g["forecast_vol"].max())]
+        lims = [
+            min(g["realized_vol"].min(), g["forecast_vol"].min()),
+            max(g["realized_vol"].max(), g["forecast_vol"].max()),
+        ]
         plt.plot(lims, lims, "r--")
         plt.title(f"True vs Predicted Vol – {horizon}d")
         plt.xlabel("Realized Vol")
@@ -169,7 +186,7 @@ class ModelEvaluator:
         """
         g = self.df[self.df["horizon"] == horizon]
         resid = g["forecast_vol"] - g["realized_vol"]
-        plt.figure(figsize=(8,4))
+        plt.figure(figsize=(8, 4))
         sns.histplot(resid, bins=40, kde=True)
         plt.title(f"Residual Distribution – {horizon}d")
         plt.show()
@@ -187,7 +204,7 @@ class ModelEvaluator:
         """
         g = self.df[self.df["horizon"] == horizon]
         resid = g["forecast_vol"] - g["realized_vol"]
-        qqplot(resid, line='45', fit=True)
+        qqplot(resid, line="45", fit=True)
         plt.title(f"QQ Plot – {horizon}d")
         plt.show()
 
@@ -206,10 +223,10 @@ class ModelEvaluator:
         """
         if self.metrics_df is None:
             self.compute_metrics()
-        hdf = self.metrics_df[self.metrics_df["horizon"]==horizon]
+        hdf = self.metrics_df[self.metrics_df["horizon"] == horizon]
         top = hdf.nlargest(top_n, "R2")
         worst = hdf.nsmallest(top_n, "R2")
-        fig, ax = plt.subplots(1,2, figsize=(12,4))
+        fig, ax = plt.subplots(1, 2, figsize=(12, 4))
         sns.barplot(y="ticker", x="R2", data=top, ax=ax[0], color="green")
         sns.barplot(y="ticker", x="R2", data=worst, ax=ax[1], color="red")
         ax[0].set_title(f"Top {top_n} by R² – {horizon}d")
@@ -236,7 +253,6 @@ class ModelEvaluator:
             print(f"💾 Saved tickerwise metrics to {save_path}")
         else:
             print("⚠️ Metrics not yet computed. Run .compute_metrics() first.")
-
 
     # --------------------------------------------------------
     # 🚀 Quick Evaluation Workflow

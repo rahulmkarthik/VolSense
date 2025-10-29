@@ -7,6 +7,7 @@ from .fetch import fetch_ohlcv, build_dataset
 DATA_CACHE = Path(os.getenv("VOLSENSE_DATA", "./.volsense_cache"))
 DATA_CACHE.mkdir(parents=True, exist_ok=True)
 
+
 def save_to_cache(df: pd.DataFrame, name: str):
     """
     Save a DataFrame to local parquet cache.
@@ -22,6 +23,7 @@ def save_to_cache(df: pd.DataFrame, name: str):
     df.to_parquet(path, index=False)
     return path
 
+
 def load_from_cache(name: str) -> pd.DataFrame:
     """
     Load a DataFrame from parquet cache if it exists.
@@ -36,6 +38,7 @@ def load_from_cache(name: str) -> pd.DataFrame:
     if path.exists():
         return pd.read_parquet(path)
     raise FileNotFoundError(f"No cache found for {name}")
+
 
 def get_or_fetch_single(ticker: str, start="2000-01-01", end=None, use_cache=True):
     """
@@ -62,13 +65,16 @@ def get_or_fetch_single(ticker: str, start="2000-01-01", end=None, use_cache=Tru
             return load_from_cache(cache_name)
         except FileNotFoundError:
             pass
-    
+
     df = build_dataset(ticker, start=start, end=end)
     if use_cache:
         save_to_cache(df, cache_name)
     return df
 
-def get_or_fetch_multi(tickers, start="2000-01-01", end=None, lookback=21, use_cache=True):
+
+def get_or_fetch_multi(
+    tickers, start="2000-01-01", end=None, lookback=21, use_cache=True
+):
     """
     Fetch OHLCV and realized volatility for multiple tickers with optional caching.
 
@@ -101,6 +107,7 @@ def get_or_fetch_multi(tickers, start="2000-01-01", end=None, lookback=21, use_c
         save_to_cache(df, cache_name)
     return df
 
+
 # ============================================================
 # 🔁 make_rolling_windows: Generate rolling subwindows
 # ============================================================
@@ -131,7 +138,7 @@ def make_rolling_windows(df: pd.DataFrame, window: int = 30, stride: int = 5):
     windows = []
 
     for start in range(0, n - window + 1, stride):
-        sub = df.iloc[start:start + window].copy()
+        sub = df.iloc[start : start + window].copy()
         windows.append(sub)
 
     return windows

@@ -92,13 +92,14 @@ class TrainConfig:
     :param pin_memory: DataLoader pin_memory flag.
     :type pin_memory: bool
     """
+
     window: int = 30
     horizons: int | list = 1
-    stride: int = 2                     # 👈 default stride=3 for decorrelation
+    stride: int = 2  # 👈 default stride=3 for decorrelation
     val_start: str = "2025-01-01"
-    val_end: str | None = None        # optional: end of validation window (exclusive)
-    val_mode: str = "causal"          # "causal" or "holdout_slice"
-    embargo_days: int = 0             # drop these days on either side of val window from train
+    val_end: str | None = None  # optional: end of validation window (exclusive)
+    val_mode: str = "causal"  # "causal" or "holdout_slice"
+    embargo_days: int = 0  # drop these days on either side of val window from train
     target_col: str = "realized_vol_log"
     extra_features: list | None = None
 
@@ -109,14 +110,14 @@ class TrainConfig:
     device: str = "cpu"
 
     # regularization / arch
-    dropout: float = 0.3                # LSTM inter-layer dropout
+    dropout: float = 0.3  # LSTM inter-layer dropout
     use_layernorm: bool = True
-    separate_heads: bool = True         # per-horizon decoders
+    separate_heads: bool = True  # per-horizon decoders
     attention: bool = True
     residual_head: bool = True
 
     # v3 knobs
-    feat_dropout_p: float = 0.1         # randomly drop feature channels (input)
+    feat_dropout_p: float = 0.1  # randomly drop feature channels (input)
     variational_dropout_p: float = 0.1  # recurrent-style mask on inputs per batch
     loss_horizon_weights: list | None = None  # e.g. [0.6, 0.25, 0.15]
 
@@ -125,8 +126,8 @@ class TrainConfig:
     grad_clip: float = 1.0
 
     cosine_schedule: bool = True
-    cosine_restarts: bool = True        # use SGDR
-    oversample_high_vol: bool = False   # kept for compat; not used by default
+    cosine_restarts: bool = True  # use SGDR
+    oversample_high_vol: bool = False  # kept for compat; not used by default
 
     # EMA
     use_ema: bool = True
@@ -147,6 +148,7 @@ class TrainConfig:
 # ============================================================
 class FeatureDropout(nn.Module):
     """Channel-wise (feature) dropout: same mask for all time-steps."""
+
     def __init__(self, p: float):
         """
         Initialize feature dropout.
@@ -156,6 +158,7 @@ class FeatureDropout(nn.Module):
         """
         super().__init__()
         self.p = p
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Apply channel-wise dropout to inputs.
@@ -169,12 +172,15 @@ class FeatureDropout(nn.Module):
         if not self.training or self.p <= 0:
             return x
         B, W, F = x.shape
-        mask = torch.empty(B, 1, F, device=x.device, dtype=x.dtype).bernoulli_(1 - self.p)
+        mask = torch.empty(B, 1, F, device=x.device, dtype=x.dtype).bernoulli_(
+            1 - self.p
+        )
         return x * mask / (1 - self.p)
 
 
 class VariationalInputDropout(nn.Module):
     """Variational (recurrent) dropout on inputs — same mask across time."""
+
     def __init__(self, p: float):
         """
         Initialize variational input dropout.
@@ -184,6 +190,7 @@ class VariationalInputDropout(nn.Module):
         """
         super().__init__()
         self.p = p
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Apply a time-consistent dropout mask across the input sequence.
@@ -196,7 +203,9 @@ class VariationalInputDropout(nn.Module):
         if not self.training or self.p <= 0:
             return x
         B, W, F = x.shape
-        mask = torch.empty(B, 1, F, device=x.device, dtype=x.dtype).bernoulli_(1 - self.p)
+        mask = torch.empty(B, 1, F, device=x.device, dtype=x.dtype).bernoulli_(
+            1 - self.p
+        )
         return x * mask
 
 
@@ -210,6 +219,7 @@ class GlobalVolForecaster(nn.Module):
     Combines LSTM backbone, optional temporal self-attention, per-horizon heads,
     and optional residual head. Ticker identity is injected via learned embeddings.
     """
+
     def __init__(
         self,
         n_tickers: int,
@@ -296,14 +306,17 @@ class GlobalVolForecaster(nn.Module):
 
         # Decoders
         if self.separate_heads and self.n_horizons > 1:
-            self.heads = nn.ModuleList([
-                nn.Sequential(
-                    nn.Linear(hidden_dim, hidden_dim // 2),
-                    nn.ReLU(),
-                    nn.Dropout(dropout),
-                    nn.Linear(hidden_dim // 2, 1),
-                ) for _ in range(self.n_horizons)
-            ])
+            self.heads = nn.ModuleList(
+                [
+                    nn.Sequential(
+                        nn.Linear(hidden_dim, hidden_dim // 2),
+                        nn.ReLU(),
+                        nn.Dropout(dropout),
+                        nn.Linear(hidden_dim // 2, 1),
+                    )
+                    for _ in range(self.n_horizons)
+                ]
+            )
         else:
             self.head = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim // 2),
@@ -337,18 +350,18 @@ class GlobalVolForecaster(nn.Module):
         emb = self.tok(tkr_id).unsqueeze(1).expand(B, W, -1)
         X = torch.cat([X, emb], dim=-1)  # [B, W, F+E]
 
-        out, _ = self.lstm(X)            # [B, W, H]
+        out, _ = self.lstm(X)  # [B, W, H]
         if self.attention_enabled:
             out, _ = self.attn(out, out, out)
         out = self.ln(out)
 
-        last = out[:, -1, :]             # [B, H]
+        last = out[:, -1, :]  # [B, H]
 
         if self.separate_heads and self.n_horizons > 1:
-            ys = [head(last) for head in self.heads]   # list of [B,1]
-            yhat = torch.cat(ys, dim=-1)               # [B, H]
+            ys = [head(last) for head in self.heads]  # list of [B,1]
+            yhat = torch.cat(ys, dim=-1)  # [B, H]
         else:
-            yhat = self.head(last)                     # [B, H]
+            yhat = self.head(last)  # [B, H]
 
         if self.residual_head:
             yhat = yhat + self.residual(last)
@@ -407,7 +420,7 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
     if val_end is None:
         # original behavior: single cut by val_start
         train_df = df_scaled[df_scaled["date"] < cfg.val_start].reset_index(drop=True)
-        val_df   = df_scaled[df_scaled["date"] >= cfg.val_start].reset_index(drop=True)
+        val_df = df_scaled[df_scaled["date"] >= cfg.val_start].reset_index(drop=True)
     else:
         mask_val = (df_scaled["date"] >= cfg.val_start) & (df_scaled["date"] < val_end)
 
@@ -421,40 +434,53 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
             else:
                 mask_excl = mask_val
             train_df = df_scaled[~mask_excl].reset_index(drop=True)
-            val_df   = df_scaled[mask_val].reset_index(drop=True)
+            val_df = df_scaled[mask_val].reset_index(drop=True)
 
         else:  # "causal"
             # forward test flavor: train strictly before val_start; validate within [start, end)
-            train_df = df_scaled[df_scaled["date"] < cfg.val_start].reset_index(drop=True)
-            val_df   = df_scaled[mask_val].reset_index(drop=True)
-
+            train_df = df_scaled[df_scaled["date"] < cfg.val_start].reset_index(
+                drop=True
+            )
+            val_df = df_scaled[mask_val].reset_index(drop=True)
 
     class GlobalVolDataset(torch.utils.data.Dataset):
         def __init__(self, df: pd.DataFrame, cfg: TrainConfig, is_train: bool):
             self.df = df
             self.cfg = cfg
             self.is_train = is_train
-            self.groups = {tid: g.reset_index(drop=True) for tid, g in df.groupby("ticker_id")}
+            self.groups = {
+                tid: g.reset_index(drop=True) for tid, g in df.groupby("ticker_id")
+            }
             self.samples = []
-            Hmax = max(cfg.horizons) if isinstance(cfg.horizons, (list, tuple)) else cfg.horizons
+            Hmax = (
+                max(cfg.horizons)
+                if isinstance(cfg.horizons, (list, tuple))
+                else cfg.horizons
+            )
             for tid, g in self.groups.items():
                 for i in range(0, len(g) - cfg.window - Hmax, cfg.stride):
                     self.samples.append((tid, i))
 
-        def __len__(self): return len(self.samples)
+        def __len__(self):
+            return len(self.samples)
 
         def __getitem__(self, idx):
             tid, start = self.samples[idx]
             g = self.groups[tid]
 
             W = self.cfg.window
-            if self.is_train and hasattr(self.cfg, "dynamic_window_jitter") and self.cfg.dynamic_window_jitter > 0:
-                delta = np.random.randint(-self.cfg.dynamic_window_jitter,
-                                          self.cfg.dynamic_window_jitter + 1)
+            if (
+                self.is_train
+                and hasattr(self.cfg, "dynamic_window_jitter")
+                and self.cfg.dynamic_window_jitter > 0
+            ):
+                delta = np.random.randint(
+                    -self.cfg.dynamic_window_jitter, self.cfg.dynamic_window_jitter + 1
+                )
                 W = max(10, self.cfg.window + int(delta))
 
             feats = ["return"] + (self.cfg.extra_features or [])
-            X_df = g.iloc[start:start + W][feats]
+            X_df = g.iloc[start : start + W][feats]
 
             # Build target(s)
             if isinstance(self.cfg.horizons, int):
@@ -464,15 +490,19 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
                 y_vals = []
                 for h in self.cfg.horizons:
                     t_idx = start + W + h - 1
-                    y_vals.append(g.iloc[t_idx][self.cfg.target_col] if t_idx < len(g) else np.nan)
+                    y_vals.append(
+                        g.iloc[t_idx][self.cfg.target_col] if t_idx < len(g) else np.nan
+                    )
 
             X = torch.tensor(X_df.values, dtype=torch.float32)
             # --- Pad or crop to fixed cfg.window ---
             if X.shape[0] < self.cfg.window:
-                pad = torch.zeros(self.cfg.window - X.shape[0], X.shape[1], dtype=torch.float32)
+                pad = torch.zeros(
+                    self.cfg.window - X.shape[0], X.shape[1], dtype=torch.float32
+                )
                 X = torch.cat([X, pad], dim=0)
             elif X.shape[0] > self.cfg.window:
-                X = X[-self.cfg.window:]
+                X = X[-self.cfg.window :]
 
             y = torch.tensor(y_vals, dtype=torch.float32)
             y = torch.nan_to_num(y, nan=0.0)
@@ -480,7 +510,7 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
             return torch.tensor(tid, dtype=torch.long), X, y
 
     train_ds = GlobalVolDataset(train_df, cfg, is_train=True)
-    val_ds   = GlobalVolDataset(val_df, cfg, is_train=False)
+    val_ds = GlobalVolDataset(val_df, cfg, is_train=False)
     return train_ds, val_ds, ticker_to_id, scalers
 
 
@@ -500,9 +530,12 @@ def clone_model_like(model: nn.Module) -> nn.Module:
     if ema is None:
         # generic fallback: deep copy of state dict to identically-constructed model
         import copy
+
         ema = copy.deepcopy(model)
-    for p in ema.parameters(): p.requires_grad_(False)
+    for p in ema.parameters():
+        p.requires_grad_(False)
     return ema
+
 
 def update_ema(ema: nn.Module, model: nn.Module, decay: float):
     """
@@ -518,7 +551,9 @@ def update_ema(ema: nn.Module, model: nn.Module, decay: float):
     :rtype: None
     """
     with torch.no_grad():
-        for (n_e, p_e), (_, p_m) in zip(ema.named_parameters(), model.named_parameters()):
+        for (n_e, p_e), (_, p_m) in zip(
+            ema.named_parameters(), model.named_parameters()
+        ):
             p_e.data.mul_(decay).add_(p_m.data, alpha=1 - decay)
         for (n_e, b_e), (_, b_m) in zip(ema.named_buffers(), model.named_buffers()):
             b_e.data.copy_(b_m.data)
@@ -563,24 +598,38 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
     )
     # Save init args for EMA clone
     model._init_args = dict(
-        n_tickers=len(ticker_to_id), window=cfg.window, n_horizons=cfg.horizons,
-        emb_dim=16, hidden_dim=160, num_layers=3, dropout=cfg.dropout,
-        attention=cfg.attention, residual_head=cfg.residual_head,
-        input_size=len(features), use_layernorm=cfg.use_layernorm,
+        n_tickers=len(ticker_to_id),
+        window=cfg.window,
+        n_horizons=cfg.horizons,
+        emb_dim=16,
+        hidden_dim=160,
+        num_layers=3,
+        dropout=cfg.dropout,
+        attention=cfg.attention,
+        residual_head=cfg.residual_head,
+        input_size=len(features),
+        use_layernorm=cfg.use_layernorm,
         separate_heads=cfg.separate_heads,
-        feat_dropout_p=cfg.feat_dropout_p, variational_dropout_p=cfg.variational_dropout_p
+        feat_dropout_p=cfg.feat_dropout_p,
+        variational_dropout_p=cfg.variational_dropout_p,
     )
 
     device = torch.device(cfg.device)
     model.to(device)
 
     train_loader = DataLoader(
-        train_ds, batch_size=cfg.batch_size, shuffle=True,
-        num_workers=cfg.num_workers, pin_memory=cfg.pin_memory
+        train_ds,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=cfg.batch_size, shuffle=False,
-        num_workers=cfg.num_workers, pin_memory=cfg.pin_memory
+        val_ds,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
     )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
@@ -600,18 +649,17 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
     # multi-horizon MSE with optional horizon weights
     def mh_mse(pred, target):
         if pred.ndim == 1 or pred.shape[-1] == 1:
-            return torch.mean((pred - target.squeeze(-1))**2)
+            return torch.mean((pred - target.squeeze(-1)) ** 2)
         if cfg.loss_horizon_weights is None:
-            return torch.mean((pred - target)**2)
+            return torch.mean((pred - target) ** 2)
         w = torch.tensor(cfg.loss_horizon_weights, device=pred.device, dtype=pred.dtype)
-        return torch.mean(((pred - target)**2) * w)
+        return torch.mean(((pred - target) ** 2) * w)
 
     # EMA
     ema_model = clone_model_like(model) if cfg.use_ema else None
     if ema_model is not None:
         ema_model.load_state_dict(model.state_dict())
-        ema_model.to(device)    # ✅ move EMA model to same device as main model
-
+        ema_model.to(device)  # ✅ move EMA model to same device as main model
 
     # early stopping
     best_val = float("inf")
@@ -655,14 +703,19 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
             val_loss = min(val_loss, _eval(ema_model))  # pick better of EMA/current
 
         if scheduler:
-            if isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts):
+            if isinstance(
+                scheduler, torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+            ):
                 scheduler.step(ep - 1)  # epoch-based step for restarts
             else:
                 scheduler.step()
         cur_lr = optimizer.param_groups[0]["lr"]
 
-        print(f"Epoch {ep}/{cfg.epochs}| LR: {cur_lr:.4e} |  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
-        history["train"].append(train_loss); history["val"].append(val_loss)
+        print(
+            f"Epoch {ep}/{cfg.epochs}| LR: {cur_lr:.4e} |  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}"
+        )
+        history["train"].append(train_loss)
+        history["val"].append(val_loss)
 
         # Early stopping
         if cfg.early_stop:
@@ -686,10 +739,10 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
     return model, history, val_loader, ticker_to_id, scalers, features
 
 
-
 # ============================================================
 # 🔹 Helper Utilities for Inference and Checkpointing
 # ============================================================
+
 
 def make_last_windows(df: pd.DataFrame, window: int):
     """
@@ -711,7 +764,15 @@ def make_last_windows(df: pd.DataFrame, window: int):
     return pd.concat(last_windows, ignore_index=True)
 
 
-def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, device="cpu", show_progress=True):
+def predict_next_day(
+    model,
+    df_last_windows,
+    ticker_to_id,
+    scalers,
+    window,
+    device="cpu",
+    show_progress=True,
+):
     """
     Predict next-day (multi-horizon) volatility for each ticker using the latest window.
 
@@ -740,10 +801,14 @@ def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, devi
     preds = []
 
     tickers = df_last_windows["ticker"].unique()
-    #print(f"Predicting next-day vols for {len(tickers)} tickers...")
+    # print(f"Predicting next-day vols for {len(tickers)} tickers...")
 
     # Disable tqdm if nested
-    iterator = tqdm(df_last_windows.groupby("ticker"), desc="Predicting next-day vols", disable=not show_progress)
+    iterator = tqdm(
+        df_last_windows.groupby("ticker"),
+        desc="Predicting next-day vols",
+        disable=not show_progress,
+    )
 
     for t, g in iterator:
         if t not in ticker_to_id:
@@ -770,12 +835,16 @@ def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, devi
 
             g = g[fitted_feats]
         else:
-            print(f"⚠️ Scaler for {t} has no feature_names_in_; using numeric columns only.")
+            print(
+                f"⚠️ Scaler for {t} has no feature_names_in_; using numeric columns only."
+            )
             g = g.select_dtypes(include=np.number)
 
         # --- Scale and predict ---
         X_scaled = scaler.transform(g.fillna(0.0))
-        X_tensor = torch.tensor(X_scaled, dtype=torch.float32, device=device).unsqueeze(0)
+        X_tensor = torch.tensor(X_scaled, dtype=torch.float32, device=device).unsqueeze(
+            0
+        )
 
         with torch.no_grad():
             yhat = model(t_id, X_tensor)
@@ -784,11 +853,13 @@ def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, devi
 
         # --- Expand multi-horizon forecasts ---
         for i, val in enumerate(yhat_np):
-            preds.append({
-                "ticker": t,
-                "horizon": i + 1,  # or use cfg.horizons if available
-                "forecast_vol_scaled": float(val)
-            })
+            preds.append(
+                {
+                    "ticker": t,
+                    "horizon": i + 1,  # or use cfg.horizons if available
+                    "forecast_vol_scaled": float(val),
+                }
+            )
 
     # --- Create standardized DataFrame ---
     out = pd.DataFrame(preds)
@@ -798,7 +869,6 @@ def predict_next_day(model, df_last_windows, ticker_to_id, scalers, window, devi
         out = pd.DataFrame(out, columns=["ticker", "horizon", "forecast_vol_scaled"])
 
     return out
-
 
 
 def save_checkpoint(path, model, ticker_to_id, scalers):
@@ -873,6 +943,7 @@ def load_checkpoint(path, device="cpu"):
     print(f"✅ Loaded checkpoint for {n_tickers} tickers from {path}")
     return model, ticker_to_id, scalers
 
+
 # ============================================================
 # 🔄 Unified Output Standardizer
 # ============================================================
@@ -929,4 +1000,3 @@ def standardize_outputs(
                 )
             )
     return pd.DataFrame.from_records(records)
-

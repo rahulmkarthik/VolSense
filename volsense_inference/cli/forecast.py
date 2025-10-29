@@ -33,33 +33,31 @@ def parse_args():
         "--tickers",
         nargs="+",
         required=True,
-        help="List of ticker symbols to forecast (e.g. AAPL MSFT TSLA)."
+        help="List of ticker symbols to forecast (e.g. AAPL MSFT TSLA).",
     )
     parser.add_argument(
         "--model",
         default="v5c",
-        help="Model version identifier (matches .pth / .pkl / .json files)."
+        help="Model version identifier (matches .pth / .pkl / .json files).",
     )
     parser.add_argument(
         "--checkpoints_dir",
         default="models",
-        help="Path to directory containing trained checkpoints."
+        help="Path to directory containing trained checkpoints.",
     )
     parser.add_argument(
         "--horizon",
         type=int,
         default=10,
-        help="Forecast horizon to display (1, 5, 10, etc.)."
+        help="Forecast horizon to display (1, 5, 10, etc.).",
     )
     parser.add_argument(
         "--plot",
         action="store_true",
-        help="If set, generates forecast visualization(s)."
+        help="If set, generates forecast visualization(s).",
     )
     parser.add_argument(
-        "--save",
-        default=None,
-        help="Optional path to save forecast results as CSV."
+        "--save", default=None, help="Optional path to save forecast results as CSV."
     )
 
     return parser.parse_args()
@@ -89,11 +87,12 @@ def main():
 
         # Display results
         print("\n📊 Forecast Results (realized first):")
-        ordered_cols = ["ticker", "realized_vol"] + \
-                    [c for c in preds.columns if c.startswith("pred_vol_")] + \
-                    [c for c in ["vol_diff", "vol_direction"] if c in preds.columns]
+        ordered_cols = (
+            ["ticker", "realized_vol"]
+            + [c for c in preds.columns if c.startswith("pred_vol_")]
+            + [c for c in ["vol_diff", "vol_direction"] if c in preds.columns]
+        )
         print(preds[ordered_cols].to_string(index=False))
-
 
         # Optional: Save to CSV
         if args.save:

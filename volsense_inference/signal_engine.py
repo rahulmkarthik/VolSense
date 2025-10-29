@@ -92,7 +92,9 @@ class SignalEngine:
     :vartype sector_map: dict[str, str]
     """
 
-    def __init__(self, data: Optional[pd.DataFrame] = None, model_version: str = "v109"):
+    def __init__(
+        self, data: Optional[pd.DataFrame] = None, model_version: str = "v109"
+    ):
         """
         Initialize the SignalEngine with optional snapshot data.
 
@@ -127,6 +129,7 @@ class SignalEngine:
         df_long["ticker"] = df_long["ticker"].astype(str)
         df_long["date"] = pd.to_datetime(df_long["date"])
         self.df = df_long
+
     def ticker_summary(
         self,
         ticker: str,
@@ -158,7 +161,9 @@ class SignalEngine:
         df = self.signals.copy()
         if date is None:
             date = df["date"].max()
-        dsub = df[(df["date"] == pd.to_datetime(date)) & (df["ticker"] == str(ticker))].copy()
+        dsub = df[
+            (df["date"] == pd.to_datetime(date)) & (df["ticker"] == str(ticker))
+        ].copy()
 
         if dsub.empty:
             return f"{ticker} — no data for {pd.to_datetime(date).date()}"
@@ -179,12 +184,28 @@ class SignalEngine:
 
             fvol = float(r.get("forecast_vol", np.nan))
             tvol = float(r.get("today_vol", np.nan))
-            spread = float(r.get("vol_spread", np.nan)) * 100 if pd.notna(r.get("vol_spread", np.nan)) else np.nan
+            spread = (
+                float(r.get("vol_spread", np.nan)) * 100
+                if pd.notna(r.get("vol_spread", np.nan))
+                else np.nan
+            )
             z = float(r.get("vol_zscore", np.nan))
-            pos = str(r.get("position", "")) if pd.notna(r.get("position", np.nan)) else ""
-            reg = str(r.get("regime_flag", "")) if pd.notna(r.get("regime_flag", np.nan)) else ""
+            pos = (
+                str(r.get("position", ""))
+                if pd.notna(r.get("position", np.nan))
+                else ""
+            )
+            reg = (
+                str(r.get("regime_flag", ""))
+                if pd.notna(r.get("regime_flag", np.nan))
+                else ""
+            )
             sect_z = float(r.get("sector_z", np.nan)) if "sector_z" in r else np.nan
-            rank_u = float(r.get("rank_universe", np.nan)) if "rank_universe" in r else np.nan
+            rank_u = (
+                float(r.get("rank_universe", np.nan))
+                if "rank_universe" in r
+                else np.nan
+            )
 
             fvol_str = f"{fvol:.{decimals}f}" if np.isfinite(fvol) else "NaN"
             tvol_str = f"{tvol:.{decimals}f}" if np.isfinite(tvol) else "NaN"
@@ -225,7 +246,9 @@ class SignalEngine:
             raise RuntimeError("No data loaded into SignalEngine.")
 
         df = self.df.copy().sort_values(["ticker", "horizon"])
-        print(f"⚙️ Computing cross-sectional signals for {df['ticker'].nunique()} tickers...")
+        print(
+            f"⚙️ Computing cross-sectional signals for {df['ticker'].nunique()} tickers..."
+        )
 
         # --- 1. Z-score (cross-sectional within each horizon)
         df["vol_zscore"] = df.groupby("horizon")["forecast_vol"].transform(
@@ -295,12 +318,16 @@ class SignalEngine:
         :rtype: pandas.DataFrame
         """
         grp = df.groupby(["horizon", "sector"])["forecast_vol"]
-        agg = grp.agg(["mean", "std", "median"]).reset_index().rename(
-            columns={
-                "mean": "sector_mean",
-                "std": "sector_std",
-                "median": "sector_median",
-            }
+        agg = (
+            grp.agg(["mean", "std", "median"])
+            .reset_index()
+            .rename(
+                columns={
+                    "mean": "sector_mean",
+                    "std": "sector_std",
+                    "median": "sector_median",
+                }
+            )
         )
         df = df.merge(agg, on=["horizon", "sector"], how="left")
 
@@ -311,18 +338,21 @@ class SignalEngine:
         # Measures how each sector's average forecast volatility compares
         # to all other sectors *within the same horizon* on this day.
         sector_summary = (
-            df.groupby(["horizon", "sector"])["sector_mean"]
-            .mean()
-            .reset_index()
+            df.groupby(["horizon", "sector"])["sector_mean"].mean().reset_index()
         )
-        sector_summary["sector_z"] = sector_summary.groupby("horizon")["sector_mean"].transform(
-            lambda s: (s - s.mean()) / (s.std(ddof=0) + 1e-9)
+        sector_summary["sector_z"] = sector_summary.groupby("horizon")[
+            "sector_mean"
+        ].transform(lambda s: (s - s.mean()) / (s.std(ddof=0) + 1e-9))
+        df = df.merge(
+            sector_summary[["horizon", "sector", "sector_z"]],
+            on=["horizon", "sector"],
+            how="left",
         )
-        df = df.merge(sector_summary[["horizon", "sector", "sector_z"]], on=["horizon", "sector"], how="left")
-
 
         # Within-sector & universe ranks
-        df["rank_sector"] = df.groupby(["horizon", "sector"])["forecast_vol"].rank(pct=True)
+        df["rank_sector"] = df.groupby(["horizon", "sector"])["forecast_vol"].rank(
+            pct=True
+        )
         df["rank_universe"] = df.groupby(["horizon"])["forecast_vol"].rank(pct=True)
         return df
 
@@ -389,7 +419,9 @@ class SignalEngine:
         if date is None:
             date = df["date"].max()
         dsub = df[df["date"] == pd.to_datetime(date)]
-        sector_stats = dsub.groupby("sector")["sector_z"].mean().sort_values(ascending=False)
+        sector_stats = (
+            dsub.groupby("sector")["sector_z"].mean().sort_values(ascending=False)
+        )
         top = sector_stats.head(top_n)
         colors = [get_color(s) for s in top.index]
         plt.figure(figsize=(8, 4))
@@ -451,7 +483,9 @@ class SignalEngine:
         if sector:
             df = df[df["sector"] == sector]
 
-        pivot = df.pivot_table(index="ticker", values="vol_zscore", aggfunc="mean").sort_values("vol_zscore")
+        pivot = df.pivot_table(
+            index="ticker", values="vol_zscore", aggfunc="mean"
+        ).sort_values("vol_zscore")
 
         plt.figure(figsize=(8, max(6, len(pivot) * 0.25)))
         sns.heatmap(
@@ -484,7 +518,12 @@ class SignalEngine:
             raise RuntimeError("Run .compute_signals() first.")
 
         df = self.signals[self.signals["horizon"] == horizon]
-        counts = df["position"].value_counts().reindex(["long", "neutral", "short"]).fillna(0)
+        counts = (
+            df["position"]
+            .value_counts()
+            .reindex(["long", "neutral", "short"])
+            .fillna(0)
+        )
 
         plt.figure(figsize=(6, 3))
         sns.barplot(x=counts.index, y=counts.values, palette=["green", "gray", "red"])

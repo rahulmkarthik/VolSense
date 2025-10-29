@@ -121,7 +121,6 @@ def acf_sum_k10(resid, m=10):
     return float(np.sum(vals**2))
 
 
-
 # =====================================================
 # --- Unified Forecast Evaluation Interface ---
 # =====================================================
@@ -142,7 +141,9 @@ def evaluate_forecasts(df):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Expected a pandas DataFrame.")
     if not all(c in df.columns for c in ["realized_vol", "forecast_vol"]):
-        raise ValueError("DataFrame must contain 'realized_vol' and 'forecast_vol' columns.")
+        raise ValueError(
+            "DataFrame must contain 'realized_vol' and 'forecast_vol' columns."
+        )
 
     metrics = {
         "RMSE": rmse(df["realized_vol"], df["forecast_vol"]),
@@ -151,7 +152,7 @@ def evaluate_forecasts(df):
         "R2": r2_score(df["realized_vol"], df["forecast_vol"]),
     }
     return metrics
- 
+
 
 # =====================================================
 # --- Backward Compatibility: old evaluate_forecast() ---

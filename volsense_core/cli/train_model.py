@@ -40,66 +40,58 @@ def parse_args():
         "--data",
         type=str,
         required=True,
-        help="Path to CSV dataset with columns ['date','ticker','return','realized_vol', ...]"
+        help="Path to CSV dataset with columns ['date','ticker','return','realized_vol', ...]",
     )
     parser.add_argument(
         "--method",
         type=str,
         default="global_lstm",
         choices=["lstm", "global_lstm", "garch", "egarch", "gjr"],
-        help="Model architecture to train."
+        help="Model architecture to train.",
     )
-    parser.add_argument(
-        "--window", type=int, default=30, help="Lookback window size."
-    )
+    parser.add_argument("--window", type=int, default=30, help="Lookback window size.")
     parser.add_argument(
         "--horizons",
         nargs="+",
         type=int,
         default=[1, 5, 10],
-        help="Forecast horizons to train for."
+        help="Forecast horizons to train for.",
     )
     parser.add_argument(
-    "--extra_features",
-    nargs="+",
-    default=None,
-    help="Optional list of extra feature column names (e.g. vol_3d vol_10d vol_ratio)."
+        "--extra_features",
+        nargs="+",
+        default=None,
+        help="Optional list of extra feature column names (e.g. vol_3d vol_10d vol_ratio).",
     )
     parser.add_argument(
         "--val_start",
         type=str,
         default="2023-01-01",
-        help="Validation start date (YYYY-MM-DD)."
+        help="Validation start date (YYYY-MM-DD).",
     )
-    parser.add_argument(
-        "--epochs", type=int, default=15, help="Training epochs."
-    )
-    parser.add_argument(
-        "--lr", type=float, default=5e-4, help="Learning rate."
-    )
-    parser.add_argument(
-        "--dropout", type=float, default=0.2, help="Dropout rate."
-    )
+    parser.add_argument("--epochs", type=int, default=15, help="Training epochs.")
+    parser.add_argument("--lr", type=float, default=5e-4, help="Learning rate.")
+    parser.add_argument("--dropout", type=float, default=0.2, help="Dropout rate.")
     parser.add_argument(
         "--device",
         type=str,
         default="cpu",
         choices=["cpu", "cuda"],
-        help="Device to train on."
+        help="Device to train on.",
     )
     parser.add_argument(
         "--save_dir",
         type=str,
         default="models",
-        help="Directory to save model checkpoints."
+        help="Directory to save model checkpoints.",
     )
     parser.add_argument(
         "--version",
         type=str,
         default=datetime.now().strftime("%Y%m%d"),
-        help="Optional model version tag (default: date)."
+        help="Optional model version tag (default: date).",
     )
-    
+
     return parser.parse_args()
 
 
@@ -119,7 +111,9 @@ def main():
     :rtype: None
     """
     args = parse_args()
-    print(f"\n🚀 Starting VolSense training (method={args.method}, device={args.device})")
+    print(
+        f"\n🚀 Starting VolSense training (method={args.method}, device={args.device})"
+    )
 
     # --- Load dataset ---
     if not os.path.exists(args.data):
@@ -157,10 +151,12 @@ def main():
         if args.method in ["lstm", "global_lstm"]:
             # torch save or bundle pickle handled in forecaster.fit internally
             import torch
+
             torch.save(model.model.state_dict(), save_path + ".pth")
         else:
             # GARCH models saved as pickle
             import pickle
+
             with open(save_path + ".pkl", "wb") as f:
                 pickle.dump(model.model, f)
         print(f"💾 Model saved to {save_path}")

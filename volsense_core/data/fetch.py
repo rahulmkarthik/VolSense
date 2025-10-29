@@ -34,12 +34,20 @@ def fetch_ohlcv(
     """
     # Normalize tickers
     single_mode = isinstance(tickers, str)
-    tickers = [tickers] if single_mode else list(dict.fromkeys([t.upper().strip() for t in tickers]))
+    tickers = (
+        [tickers]
+        if single_mode
+        else list(dict.fromkeys([t.upper().strip() for t in tickers]))
+    )
 
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
 
-    iterator = tqdm(tickers, desc="🌍 Fetching market data", unit="ticker") if show_progress and len(tickers) > 1 else tickers
+    iterator = (
+        tqdm(tickers, desc="🌍 Fetching market data", unit="ticker")
+        if show_progress and len(tickers) > 1
+        else tickers
+    )
     out_dict = {}
 
     for tkr in iterator:
@@ -50,7 +58,14 @@ def fetch_ohlcv(
                 out_dict[tkr] = df
                 continue
 
-            df = yf.download(tkr, start=start, end=end, auto_adjust=False, progress=False, threads=False)
+            df = yf.download(
+                tkr,
+                start=start,
+                end=end,
+                auto_adjust=False,
+                progress=False,
+                threads=False,
+            )
             if df.empty:
                 print(f"⚠️ {tkr}: no data returned.")
                 continue
@@ -58,7 +73,9 @@ def fetch_ohlcv(
             # --- Normalize columns ---
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [c[0] for c in df.columns]
-            df = df.reset_index().rename(columns={"Date": "date", "Adj Close": "adj_close", "Close": "close"})
+            df = df.reset_index().rename(
+                columns={"Date": "date", "Adj Close": "adj_close", "Close": "close"}
+            )
             for col in ["open", "high", "low", "close", "adj_close", "volume"]:
                 if col not in df.columns and col.capitalize() in df.columns:
                     df.rename(columns={col.capitalize(): col}, inplace=True)
@@ -144,5 +161,9 @@ def build_dataset(
     if not frames:
         raise ValueError("No valid data returned for any ticker.")
 
-    dataset = pd.concat(frames, ignore_index=True).sort_values(["ticker", "date"]).reset_index(drop=True)
+    dataset = (
+        pd.concat(frames, ignore_index=True)
+        .sort_values(["ticker", "date"])
+        .reset_index(drop=True)
+    )
     return dataset

@@ -2,7 +2,7 @@
 import os
 import pandas as pd
 from pathlib import Path
-from .fetch import fetch_ohlcv, build_dataset
+from .fetch import build_dataset
 
 DATA_CACHE = Path(os.getenv("VOLSENSE_DATA", "./.volsense_cache"))
 DATA_CACHE.mkdir(parents=True, exist_ok=True)

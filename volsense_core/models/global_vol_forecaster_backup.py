@@ -275,13 +275,9 @@ def train_global_model(df, cfg):
 # Backward compatible with existing training code
 # ============================================================
 
-import numpy as np
-import pandas as pd
 import os
-import torch
 import torch.nn as nn
 import json
-from sklearn.preprocessing import StandardScaler
 from dataclasses import dataclass
 
 

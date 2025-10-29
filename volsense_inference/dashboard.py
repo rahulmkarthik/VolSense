@@ -3,11 +3,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import date
-from typing import List, Optional
+from typing import List
 
 # VolSense imports
 from volsense_inference.forecast_engine import Forecast  # runs models + features  📦
-from volsense_inference.analytics import Analytics  # cross-sectional analytics
 from volsense_inference.signal_engine import SignalEngine  # sector-aware signals
 from volsense_inference.sector_mapping import get_sector_map, get_color
 

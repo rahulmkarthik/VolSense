@@ -14,7 +14,7 @@ import os
 from sklearn.preprocessing import StandardScaler
 from dataclasses import dataclass
 from torch.utils.data import DataLoader
-from typing import List, Dict
+from typing import Dict
 
 
 # ============================================================

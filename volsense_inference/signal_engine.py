@@ -18,7 +18,6 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from typing import Optional
-import matplotlib.colors as mcolors
 
 from volsense_inference.sector_mapping import get_sector_map, get_color
 

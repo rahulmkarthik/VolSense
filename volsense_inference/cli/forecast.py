@@ -11,7 +11,6 @@ Example:
 
 import argparse
 import sys
-import pandas as pd
 from volsense_inference.forecast_engine import Forecast
 
 

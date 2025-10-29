@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-from sklearn.preprocessing import StandardScaler
+from volsense_core.utils.scalers import TorchStandardScaler as StandardScaler
 from dataclasses import dataclass
 from typing import List, Tuple
 

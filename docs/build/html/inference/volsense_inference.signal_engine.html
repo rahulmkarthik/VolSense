@@ -1,0 +1,405 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>volsense_inference.signal_engine module &mdash; VolSense v1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=e160b93e"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="volsense_inference.dashboard module" href="volsense_inference.dashboard.html" />
+    <link rel="prev" title="volsense_inference.forecast_engine module" href="volsense_inference.forecast_engine.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            VolSense
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">volsense_inference.signal_engine module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#volsense-signal-engine-snapshot-edition">VolSense Signal Engine (Snapshot Edition)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine"><code class="docutils literal notranslate"><span class="pre">SignalEngine</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine.compute_signals"><code class="docutils literal notranslate"><span class="pre">SignalEngine.compute_signals()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine.plot_position_counts"><code class="docutils literal notranslate"><span class="pre">SignalEngine.plot_position_counts()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine.plot_sector_heatmap"><code class="docutils literal notranslate"><span class="pre">SignalEngine.plot_sector_heatmap()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine.plot_ticker_heatmap"><code class="docutils literal notranslate"><span class="pre">SignalEngine.plot_ticker_heatmap()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine.plot_top_sectors"><code class="docutils literal notranslate"><span class="pre">SignalEngine.plot_top_sectors()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine.sector_summary"><code class="docutils literal notranslate"><span class="pre">SignalEngine.sector_summary()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine.set_data"><code class="docutils literal notranslate"><span class="pre">SignalEngine.set_data()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.signal_engine.SignalEngine.ticker_summary"><code class="docutils literal notranslate"><span class="pre">SignalEngine.ticker_summary()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#volsense_inference.signal_engine.classify_position"><code class="docutils literal notranslate"><span class="pre">classify_position()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">VolSense</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">volsense_inference.signal_engine module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/inference/volsense_inference.signal_engine.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-volsense_inference.signal_engine">
+<span id="volsense-inference-signal-engine-module"></span><h1>volsense_inference.signal_engine module<a class="headerlink" href="#module-volsense_inference.signal_engine" title="Link to this heading"></a></h1>
+<section id="volsense-signal-engine-snapshot-edition">
+<h2>VolSense Signal Engine (Snapshot Edition)<a class="headerlink" href="#volsense-signal-engine-snapshot-edition" title="Link to this heading"></a></h2>
+<p>Transforms snapshot forecasts from ForecastEngine or ForecasterAPI
+into actionable volatility signals and sector-level intelligence.</p>
+<dl class="simple">
+<dt>Key changes vs. prior version:</dt><dd><ul class="simple">
+<li><p>Removed metrics needing time-series history (EMA, momentum, spillover)</p></li>
+<li><p>Treats realized_vol as today’s realized volatility</p></li>
+<li><p>Renamed realized_vol → today_vol for interpretability</p></li>
+<li><p>Cleaned &amp; vectorized computations for speed</p></li>
+<li><p>Simplified sector-relative rollups and cross-sectional scoring</p></li>
+<li><p>Added cross-sectional sector z-score computation for single-day analysis</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">SignalEngine</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'v109'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Snapshot signal processor for cross-sectional and sector intelligence.</p>
+<p>Converts a one-day, multi-ticker forecast table into z-scores, spreads,
+ranks, regime flags, and sector-relative statistics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>pandas.DataFrame</em><em>, </em><em>optional</em>) – Optional forecast DataFrame to initialize and standardize.</p></li>
+<li><p><strong>model_version</strong> (<em>str</em>) – Sector-map key (‘v109’ or ‘v507’) used for enrichment.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Variables<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>df</strong> (<em>pandas.DataFrame</em><em> | </em><em>None</em>) – Canonical input DataFrame after coercion.</p></li>
+<li><p><strong>signals</strong> (<em>pandas.DataFrame</em><em> | </em><em>None</em>) – Computed signal DataFrame after compute_signals().</p></li>
+<li><p><strong>sector_map</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>str</em><em>]</em>) – Mapping of ticker to sector label for the chosen universe.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine.compute_signals">
+<span class="sig-name descname"><span class="pre">compute_signals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">enrich_with_sectors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine.compute_signals"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine.compute_signals" title="Link to this definition"></a></dt>
+<dd><p>Compute cross-sectional signals from the snapshot.</p>
+<dl class="simple">
+<dt>Derives per-horizon:</dt><dd><ul class="simple">
+<li><p>vol_zscore: Cross-sectional z-score of forecast_vol</p></li>
+<li><p>vol_spread: (forecast_vol / today_vol) - 1 when today_vol is available</p></li>
+<li><p>xsec_rank: Percentile rank by horizon</p></li>
+<li><p>signal_strength: Rescaled rank in [-1, 1]</p></li>
+<li><p>regime_flag: {‘calm’,’normal’,’spike’} by z-score thresholds</p></li>
+<li><p>(optional) sector-level rollups and z-scores</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>enrich_with_sectors</strong> (<em>bool</em>) – If True, attach sector labels and sector stats.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If no data has been loaded via set_data().</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Signal-enriched DataFrame aligned to the canonical schema.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>pandas.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine.plot_position_counts">
+<span class="sig-name descname"><span class="pre">plot_position_counts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">horizon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine.plot_position_counts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine.plot_position_counts" title="Link to this definition"></a></dt>
+<dd><p>Plot counts of long/neutral/short positions across tickers for a horizon.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>horizon</strong> (<em>int</em>) – Forecast horizon to summarize.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If compute_signals() has not been called.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine.plot_sector_heatmap">
+<span class="sig-name descname"><span class="pre">plot_sector_heatmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Timestamp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine.plot_sector_heatmap"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine.plot_sector_heatmap" title="Link to this definition"></a></dt>
+<dd><p>Plot a heatmap of sector z-scores by horizon for a snapshot date.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>date</strong> (<em>pandas.Timestamp</em><em>, </em><em>optional</em>) – Snapshot date to visualize; defaults to max available date.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If compute_signals() has not been called.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine.plot_ticker_heatmap">
+<span class="sig-name descname"><span class="pre">plot_ticker_heatmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">horizon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sector</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine.plot_ticker_heatmap"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine.plot_ticker_heatmap" title="Link to this definition"></a></dt>
+<dd><p>Plot a heatmap of ticker z-scores for a given horizon (optionally by sector).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>horizon</strong> (<em>int</em>) – Forecast horizon to visualize.</p></li>
+<li><p><strong>sector</strong> (<em>str</em><em> | </em><em>None</em>) – Optional sector filter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If compute_signals() has not been called.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine.plot_top_sectors">
+<span class="sig-name descname"><span class="pre">plot_top_sectors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">horizon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Timestamp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">top_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine.plot_top_sectors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine.plot_top_sectors" title="Link to this definition"></a></dt>
+<dd><p>Plot top-N sectors ranked by mean sector z-score.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>horizon</strong> (<em>int</em>) – Horizon to label in the plot title (for context only).</p></li>
+<li><p><strong>date</strong> (<em>pandas.Timestamp</em><em>, </em><em>optional</em>) – Snapshot date; defaults to max available date.</p></li>
+<li><p><strong>top_n</strong> (<em>int</em>) – Number of sectors to display.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If compute_signals() has not been called.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine.sector_summary">
+<span class="sig-name descname"><span class="pre">sector_summary</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Timestamp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine.sector_summary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine.sector_summary" title="Link to this definition"></a></dt>
+<dd><p>Produce a tabular summary of sector conditions for a snapshot date.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>date</strong> (<em>pandas.Timestamp</em><em>, </em><em>optional</em>) – Snapshot date; defaults to max available date.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>DataFrame with columns [‘sector’,’sector_mean’,’sector_std’,’sector_z’,’sector_color’].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If compute_signals() has not been called.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine.set_data">
+<span class="sig-name descname"><span class="pre">set_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine.set_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine.set_data" title="Link to this definition"></a></dt>
+<dd><p>Standardize and register a forecast snapshot.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>pandas.DataFrame</em>) – Input forecast table in wide or standardized long format.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.SignalEngine.ticker_summary">
+<span class="sig-name descname"><span class="pre">ticker_summary</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">horizons</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Timestamp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decimals</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">4</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#SignalEngine.ticker_summary"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.SignalEngine.ticker_summary" title="Link to this definition"></a></dt>
+<dd><p>Create a human-readable summary for a ticker across horizons.</p>
+<p>Includes forecast level, today’s realized vol, percent spread,
+z-score, position, regime, sector z-score, and universe rank.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ticker</strong> (<em>str</em>) – Ticker symbol to summarize.</p></li>
+<li><p><strong>horizons</strong> (<em>list</em><em>[</em><em>int</em><em>] </em><em>| </em><em>None</em>) – Subset of horizons to include; defaults to all present.</p></li>
+<li><p><strong>date</strong> (<em>pandas.Timestamp</em><em> | </em><em>None</em>) – Snapshot date; defaults to the max date in signals.</p></li>
+<li><p><strong>decimals</strong> (<em>int</em>) – Decimal precision for displayed values.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Multi-line summary string for the selected ticker.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If compute_signals() has not been called.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="volsense_inference.signal_engine.classify_position">
+<span class="sig-name descname"><span class="pre">classify_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">row</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/signal_engine.html#classify_position"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.signal_engine.classify_position" title="Link to this definition"></a></dt>
+<dd><p>Classify a trading position from cross-sectional and term spreads.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>row</strong> (<em>Mapping</em><em>[</em><em>str</em><em>, </em><em>float</em><em>]</em>) – Mapping-like object (e.g. pandas.Series) containing at minimum:
+<code class="docutils literal notranslate"><span class="pre">vol_zscore</span></code> (float). Optional keys: <code class="docutils literal notranslate"><span class="pre">vol_spread</span></code> (float)
+and <code class="docutils literal notranslate"><span class="pre">term_spread_10v5</span></code> (float).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Position label: <code class="docutils literal notranslate"><span class="pre">&quot;long&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;short&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;neutral&quot;</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>KeyError</strong> – If <code class="docutils literal notranslate"><span class="pre">vol_zscore</span></code> is missing from <code class="docutils literal notranslate"><span class="pre">row</span></code>.</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<dl class="simple">
+<dt>Decision thresholds (hard-coded):</dt><dd><ul class="simple">
+<li><p>z-score threshold: &gt; 1.0 → high, &lt; -1.0 → low</p></li>
+<li><p>vol_spread threshold: &gt; 0.07 / &lt; -0.07  (±7%)</p></li>
+<li><p>term_spread_10v5 threshold: &gt; 0.035 / &lt; -0.035 (±3.5%)</p></li>
+</ul>
+</dd>
+</dl>
+</div>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">classify_position</span><span class="p">({</span><span class="s1">&#39;vol_zscore&#39;</span><span class="p">:</span> <span class="mf">1.2</span><span class="p">,</span> <span class="s1">&#39;vol_spread&#39;</span><span class="p">:</span> <span class="mf">0.08</span><span class="p">})</span>
+<span class="go">&#39;long&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">classify_position</span><span class="p">({</span><span class="s1">&#39;vol_zscore&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mf">1.3</span><span class="p">,</span> <span class="s1">&#39;term_spread_10v5&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.05</span><span class="p">})</span>
+<span class="go">&#39;short&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="volsense_inference.forecast_engine.html" class="btn btn-neutral float-left" title="volsense_inference.forecast_engine module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="volsense_inference.dashboard.html" class="btn btn-neutral float-right" title="volsense_inference.dashboard module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Rahul Karthik.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

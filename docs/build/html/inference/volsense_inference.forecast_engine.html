@@ -1,0 +1,407 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>volsense_inference.forecast_engine module &mdash; VolSense v1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=e160b93e"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="volsense_inference.signal_engine module" href="volsense_inference.signal_engine.html" />
+    <link rel="prev" title="volsense_inference.analytics module" href="volsense_inference.analytics.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            VolSense
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">⚙️ Core Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">🧠 Inference Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">volsense_inference.forecast_engine module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#volsense-inference-forecast-engine">volsense_inference.forecast_engine</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#primary-class">Primary class</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#usage-example">Usage example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast"><code class="docutils literal notranslate"><span class="pre">Forecast</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.model_version"><code class="docutils literal notranslate"><span class="pre">Forecast.model_version</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.checkpoints_dir"><code class="docutils literal notranslate"><span class="pre">Forecast.checkpoints_dir</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.start"><code class="docutils literal notranslate"><span class="pre">Forecast.start</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.model"><code class="docutils literal notranslate"><span class="pre">Forecast.model</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.meta"><code class="docutils literal notranslate"><span class="pre">Forecast.meta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.scalers"><code class="docutils literal notranslate"><span class="pre">Forecast.scalers</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.ticker_to_id"><code class="docutils literal notranslate"><span class="pre">Forecast.ticker_to_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.features"><code class="docutils literal notranslate"><span class="pre">Forecast.features</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.window"><code class="docutils literal notranslate"><span class="pre">Forecast.window</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.vol_window"><code class="docutils literal notranslate"><span class="pre">Forecast.vol_window</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.horizons"><code class="docutils literal notranslate"><span class="pre">Forecast.horizons</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.predictions"><code class="docutils literal notranslate"><span class="pre">Forecast.predictions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.signals"><code class="docutils literal notranslate"><span class="pre">Forecast.signals</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.plot"><code class="docutils literal notranslate"><span class="pre">Forecast.plot()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_inference.forecast_engine.Forecast.run"><code class="docutils literal notranslate"><span class="pre">Forecast.run()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">📓 Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">VolSense</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">volsense_inference.forecast_engine module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/inference/volsense_inference.forecast_engine.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-volsense_inference.forecast_engine">
+<span id="volsense-inference-forecast-engine-module"></span><h1>volsense_inference.forecast_engine module<a class="headerlink" href="#module-volsense_inference.forecast_engine" title="Link to this heading"></a></h1>
+<section id="volsense-inference-forecast-engine">
+<h2>volsense_inference.forecast_engine<a class="headerlink" href="#volsense-inference-forecast-engine" title="Link to this heading"></a></h2>
+<p>High-level forecasting runtime for VolSense.</p>
+<p>This module exposes the Forecast runtime class which orchestrates data fetching,
+feature engineering, batch inference against a pretrained VolSense model, and
+lightweight analytics and visualization helpers.</p>
+<section id="primary-class">
+<h3>Primary class<a class="headerlink" href="#primary-class" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>Forecast</dt><dd><ul class="simple">
+<li><p>Loads a pretrained model and its artifacts (scalers, metadata, feature list)
+via volsense_inference.model_loader.load_model.</p></li>
+<li><p>Prepares recent market data using volsense_core.data.fetch.build_dataset
+and volsense_core.data.feature_engineering.build_features to ensure the
+inference inputs match the training-time schema.</p></li>
+<li><p>Runs batched inference using volsense_inference.predictor.predict_batch,
+attaches realized volatility values, and exposes an Analytics helper for
+cross-sectional signal computations and simple plots.</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<section id="usage-example">
+<h3>Usage example<a class="headerlink" href="#usage-example" title="Link to this heading"></a></h3>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">volsense_inference.forecast_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">Forecast</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Forecast</span><span class="p">(</span><span class="n">model_version</span><span class="o">=</span><span class="s2">&quot;v507&quot;</span><span class="p">,</span> <span class="n">checkpoints_dir</span><span class="o">=</span><span class="s2">&quot;../models&quot;</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">preds</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s2">&quot;SPY&quot;</span><span class="p">,</span> <span class="s2">&quot;QQQ&quot;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="s2">&quot;SPY&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The Forecast class expects model artifacts to be available in the checkpoints
+directory (meta + state or supported bundle format). See
+volsense_inference.model_loader for loading behavior and supported formats.</p></li>
+<li><p>Forecast.plot produces a matplotlib Figure when show=False, otherwise it
+renders and closes the figure to avoid duplicate captures in notebook contexts.</p></li>
+</ul>
+</section>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Forecast</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'v109'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">checkpoints_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'models'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'2005-01-01'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/forecast_engine.html#Forecast"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>High-level runtime interface for volatility forecasting and visualization.</p>
+<dl class="simple">
+<dt>Orchestrates:</dt><dd><ul class="simple">
+<li><p>recent data fetch and feature engineering aligned to the trained model,</p></li>
+<li><p>batched inference for one or more tickers,</p></li>
+<li><p>attachment of realized volatility for the snapshot date,</p></li>
+<li><p>light analytics and plotting helpers.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.model_version">
+<span class="sig-name descname"><span class="pre">model_version</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.model_version" title="Link to this definition"></a></dt>
+<dd><p>Version tag of the pretrained model assets to load.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.checkpoints_dir">
+<span class="sig-name descname"><span class="pre">checkpoints_dir</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.checkpoints_dir" title="Link to this definition"></a></dt>
+<dd><p>Directory containing model checkpoints and metadata.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.start">
+<span class="sig-name descname"><span class="pre">start</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.start" title="Link to this definition"></a></dt>
+<dd><p>Earliest date used when fetching recent data to build features.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.model">
+<span class="sig-name descname"><span class="pre">model</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.model" title="Link to this definition"></a></dt>
+<dd><p>Loaded model ready for batch prediction.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>object</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.meta">
+<span class="sig-name descname"><span class="pre">meta</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.meta" title="Link to this definition"></a></dt>
+<dd><p>Model metadata (e.g., horizons, window).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.scalers">
+<span class="sig-name descname"><span class="pre">scalers</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.scalers" title="Link to this definition"></a></dt>
+<dd><p>Per-ticker scalers used during training.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.ticker_to_id">
+<span class="sig-name descname"><span class="pre">ticker_to_id</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.ticker_to_id" title="Link to this definition"></a></dt>
+<dd><p>Mapping of ticker symbols to integer IDs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.features">
+<span class="sig-name descname"><span class="pre">features</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.features" title="Link to this definition"></a></dt>
+<dd><p>Feature columns expected by the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[str]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.window">
+<span class="sig-name descname"><span class="pre">window</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.window" title="Link to this definition"></a></dt>
+<dd><p>Input window length used by the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.vol_window">
+<span class="sig-name descname"><span class="pre">vol_window</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.vol_window" title="Link to this definition"></a></dt>
+<dd><p>Lookback window for realized volatility computation in feature prep.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.horizons">
+<span class="sig-name descname"><span class="pre">horizons</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.horizons" title="Link to this definition"></a></dt>
+<dd><p>Forecast horizons supported by the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.predictions">
+<span class="sig-name descname"><span class="pre">predictions</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.predictions" title="Link to this definition"></a></dt>
+<dd><p>Last forecast snapshot produced by run().</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.signals">
+<span class="sig-name descname"><span class="pre">signals</span></span><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.signals" title="Link to this definition"></a></dt>
+<dd><p>Analytics helper attached after run().</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="volsense_inference.html#volsense_inference.analytics.Analytics" title="volsense_inference.analytics.Analytics">Analytics</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.plot">
+<span class="sig-name descname"><span class="pre">plot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ticker</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_vix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vix_df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/forecast_engine.html#Forecast.plot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.plot" title="Link to this definition"></a></dt>
+<dd><p>Plot realized volatility history and overlay constant forecast levels by horizon.</p>
+<dl class="simple">
+<dt>Draws:</dt><dd><ul class="simple">
+<li><p>Realized volatility time series for recent months.</p></li>
+<li><p>Horizontal dashed lines for each available predicted horizon.</p></li>
+<li><p>Optional VIX overlay if provided.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ticker</strong> (<em>str</em>) – Ticker symbol to visualize.</p></li>
+<li><p><strong>show_vix</strong> (<em>bool</em>) – Whether to overlay VIX time series (requires vix_df).</p></li>
+<li><p><strong>vix_df</strong> (<em>pandas.DataFrame</em><em>, </em><em>optional</em>) – DataFrame with columns [‘date’,’close’] representing VIX levels.</p></li>
+<li><p><strong>show</strong> (<em>bool</em>) – If True, render the plot and return None; if False, return the Figure.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>RuntimeError</strong> – If .run() has not been called prior to plotting.</p></li>
+<li><p><strong>ValueError</strong> – If no forecast results are available for the requested ticker.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Matplotlib Figure when show=False; otherwise None.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>matplotlib.figure.Figure or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_inference.forecast_engine.Forecast.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickers</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_inference/forecast_engine.html#Forecast.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.forecast_engine.Forecast.run" title="Link to this definition"></a></dt>
+<dd><p>Generate multi-horizon forecasts for one or more tickers.</p>
+<p>Prepares recent data, runs batched predictions, attaches realized volatility,
+and computes cross-sectional analytics for convenience.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>tickers</strong> (<em>str</em><em> or </em><em>list</em><em>[</em><em>str</em><em>]</em>) – Ticker symbol or list of symbols to forecast.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Forecast snapshot with columns like [‘ticker’,’pred_vol_1’,’pred_vol_5’,…,’realized_vol’].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="volsense_inference.analytics.html" class="btn btn-neutral float-left" title="volsense_inference.analytics module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="volsense_inference.signal_engine.html" class="btn btn-neutral float-right" title="volsense_inference.signal_engine module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Rahul Karthik.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

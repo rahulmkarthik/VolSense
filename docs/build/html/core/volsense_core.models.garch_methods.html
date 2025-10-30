@@ -1,0 +1,383 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>volsense_core.models.garch_methods module &mdash; VolSense v1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=e160b93e"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            VolSense
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">volsense_core.models.garch_methods module</a><ul>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster</span></code></a><ul>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.fit"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.fit()</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.get_config"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.get_config()</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.predict"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.predict()</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.result"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.result</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.rolling_forecast"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.rolling_forecast()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig"><code class="docutils literal notranslate"><span class="pre">GARCHConfig</span></code></a><ul>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.annualize"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.annualize</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.dist"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.dist</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.fit_kwargs"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.fit_kwargs</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.mean"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.mean</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.model"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.model</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.o"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.o</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.p"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.p</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.q"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.q</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.scale"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.scale</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.fit_arch"><code class="docutils literal notranslate"><span class="pre">fit_arch()</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.forecast_arch"><code class="docutils literal notranslate"><span class="pre">forecast_arch()</span></code></a></li>
+<li><a class="reference internal" href="#volsense_core.models.garch_methods.standardize_outputs"><code class="docutils literal notranslate"><span class="pre">standardize_outputs()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">VolSense</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">volsense_core.models.garch_methods module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/core/volsense_core.models.garch_methods.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-volsense_core.models.garch_methods">
+<span id="volsense-core-models-garch-methods-module"></span><h1>volsense_core.models.garch_methods module<a class="headerlink" href="#module-volsense_core.models.garch_methods" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.ARCHForecaster">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ARCHForecaster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig" title="volsense_core.models.garch_methods.GARCHConfig"><span class="pre">GARCHConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Thin, safe wrapper around <cite>arch.arch_model</cite> supporting GARCH, EGARCH, and GJR.</p>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h2>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">cfg</span> <span class="o">=</span> <span class="n">GARCHConfig</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gjr&quot;</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">o</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">&quot;t&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">ARCHForecaster</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>          <span class="c1"># ret: pd.Series or np.array</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sigma_next</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">horizon</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>         <span class="c1"># np.ndarray length 5 (annualized by default)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">roll</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">rolling_forecast</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>            <span class="c1"># DataFrame with one-step-ahead forecasts</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.ARCHForecaster.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">returns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Series</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster" title="volsense_core.models.garch_methods.ARCHForecaster"><span class="pre">ARCHForecaster</span></a></span></span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster.fit" title="Link to this definition"></a></dt>
+<dd><p>Fit the selected ARCH-family model to a return series.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>returns</strong> (<em>ArrayLike</em>) – Daily simple returns (e.g., price.pct_change()).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Self, with fitted result accessible via .result.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster" title="volsense_core.models.garch_methods.ARCHForecaster">ARCHForecaster</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.ARCHForecaster.get_config">
+<span class="sig-name descname"><span class="pre">get_config</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster.get_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster.get_config" title="Link to this definition"></a></dt>
+<dd><p>Get a dictionary copy of the current configuration.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Configuration as a plain dictionary.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.ARCHForecaster.predict">
+<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">horizon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster.predict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster.predict" title="Link to this definition"></a></dt>
+<dd><p>Generate multi-horizon volatility forecasts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>horizon</strong> (<em>int</em><em> or </em><em>list</em><em>[</em><em>int</em><em>]</em>) – Single horizon or list of horizons to forecast (e.g., 1 or [1, 5, 10]).</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – If called before fit() (via the .result accessor).</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Forecasted sigma values (annualized if configured), shape (len(horizons),).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.ARCHForecaster.result">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">result</span></span><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster.result" title="Link to this definition"></a></dt>
+<dd><p>Access the underlying ARCHModelResult after fit().</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>RuntimeError</strong> – If the model has not been fitted yet.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Fitted result object from arch.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>object</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.ARCHForecaster.rolling_forecast">
+<span class="sig-name descname"><span class="pre">rolling_forecast</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">returns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Series</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_every</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Series</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span></span></span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster.rolling_forecast"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster.rolling_forecast" title="Link to this definition"></a></dt>
+<dd><p>Produce rolling one-step-ahead forecasts using an expanding window.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>returns</strong> (<em>ArrayLike</em>) – Daily simple returns. If a Series is provided, output is a Series aligned to input dates.</p></li>
+<li><p><strong>start</strong> (<em>int</em><em>, </em><em>optional</em>) – First index to start forecasting. Defaults to max(p+q+o, 30) if None.</p></li>
+<li><p><strong>min_obs</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum observations before first fit; overrides start when provided.</p></li>
+<li><p><strong>refit_every</strong> (<em>int</em>) – Refit frequency in steps (1 = refit each step).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If there are fewer than ~50 observations.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>One-step-ahead sigma forecasts (annualized if configured), as Series or ndarray.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>pandas.Series or numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">GARCHConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'garch'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dist</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'normal'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Zero'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annualize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#GARCHConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Configuration for ARCH-family forecasters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> (<em>str</em>) – Model family to use: ‘garch’ (GARCH), ‘egarch’ (EGARCH), or ‘gjr’ (GJR/TGARCH).</p></li>
+<li><p><strong>p</strong> (<em>int</em>) – ARCH order.</p></li>
+<li><p><strong>q</strong> (<em>int</em>) – GARCH order.</p></li>
+<li><p><strong>o</strong> (<em>int</em>) – Asymmetry order (used for GJR when &gt; 0). Ignored for EGARCH.</p></li>
+<li><p><strong>dist</strong> (<em>str</em>) – Innovation distribution, e.g., ‘normal’, ‘t’, ‘skewt’, or ‘ged’.</p></li>
+<li><p><strong>mean</strong> (<em>str</em>) – Mean model, typically ‘Zero’ for daily returns.</p></li>
+<li><p><strong>scale</strong> (<em>float</em>) – Factor to scale returns before fitting (e.g., 100.0 for percent returns).</p></li>
+<li><p><strong>annualize</strong> (<em>bool</em>) – If True, convert daily sigma to annualized volatility using sqrt(252).</p></li>
+<li><p><strong>fit_kwargs</strong> (<em>dict</em><em>, </em><em>optional</em>) – Extra keyword arguments passed to arch’s .fit() (e.g., {‘disp’: ‘off’}).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If an unsupported model name is provided.</p>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.annualize">
+<span class="sig-name descname"><span class="pre">annualize</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">True</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.annualize" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.dist">
+<span class="sig-name descname"><span class="pre">dist</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'normal'</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.dist" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.fit_kwargs">
+<span class="sig-name descname"><span class="pre">fit_kwargs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.fit_kwargs" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.mean">
+<span class="sig-name descname"><span class="pre">mean</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Zero'</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.mean" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.model">
+<span class="sig-name descname"><span class="pre">model</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'garch'</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.model" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.o">
+<span class="sig-name descname"><span class="pre">o</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.o" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.p">
+<span class="sig-name descname"><span class="pre">p</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.p" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.q">
+<span class="sig-name descname"><span class="pre">q</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.q" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.GARCHConfig.scale">
+<span class="sig-name descname"><span class="pre">scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">100.0</span></em><a class="headerlink" href="#volsense_core.models.garch_methods.GARCHConfig.scale" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.fit_arch">
+<span class="sig-name descname"><span class="pre">fit_arch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">returns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Series</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'garch'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dist</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'normal'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">o</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Zero'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annualize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">fit_kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#fit_arch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.fit_arch" title="Link to this definition"></a></dt>
+<dd><p>Quick-fit a GARCH/EGARCH/GJR model and return the fitted result.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>returns</strong> (<em>ArrayLike</em>) – Daily simple returns to fit on.</p></li>
+<li><p><strong>model_type</strong> (<em>str</em>) – Model family: ‘garch’, ‘egarch’, or ‘gjr’.</p></li>
+<li><p><strong>dist</strong> (<em>str</em>) – Innovation distribution, e.g., ‘normal’, ‘t’, ‘skewt’, ‘ged’.</p></li>
+<li><p><strong>p</strong> (<em>int</em>) – ARCH order.</p></li>
+<li><p><strong>q</strong> (<em>int</em>) – GARCH order.</p></li>
+<li><p><strong>o</strong> (<em>int</em>) – Asymmetry order (GJR) when &gt; 0; ignored for EGARCH.</p></li>
+<li><p><strong>mean</strong> (<em>str</em>) – Mean model, typically ‘Zero’ for daily returns.</p></li>
+<li><p><strong>scale</strong> (<em>float</em>) – Factor to scale returns before fitting.</p></li>
+<li><p><strong>annualize</strong> (<em>bool</em>) – If True, annualize sigma via sqrt(252).</p></li>
+<li><p><strong>fit_kwargs</strong> (<em>dict</em>) – Extra keyword args forwarded to arch .fit().</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Fitted ARCH model result object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>object</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.forecast_arch">
+<span class="sig-name descname"><span class="pre">forecast_arch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fitted_model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">horizon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annualize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#forecast_arch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.forecast_arch" title="Link to this definition"></a></dt>
+<dd><p>Generate volatility forecasts from a fitted ARCHModelResult.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fitted_model</strong> (<em>object</em>) – Result object returned by arch after fitting.</p></li>
+<li><p><strong>horizon</strong> (<em>int</em>) – Number of steps to forecast ahead.</p></li>
+<li><p><strong>scale</strong> (<em>float</em>) – Scale factor used during fitting to unscale sigma.</p></li>
+<li><p><strong>annualize</strong> (<em>bool</em>) – If True, annualize sigma via sqrt(252).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Array of forecasted sigma values of length <cite>horizon</cite>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="volsense_core.models.garch_methods.standardize_outputs">
+<span class="sig-name descname"><span class="pre">standardize_outputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tickers</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">forecast_vols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">realized_vols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'UnknownModel'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">horizons</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#standardize_outputs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.standardize_outputs" title="Link to this definition"></a></dt>
+<dd><p>Standardize model outputs for evaluation/backtesting.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dates</strong> (<em>list</em><em> or </em><em>numpy.ndarray</em>) – Forecast or validation dates.</p></li>
+<li><p><strong>tickers</strong> (<em>list</em><em> or </em><em>numpy.ndarray</em>) – Corresponding tickers for each row.</p></li>
+<li><p><strong>forecast_vols</strong> (<em>numpy.ndarray</em>) – Predicted volatilities, shape (N, H) or (N,).</p></li>
+<li><p><strong>realized_vols</strong> (<em>numpy.ndarray</em><em> or </em><em>list</em><em>, </em><em>optional</em>) – True realized volatilities, same shape as forecast_vols.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – Model identifier, e.g., ‘BaseLSTM’, ‘GlobalVolForecaster’, ‘ARCHForecaster’.</p></li>
+<li><p><strong>horizons</strong> (<em>list</em><em>[</em><em>int</em><em>]</em><em>, </em><em>optional</em>) – Forecast horizons, e.g., [1, 5, 10]. Defaults to 1..H if None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>DataFrame with columns [‘date’,’ticker’,’horizon’,’forecast_vol’,’realized_vol’,’model’].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Rahul Karthik.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -126,7 +126,7 @@ class SignalEngine:
 
     :param data: Optional forecast DataFrame to initialize and standardize.
     :type data: pandas.DataFrame, optional
-    :param model_version: Sector-map key ('v109' or 'v509') used for enrichment.
+    :param model_version: Sector-map key ('v109' or 'v507') used for enrichment.
     :type model_version: str
 
     :ivar df: Canonical input DataFrame after coercion.
@@ -148,7 +148,7 @@ class SignalEngine:
 
         :param data: Optional forecast snapshot in wide or standardized long format.
         :type data: pandas.DataFrame, optional
-        :param model_version: Sector-map key ('v109' for compact universe, 'v509' for extended).
+        :param model_version: Sector-map key ('v109' for compact universe, 'v507' for extended).
         :type model_version: str
         :return: None
         :rtype: None

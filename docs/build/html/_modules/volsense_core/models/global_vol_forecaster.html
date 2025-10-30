@@ -1,0 +1,1014 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>volsense_core.models.global_vol_forecaster &mdash; VolSense v1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=e160b93e"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            VolSense
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/index.html">VolSense Core Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/index.html">VolSense Inference Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/index.html">VolSense Research and Application Notebooks</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">VolSense</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">volsense_core.models.global_vol_forecaster</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for volsense_core.models.global_vol_forecaster</h1><div class="highlight"><pre>
+<span></span><span class="c1"># ============================================================</span>
+<span class="c1"># volsense_core/models/global_vol_forecaster.py  (v3)</span>
+<span class="c1"># GlobalVolForecaster with attention, per-horizon heads,</span>
+<span class="c1"># feature-dropout, variational (recurrent) dropout, EMA weights,</span>
+<span class="c1"># cosine restarts, early stopping — still backward-compatible.</span>
+<span class="c1"># ============================================================</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">volsense_core.utils.scalers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TorchStandardScaler</span> <span class="k">as</span> <span class="n">StandardScaler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch.utils.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataLoader</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span>
+
+
+<span class="c1"># ============================================================</span>
+<span class="c1"># 🧩 Config Dataclass</span>
+<span class="c1"># ============================================================</span>
+<div class="viewcode-block" id="TrainConfig">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.TrainConfig">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TrainConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Training configuration for GlobalVolForecaster.</span>
+
+<span class="sd">    :param window: Rolling lookback window length (timesteps).</span>
+<span class="sd">    :type window: int</span>
+<span class="sd">    :param horizons: Forecast horizons; either an int (max horizon) or explicit list (e.g., [1,5,10]).</span>
+<span class="sd">    :type horizons: int or list[int]</span>
+<span class="sd">    :param stride: Step size between training samples (larger reduces overlap).</span>
+<span class="sd">    :type stride: int</span>
+<span class="sd">    :param val_start: Validation window start date (inclusive).</span>
+<span class="sd">    :type val_start: str</span>
+<span class="sd">    :param val_end: Optional validation window end date (exclusive). If None, uses all data after val_start.</span>
+<span class="sd">    :type val_end: str, optional</span>
+<span class="sd">    :param val_mode: Validation mode; &quot;causal&quot; (train strictly before val_start) or &quot;holdout_slice&quot;.</span>
+<span class="sd">    :type val_mode: str</span>
+<span class="sd">    :param embargo_days: Days excluded on both sides of validation slice in holdout mode.</span>
+<span class="sd">    :type embargo_days: int</span>
+<span class="sd">    :param target_col: Target column name (typically realized_vol_log).</span>
+<span class="sd">    :type target_col: str</span>
+<span class="sd">    :param extra_features: Additional feature column names to include beyond &quot;return&quot;.</span>
+<span class="sd">    :type extra_features: list[str], optional</span>
+<span class="sd">    :param epochs: Number of training epochs.</span>
+<span class="sd">    :type epochs: int</span>
+<span class="sd">    :param lr: Learning rate for optimizer.</span>
+<span class="sd">    :type lr: float</span>
+<span class="sd">    :param batch_size: Mini-batch size.</span>
+<span class="sd">    :type batch_size: int</span>
+<span class="sd">    :param device: Compute device (&quot;cpu&quot; or &quot;cuda&quot;).</span>
+<span class="sd">    :type device: str</span>
+<span class="sd">    :param dropout: Inter-layer dropout probability in the LSTM and heads.</span>
+<span class="sd">    :type dropout: float</span>
+<span class="sd">    :param use_layernorm: Whether to apply LayerNorm to the backbone output.</span>
+<span class="sd">    :type use_layernorm: bool</span>
+<span class="sd">    :param separate_heads: If True, use independent heads per horizon; else a single multi-output head.</span>
+<span class="sd">    :type separate_heads: bool</span>
+<span class="sd">    :param attention: If True, apply a MultiheadAttention layer over LSTM outputs.</span>
+<span class="sd">    :type attention: bool</span>
+<span class="sd">    :param residual_head: If True, add a residual linear head to improve gradient flow.</span>
+<span class="sd">    :type residual_head: bool</span>
+<span class="sd">    :param feat_dropout_p: Channel-wise (feature) dropout probability at input.</span>
+<span class="sd">    :type feat_dropout_p: float</span>
+<span class="sd">    :param variational_dropout_p: Variational (time-consistent) input dropout probability.</span>
+<span class="sd">    :type variational_dropout_p: float</span>
+<span class="sd">    :param loss_horizon_weights: Optional per-horizon loss weights.</span>
+<span class="sd">    :type loss_horizon_weights: list[float], optional</span>
+<span class="sd">    :param dynamic_window_jitter: Random jitter (+/-) applied to window size during training.</span>
+<span class="sd">    :type dynamic_window_jitter: int</span>
+<span class="sd">    :param grad_clip: Gradient norm clip value; set None/0 to disable.</span>
+<span class="sd">    :type grad_clip: float</span>
+<span class="sd">    :param cosine_schedule: Use cosine LR schedule.</span>
+<span class="sd">    :type cosine_schedule: bool</span>
+<span class="sd">    :param cosine_restarts: Use cosine schedule with warm restarts (SGDR).</span>
+<span class="sd">    :type cosine_restarts: bool</span>
+<span class="sd">    :param oversample_high_vol: Deprecated knob; kept for compatibility.</span>
+<span class="sd">    :type oversample_high_vol: bool</span>
+<span class="sd">    :param use_ema: Maintain an exponential moving average (EMA) of model weights.</span>
+<span class="sd">    :type use_ema: bool</span>
+<span class="sd">    :param ema_decay: EMA decay factor in (0,1).</span>
+<span class="sd">    :type ema_decay: float</span>
+<span class="sd">    :param early_stop: Enable early stopping on validation loss.</span>
+<span class="sd">    :type early_stop: bool</span>
+<span class="sd">    :param patience: Epochs to wait without improvement before stopping.</span>
+<span class="sd">    :type patience: int</span>
+<span class="sd">    :param min_delta: Minimum improvement in validation loss to reset patience.</span>
+<span class="sd">    :type min_delta: float</span>
+<span class="sd">    :param num_workers: DataLoader workers.</span>
+<span class="sd">    :type num_workers: int</span>
+<span class="sd">    :param pin_memory: DataLoader pin_memory flag.</span>
+<span class="sd">    :type pin_memory: bool</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
+    <span class="n">horizons</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">stride</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># 👈 default stride=3 for decorrelation</span>
+    <span class="n">val_start</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;2025-01-01&quot;</span>
+    <span class="n">val_end</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># optional: end of validation window (exclusive)</span>
+    <span class="n">val_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;causal&quot;</span>  <span class="c1"># &quot;causal&quot; or &quot;holdout_slice&quot;</span>
+    <span class="n">embargo_days</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># drop these days on either side of val window from train</span>
+    <span class="n">target_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;realized_vol_log&quot;</span>
+    <span class="n">extra_features</span><span class="p">:</span> <span class="nb">list</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># training</span>
+    <span class="n">epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>
+    <span class="n">lr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">3e-4</span>
+    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span>
+    <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
+
+    <span class="c1"># regularization / arch</span>
+    <span class="n">dropout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.3</span>  <span class="c1"># LSTM inter-layer dropout</span>
+    <span class="n">use_layernorm</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">separate_heads</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># per-horizon decoders</span>
+    <span class="n">attention</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">residual_head</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># v3 knobs</span>
+    <span class="n">feat_dropout_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>  <span class="c1"># randomly drop feature channels (input)</span>
+    <span class="n">variational_dropout_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>  <span class="c1"># recurrent-style mask on inputs per batch</span>
+    <span class="n">loss_horizon_weights</span><span class="p">:</span> <span class="nb">list</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># e.g. [0.6, 0.25, 0.15]</span>
+
+    <span class="c1"># v4 knobs</span>
+    <span class="n">dynamic_window_jitter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">grad_clip</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+    <span class="n">cosine_schedule</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">cosine_restarts</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># use SGDR</span>
+    <span class="n">oversample_high_vol</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># kept for compat; not used by default</span>
+
+    <span class="c1"># EMA</span>
+    <span class="n">use_ema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">ema_decay</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.995</span>
+
+    <span class="c1"># early stop</span>
+    <span class="n">early_stop</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">patience</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">7</span>
+    <span class="n">min_delta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+    <span class="c1"># dataloader</span>
+    <span class="n">num_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">pin_memory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+
+
+<span class="c1"># ============================================================</span>
+<span class="c1"># 🧠 Utility modules (feature dropout / variational dropout)</span>
+<span class="c1"># ============================================================</span>
+<div class="viewcode-block" id="FeatureDropout">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.FeatureDropout">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FeatureDropout</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Channel-wise (feature) dropout: same mask for all time-steps.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize feature dropout.</span>
+
+<span class="sd">        :param p: Drop probability for feature channels (0 &lt;= p &lt; 1).</span>
+<span class="sd">        :type p: float</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">p</span>
+
+<div class="viewcode-block" id="FeatureDropout.forward">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.FeatureDropout.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply channel-wise dropout to inputs.</span>
+
+<span class="sd">        :param x: Input tensor of shape [B, W, F].</span>
+<span class="sd">        :type x: torch.Tensor</span>
+<span class="sd">        :return: Tensor with dropped feature channels, scaled by 1/(1-p) during training.</span>
+<span class="sd">        :rtype: torch.Tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># x: [B, W, F]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">x</span>
+        <span class="n">B</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">F</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">bernoulli_</span><span class="p">(</span>
+            <span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="n">mask</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="VariationalInputDropout">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.VariationalInputDropout">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">VariationalInputDropout</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Variational (recurrent) dropout on inputs — same mask across time.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize variational input dropout.</span>
+
+<span class="sd">        :param p: Drop probability for feature channels (0 &lt;= p &lt; 1).</span>
+<span class="sd">        :type p: float</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">p</span>
+
+<div class="viewcode-block" id="VariationalInputDropout.forward">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.VariationalInputDropout.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply a time-consistent dropout mask across the input sequence.</span>
+
+<span class="sd">        :param x: Input tensor of shape [B, W, F].</span>
+<span class="sd">        :type x: torch.Tensor</span>
+<span class="sd">        :return: Tensor with per-batch feature mask applied across all time-steps.</span>
+<span class="sd">        :rtype: torch.Tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">x</span>
+        <span class="n">B</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">F</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">bernoulli_</span><span class="p">(</span>
+            <span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="n">mask</span></div>
+</div>
+
+
+
+<span class="c1"># ============================================================</span>
+<span class="c1"># 🧠 GlobalVolForecaster Model</span>
+<span class="c1"># ============================================================</span>
+<div class="viewcode-block" id="GlobalVolForecaster">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.GlobalVolForecaster">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GlobalVolForecaster</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Global sequence model for multi-ticker, multi-horizon volatility forecasting.</span>
+
+<span class="sd">    Combines LSTM backbone, optional temporal self-attention, per-horizon heads,</span>
+<span class="sd">    and optional residual head. Ticker identity is injected via learned embeddings.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">n_tickers</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">window</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">n_horizons</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span><span class="p">,</span>
+        <span class="n">emb_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">hidden_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">num_layers</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">dropout</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">attention</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">residual_head</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">input_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">use_layernorm</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">separate_heads</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">feat_dropout_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">variational_dropout_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize GlobalVolForecaster.</span>
+
+<span class="sd">        :param n_tickers: Number of distinct tickers (size of embedding vocabulary).</span>
+<span class="sd">        :type n_tickers: int</span>
+<span class="sd">        :param window: Fixed input sequence length expected by the model.</span>
+<span class="sd">        :type window: int</span>
+<span class="sd">        :param n_horizons: Number of horizons (int) or explicit list; controls output size.</span>
+<span class="sd">        :type n_horizons: int or list[int]</span>
+<span class="sd">        :param emb_dim: Ticker embedding dimensionality.</span>
+<span class="sd">        :type emb_dim: int</span>
+<span class="sd">        :param hidden_dim: LSTM hidden size.</span>
+<span class="sd">        :type hidden_dim: int</span>
+<span class="sd">        :param num_layers: Number of stacked LSTM layers.</span>
+<span class="sd">        :type num_layers: int</span>
+<span class="sd">        :param dropout: Dropout rate used in LSTM and MLP heads.</span>
+<span class="sd">        :type dropout: float</span>
+<span class="sd">        :param attention: If True, apply MultiheadAttention over LSTM outputs.</span>
+<span class="sd">        :type attention: bool</span>
+<span class="sd">        :param residual_head: Add residual linear projection from backbone to outputs.</span>
+<span class="sd">        :type residual_head: bool</span>
+<span class="sd">        :param input_size: Number of input features per timestep.</span>
+<span class="sd">        :type input_size: int, optional</span>
+<span class="sd">        :param use_layernorm: Apply LayerNorm to backbone output.</span>
+<span class="sd">        :type use_layernorm: bool</span>
+<span class="sd">        :param separate_heads: Use separate 1-unit heads per horizon when True; else a multi-output head.</span>
+<span class="sd">        :type separate_heads: bool</span>
+<span class="sd">        :param feat_dropout_p: Channel-wise feature dropout probability at input.</span>
+<span class="sd">        :type feat_dropout_p: float</span>
+<span class="sd">        :param variational_dropout_p: Variational input dropout probability at input.</span>
+<span class="sd">        :type variational_dropout_p: float</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">input_size</span><span class="p">)</span> <span class="k">if</span> <span class="n">input_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attention_enabled</span> <span class="o">=</span> <span class="n">attention</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">residual_head</span> <span class="o">=</span> <span class="n">residual_head</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_layernorm</span> <span class="o">=</span> <span class="n">use_layernorm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">separate_heads</span> <span class="o">=</span> <span class="n">separate_heads</span>
+
+        <span class="c1"># Input regularizers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">feat_do</span> <span class="o">=</span> <span class="n">FeatureDropout</span><span class="p">(</span><span class="n">feat_dropout_p</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">var_do</span> <span class="o">=</span> <span class="n">VariationalInputDropout</span><span class="p">(</span><span class="n">variational_dropout_p</span><span class="p">)</span>
+
+        <span class="c1"># Ticker embedding</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tok</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span><span class="n">n_tickers</span><span class="p">,</span> <span class="n">emb_dim</span><span class="p">)</span>
+
+        <span class="c1"># LSTM backbone</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lstm</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LSTM</span><span class="p">(</span>
+            <span class="n">input_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_size</span> <span class="o">+</span> <span class="n">emb_dim</span><span class="p">,</span>
+            <span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span>
+            <span class="n">num_layers</span><span class="o">=</span><span class="n">num_layers</span><span class="p">,</span>
+            <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">,</span>
+            <span class="n">batch_first</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Optional temporal attention</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">attention_enabled</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">attn</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">MultiheadAttention</span><span class="p">(</span>
+                <span class="n">embed_dim</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">dropout</span><span class="o">=</span><span class="n">dropout</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ln</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">hidden_dim</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_layernorm</span> <span class="k">else</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">()</span>
+
+        <span class="c1"># Horizons</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_horizons</span> <span class="o">=</span> <span class="n">n_horizons</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">n_horizons</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">else</span> <span class="nb">len</span><span class="p">(</span><span class="n">n_horizons</span><span class="p">)</span>
+
+        <span class="c1"># Decoders</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">separate_heads</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_horizons</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">heads</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span><span class="p">,</span> <span class="n">hidden_dim</span> <span class="o">//</span> <span class="mi">2</span><span class="p">),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="n">dropout</span><span class="p">),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+                    <span class="p">)</span>
+                    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_horizons</span><span class="p">)</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span><span class="p">,</span> <span class="n">hidden_dim</span> <span class="o">//</span> <span class="mi">2</span><span class="p">),</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="n">dropout</span><span class="p">),</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_horizons</span><span class="p">),</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">residual_head</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">residual</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_horizons</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GlobalVolForecaster.forward">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.GlobalVolForecaster.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tkr_id</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass.</span>
+
+<span class="sd">        :param tkr_id: Integer ticker IDs of shape [B].</span>
+<span class="sd">        :type tkr_id: torch.Tensor</span>
+<span class="sd">        :param X: Input features of shape [B, W, F] (or [B, F], which will be unsqueezed).</span>
+<span class="sd">        :type X: torch.Tensor</span>
+<span class="sd">        :return: Horizon outputs of shape [B, H] (or [B] when H==1).</span>
+<span class="sd">        :rtype: torch.Tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># X: [B, W, F] or [B, F]</span>
+        <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">B</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">F</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">feat_do</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_do</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+
+        <span class="n">emb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tok</span><span class="p">(</span><span class="n">tkr_id</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">X</span><span class="p">,</span> <span class="n">emb</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># [B, W, F+E]</span>
+
+        <span class="n">out</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lstm</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>  <span class="c1"># [B, W, H]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">attention_enabled</span><span class="p">:</span>
+            <span class="n">out</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">attn</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">out</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ln</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+
+        <span class="n">last</span> <span class="o">=</span> <span class="n">out</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># [B, H]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">separate_heads</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_horizons</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">ys</span> <span class="o">=</span> <span class="p">[</span><span class="n">head</span><span class="p">(</span><span class="n">last</span><span class="p">)</span> <span class="k">for</span> <span class="n">head</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">heads</span><span class="p">]</span>  <span class="c1"># list of [B,1]</span>
+            <span class="n">yhat</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">ys</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># [B, H]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">yhat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="n">last</span><span class="p">)</span>  <span class="c1"># [B, H]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">residual_head</span><span class="p">:</span>
+            <span class="n">yhat</span> <span class="o">=</span> <span class="n">yhat</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">residual</span><span class="p">(</span><span class="n">last</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">yhat</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_horizons</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">yhat</span></div>
+</div>
+
+
+
+<span class="c1"># ============================================================</span>
+<span class="c1"># 🧮 Dataset Builder (per-ticker feature scaling; no target scaling)</span>
+<span class="c1"># ============================================================</span>
+<div class="viewcode-block" id="build_global_splits">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.build_global_splits">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_global_splits</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Build per-ticker scaled datasets and temporal train/validation splits.</span>
+
+<span class="sd">    Performs per-ticker StandardScaler fitting on features, maps tickers to IDs,</span>
+<span class="sd">    and constructs Dataset objects that emit (ticker_id, windowed features, targets).</span>
+
+<span class="sd">    :param df: Input long-form DataFrame with columns [&#39;date&#39;,&#39;ticker&#39;, cfg.target_col, &#39;return&#39;, ...].</span>
+<span class="sd">    :type df: pandas.DataFrame</span>
+<span class="sd">    :param cfg: Training configuration with window, horizons, validation window, and feature list.</span>
+<span class="sd">    :type cfg: TrainConfig</span>
+<span class="sd">    :raises KeyError: If required columns are missing from df.</span>
+<span class="sd">    :return: (train_dataset, val_dataset, ticker_to_id, scalers)</span>
+<span class="sd">    :rtype: tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, dict[str,int], dict[str,StandardScaler]]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">])</span>
+    <span class="n">df</span><span class="o">.</span><span class="n">sort_values</span><span class="p">([</span><span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">required</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">target_col</span><span class="p">,</span> <span class="s2">&quot;return&quot;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">required</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Missing required column: </span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">tickers</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+    <span class="n">ticker_to_id</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tickers</span><span class="p">)}</span>
+    <span class="n">df</span><span class="p">[</span><span class="s2">&quot;ticker_id&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">ticker_to_id</span><span class="p">)</span>
+
+    <span class="n">features</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;return&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">extra_features</span> <span class="ow">or</span> <span class="p">[])</span>
+    <span class="n">scalers</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">StandardScaler</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">scaled_parts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tickers</span><span class="p">:</span>
+        <span class="n">sub</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">t</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">scaler</span> <span class="o">=</span> <span class="n">StandardScaler</span><span class="p">()</span>
+        <span class="n">sub</span><span class="p">[</span><span class="n">features</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaler</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">sub</span><span class="p">[</span><span class="n">features</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+        <span class="n">scalers</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">scaler</span>
+        <span class="n">scaled_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span>
+    <span class="n">df_scaled</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">scaled_parts</span><span class="p">,</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># inside build_global_splits(...) after df_scaled is built</span>
+    <span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">])</span>
+    <span class="n">val_end</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;val_end&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">val_mode</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;val_mode&quot;</span><span class="p">,</span> <span class="s2">&quot;causal&quot;</span><span class="p">)</span>
+    <span class="n">embargo</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;embargo_days&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">val_end</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># original behavior: single cut by val_start</span>
+        <span class="n">train_df</span> <span class="o">=</span> <span class="n">df_scaled</span><span class="p">[</span><span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">cfg</span><span class="o">.</span><span class="n">val_start</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">val_df</span> <span class="o">=</span> <span class="n">df_scaled</span><span class="p">[</span><span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">val_start</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">mask_val</span> <span class="o">=</span> <span class="p">(</span><span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">val_start</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">val_end</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">val_mode</span> <span class="o">==</span> <span class="s2">&quot;holdout_slice&quot;</span><span class="p">:</span>
+            <span class="c1"># train on everything except the held-out slice (+/- embargo window)</span>
+            <span class="k">if</span> <span class="n">embargo</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># widen the excluded region by embargo on both sides</span>
+                <span class="n">lo</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">val_start</span><span class="p">)</span> <span class="o">-</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">embargo</span><span class="p">)</span>
+                <span class="n">hi</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span><span class="n">val_end</span><span class="p">)</span> <span class="o">+</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">embargo</span><span class="p">)</span>
+                <span class="n">mask_excl</span> <span class="o">=</span> <span class="p">(</span><span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">lo</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">hi</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mask_excl</span> <span class="o">=</span> <span class="n">mask_val</span>
+            <span class="n">train_df</span> <span class="o">=</span> <span class="n">df_scaled</span><span class="p">[</span><span class="o">~</span><span class="n">mask_excl</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">val_df</span> <span class="o">=</span> <span class="n">df_scaled</span><span class="p">[</span><span class="n">mask_val</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># &quot;causal&quot;</span>
+            <span class="c1"># forward test flavor: train strictly before val_start; validate within [start, end)</span>
+            <span class="n">train_df</span> <span class="o">=</span> <span class="n">df_scaled</span><span class="p">[</span><span class="n">df_scaled</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">cfg</span><span class="o">.</span><span class="n">val_start</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span>
+                <span class="n">drop</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+            <span class="n">val_df</span> <span class="o">=</span> <span class="n">df_scaled</span><span class="p">[</span><span class="n">mask_val</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">class</span><span class="w"> </span><span class="nc">GlobalVolDataset</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span><span class="p">,</span> <span class="n">is_train</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="n">df</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_train</span> <span class="o">=</span> <span class="n">is_train</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">groups</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">tid</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">for</span> <span class="n">tid</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;ticker_id&quot;</span><span class="p">)</span>
+            <span class="p">}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">Hmax</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="nb">max</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">horizons</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">horizons</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span>
+                <span class="k">else</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizons</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">tid</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">g</span><span class="p">)</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">window</span> <span class="o">-</span> <span class="n">Hmax</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">stride</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">tid</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+            <span class="n">tid</span><span class="p">,</span> <span class="n">start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">groups</span><span class="p">[</span><span class="n">tid</span><span class="p">]</span>
+
+            <span class="n">W</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">window</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">is_train</span>
+                <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;dynamic_window_jitter&quot;</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dynamic_window_jitter</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="p">):</span>
+                <span class="n">delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span>
+                    <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dynamic_window_jitter</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dynamic_window_jitter</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="p">)</span>
+                <span class="n">W</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">window</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">delta</span><span class="p">))</span>
+
+            <span class="n">feats</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;return&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">extra_features</span> <span class="ow">or</span> <span class="p">[])</span>
+            <span class="n">X_df</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">start</span> <span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="n">W</span><span class="p">][</span><span class="n">feats</span><span class="p">]</span>
+
+            <span class="c1"># Build target(s)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">horizons</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">t_idx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="n">W</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">horizons</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">g</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">y_vals</span> <span class="o">=</span> <span class="p">[</span><span class="n">g</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">t_idx</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_col</span><span class="p">]]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">y_vals</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">horizons</span><span class="p">:</span>
+                    <span class="n">t_idx</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">W</span> <span class="o">+</span> <span class="n">h</span> <span class="o">-</span> <span class="mi">1</span>
+                    <span class="n">y_vals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="n">g</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">t_idx</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_col</span><span class="p">]</span> <span class="k">if</span> <span class="n">t_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">g</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+                    <span class="p">)</span>
+
+            <span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">X_df</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            <span class="c1"># --- Pad or crop to fixed cfg.window ---</span>
+            <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">window</span><span class="p">:</span>
+                <span class="n">pad</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">window</span> <span class="o">-</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span>
+                <span class="p">)</span>
+                <span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">X</span><span class="p">,</span> <span class="n">pad</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">window</span><span class="p">:</span>
+                <span class="n">X</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">window</span> <span class="p">:]</span>
+
+            <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">y_vals</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">nan</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">tid</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">),</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span>
+
+    <span class="n">train_ds</span> <span class="o">=</span> <span class="n">GlobalVolDataset</span><span class="p">(</span><span class="n">train_df</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">is_train</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">val_ds</span> <span class="o">=</span> <span class="n">GlobalVolDataset</span><span class="p">(</span><span class="n">val_df</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">is_train</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">val_ds</span><span class="p">,</span> <span class="n">ticker_to_id</span><span class="p">,</span> <span class="n">scalers</span></div>
+
+
+
+<span class="c1"># ============================================================</span>
+<span class="c1"># 🔁 EMA helper</span>
+<span class="c1"># ============================================================</span>
+<div class="viewcode-block" id="clone_model_like">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.clone_model_like">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">clone_model_like</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a non-trainable copy of a model for EMA tracking.</span>
+
+<span class="sd">    :param model: Source model to clone.</span>
+<span class="sd">    :type model: torch.nn.Module</span>
+<span class="sd">    :return: Cloned model with requires_grad=False for all parameters.</span>
+<span class="sd">    :rtype: torch.nn.Module</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ema</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">model</span><span class="p">)(</span><span class="o">**</span><span class="n">model</span><span class="o">.</span><span class="n">_init_args</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s2">&quot;_init_args&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">ema</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># generic fallback: deep copy of state dict to identically-constructed model</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+
+        <span class="n">ema</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ema</span><span class="o">.</span><span class="n">parameters</span><span class="p">():</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">requires_grad_</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ema</span></div>
+
+
+
+<div class="viewcode-block" id="update_ema">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.update_ema">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">update_ema</span><span class="p">(</span><span class="n">ema</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">decay</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Update EMA model weights and buffers from a source model.</span>
+
+<span class="sd">    :param ema: EMA model to be updated in-place.</span>
+<span class="sd">    :type ema: torch.nn.Module</span>
+<span class="sd">    :param model: Source model providing current parameters/buffers.</span>
+<span class="sd">    :type model: torch.nn.Module</span>
+<span class="sd">    :param decay: EMA decay factor in (0,1); closer to 1 gives slower updates.</span>
+<span class="sd">    :type decay: float</span>
+<span class="sd">    :return: None</span>
+<span class="sd">    :rtype: None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">n_e</span><span class="p">,</span> <span class="n">p_e</span><span class="p">),</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">p_m</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+            <span class="n">ema</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">(),</span> <span class="n">model</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">()</span>
+        <span class="p">):</span>
+            <span class="n">p_e</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="n">decay</span><span class="p">)</span><span class="o">.</span><span class="n">add_</span><span class="p">(</span><span class="n">p_m</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span> <span class="o">-</span> <span class="n">decay</span><span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">n_e</span><span class="p">,</span> <span class="n">b_e</span><span class="p">),</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">b_m</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ema</span><span class="o">.</span><span class="n">named_buffers</span><span class="p">(),</span> <span class="n">model</span><span class="o">.</span><span class="n">named_buffers</span><span class="p">()):</span>
+            <span class="n">b_e</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">b_m</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># ============================================================</span>
+<span class="c1"># 🚀 Training Loop (no manual loops outside; returns artifacts)</span>
+<span class="c1"># ============================================================</span>
+<div class="viewcode-block" id="train_global_model">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.train_global_model">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">train_global_model</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Train GlobalVolForecaster end-to-end and return artifacts.</span>
+
+<span class="sd">    Includes optional cosine scheduling with restarts, EMA tracking, gradient clipping,</span>
+<span class="sd">    early stopping, and horizon-weighted MSE.</span>
+
+<span class="sd">    :param df: Input DataFrame containing [&#39;date&#39;,&#39;ticker&#39;,&#39;return&#39;, cfg.target_col, ...].</span>
+<span class="sd">    :type df: pandas.DataFrame</span>
+<span class="sd">    :param cfg: Training configuration.</span>
+<span class="sd">    :type cfg: TrainConfig</span>
+<span class="sd">    :return: Tuple of (model, history, val_loader, ticker_to_id, scalers, features).</span>
+<span class="sd">    :rtype: tuple[torch.nn.Module, dict[str, list[float]], torch.utils.data.DataLoader, dict[str,int], dict[str,StandardScaler], list[str]]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Datasets / loaders</span>
+    <span class="n">train_ds</span><span class="p">,</span> <span class="n">val_ds</span><span class="p">,</span> <span class="n">ticker_to_id</span><span class="p">,</span> <span class="n">scalers</span> <span class="o">=</span> <span class="n">build_global_splits</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+    <span class="n">features</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;return&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">extra_features</span> <span class="ow">or</span> <span class="p">[])</span>
+
+    <span class="n">model</span> <span class="o">=</span> <span class="n">GlobalVolForecaster</span><span class="p">(</span>
+        <span class="n">n_tickers</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">ticker_to_id</span><span class="p">),</span>
+        <span class="n">window</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">window</span><span class="p">,</span>
+        <span class="n">n_horizons</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">horizons</span><span class="p">,</span>
+        <span class="n">emb_dim</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+        <span class="n">hidden_dim</span><span class="o">=</span><span class="mi">160</span><span class="p">,</span>
+        <span class="n">num_layers</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="n">dropout</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">dropout</span><span class="p">,</span>
+        <span class="n">attention</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">attention</span><span class="p">,</span>
+        <span class="n">residual_head</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">residual_head</span><span class="p">,</span>
+        <span class="n">input_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">features</span><span class="p">),</span>
+        <span class="n">use_layernorm</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">use_layernorm</span><span class="p">,</span>
+        <span class="n">separate_heads</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">separate_heads</span><span class="p">,</span>
+        <span class="n">feat_dropout_p</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">feat_dropout_p</span><span class="p">,</span>
+        <span class="n">variational_dropout_p</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">variational_dropout_p</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="c1"># Save init args for EMA clone</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">_init_args</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">n_tickers</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">ticker_to_id</span><span class="p">),</span>
+        <span class="n">window</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">window</span><span class="p">,</span>
+        <span class="n">n_horizons</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">horizons</span><span class="p">,</span>
+        <span class="n">emb_dim</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+        <span class="n">hidden_dim</span><span class="o">=</span><span class="mi">160</span><span class="p">,</span>
+        <span class="n">num_layers</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="n">dropout</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">dropout</span><span class="p">,</span>
+        <span class="n">attention</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">attention</span><span class="p">,</span>
+        <span class="n">residual_head</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">residual_head</span><span class="p">,</span>
+        <span class="n">input_size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">features</span><span class="p">),</span>
+        <span class="n">use_layernorm</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">use_layernorm</span><span class="p">,</span>
+        <span class="n">separate_heads</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">separate_heads</span><span class="p">,</span>
+        <span class="n">feat_dropout_p</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">feat_dropout_p</span><span class="p">,</span>
+        <span class="n">variational_dropout_p</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">variational_dropout_p</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="n">train_loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span>
+        <span class="n">train_ds</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+        <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">num_workers</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_workers</span><span class="p">,</span>
+        <span class="n">pin_memory</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">pin_memory</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">val_loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span>
+        <span class="n">val_ds</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+        <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">num_workers</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_workers</span><span class="p">,</span>
+        <span class="n">pin_memory</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">pin_memory</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">lr</span><span class="p">)</span>
+
+    <span class="c1"># scheduler</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">cosine_schedule</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">cosine_restarts</span><span class="p">:</span>
+        <span class="n">scheduler</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="o">.</span><span class="n">CosineAnnealingWarmRestarts</span><span class="p">(</span>
+            <span class="n">optimizer</span><span class="p">,</span> <span class="n">T_anneal</span> <span class="o">:=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">epochs</span> <span class="o">//</span> <span class="mi">4</span><span class="p">),</span> <span class="n">eta_min</span><span class="o">=</span><span class="mf">1e-6</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">cosine_schedule</span><span class="p">:</span>
+        <span class="n">scheduler</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="o">.</span><span class="n">CosineAnnealingLR</span><span class="p">(</span>
+            <span class="n">optimizer</span><span class="p">,</span> <span class="n">T_max</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">epochs</span><span class="p">,</span> <span class="n">eta_min</span><span class="o">=</span><span class="mf">1e-6</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">scheduler</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># multi-horizon MSE with optional horizon weights</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mh_mse</span><span class="p">(</span><span class="n">pred</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">pred</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">pred</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">pred</span> <span class="o">-</span> <span class="n">target</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">loss_horizon_weights</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">pred</span> <span class="o">-</span> <span class="n">target</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">loss_horizon_weights</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">pred</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">pred</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(((</span><span class="n">pred</span> <span class="o">-</span> <span class="n">target</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">w</span><span class="p">)</span>
+
+    <span class="c1"># EMA</span>
+    <span class="n">ema_model</span> <span class="o">=</span> <span class="n">clone_model_like</span><span class="p">(</span><span class="n">model</span><span class="p">)</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">use_ema</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">ema_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ema_model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">())</span>
+        <span class="n">ema_model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># ✅ move EMA model to same device as main model</span>
+
+    <span class="c1"># early stopping</span>
+    <span class="n">best_val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
+    <span class="n">best_sd</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">patience_left</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">patience</span>
+
+    <span class="n">history</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;train&quot;</span><span class="p">:</span> <span class="p">[],</span> <span class="s2">&quot;val&quot;</span><span class="p">:</span> <span class="p">[]}</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">🚀 Training GlobalVolForecaster on </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ticker_to_id</span><span class="p">)</span><span class="si">}</span><span class="s2"> tickers...</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">ep</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">epochs</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="c1"># ----- Train -----</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+        <span class="n">train_loss</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="k">for</span> <span class="n">t_id</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">train_loader</span><span class="p">:</span>
+            <span class="n">t_id</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">t_id</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">),</span> <span class="n">X</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">),</span> <span class="n">y</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+            <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+            <span class="n">yhat</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">t_id</span><span class="p">,</span> <span class="n">X</span><span class="p">)</span>
+            <span class="n">loss</span> <span class="o">=</span> <span class="n">mh_mse</span><span class="p">(</span><span class="n">yhat</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+            <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">grad_clip</span><span class="p">:</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_norm_</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">cfg</span><span class="o">.</span><span class="n">grad_clip</span><span class="p">)</span>
+            <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">ema_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">update_ema</span><span class="p">(</span><span class="n">ema_model</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ema_decay</span><span class="p">)</span>
+            <span class="n">train_loss</span> <span class="o">+=</span> <span class="n">loss</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">t_id</span><span class="p">)</span>
+        <span class="n">train_loss</span> <span class="o">/=</span> <span class="nb">len</span><span class="p">(</span><span class="n">train_loader</span><span class="o">.</span><span class="n">dataset</span><span class="p">)</span>
+
+        <span class="c1"># ----- Validate -----</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_eval</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+            <span class="n">m</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+            <span class="n">vl</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">t_id</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">val_loader</span><span class="p">:</span>
+                    <span class="n">t_id</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">t_id</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">),</span> <span class="n">X</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">),</span> <span class="n">y</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+                    <span class="n">yhat</span> <span class="o">=</span> <span class="n">m</span><span class="p">(</span><span class="n">t_id</span><span class="p">,</span> <span class="n">X</span><span class="p">)</span>
+                    <span class="n">vl</span> <span class="o">+=</span> <span class="n">mh_mse</span><span class="p">(</span><span class="n">yhat</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">t_id</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">vl</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">val_loader</span><span class="o">.</span><span class="n">dataset</span><span class="p">)</span>
+
+        <span class="n">val_loss</span> <span class="o">=</span> <span class="n">_eval</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ema_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">val_loss</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">val_loss</span><span class="p">,</span> <span class="n">_eval</span><span class="p">(</span><span class="n">ema_model</span><span class="p">))</span>  <span class="c1"># pick better of EMA/current</span>
+
+        <span class="k">if</span> <span class="n">scheduler</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">scheduler</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="o">.</span><span class="n">CosineAnnealingWarmRestarts</span>
+            <span class="p">):</span>
+                <span class="n">scheduler</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">ep</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># epoch-based step for restarts</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">scheduler</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="n">cur_lr</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">param_groups</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;lr&quot;</span><span class="p">]</span>
+
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Epoch </span><span class="si">{</span><span class="n">ep</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">epochs</span><span class="si">}</span><span class="s2">| LR: </span><span class="si">{</span><span class="n">cur_lr</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2"> |  Train Loss: </span><span class="si">{</span><span class="n">train_loss</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> | Val Loss: </span><span class="si">{</span><span class="n">val_loss</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+        <span class="n">history</span><span class="p">[</span><span class="s2">&quot;train&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">train_loss</span><span class="p">)</span>
+        <span class="n">history</span><span class="p">[</span><span class="s2">&quot;val&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val_loss</span><span class="p">)</span>
+
+        <span class="c1"># Early stopping</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">early_stop</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">val_loss</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">min_delta</span> <span class="o">&lt;</span> <span class="n">best_val</span><span class="p">:</span>
+                <span class="n">best_val</span> <span class="o">=</span> <span class="n">val_loss</span>
+                <span class="n">best_sd</span> <span class="o">=</span> <span class="p">(</span><span class="n">ema_model</span> <span class="ow">or</span> <span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="n">state_dict</span><span class="p">()</span>
+                <span class="n">patience_left</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">patience</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">patience_left</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">patience_left</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;⏹️  Early stopping.&quot;</span><span class="p">)</span>
+                    <span class="k">break</span>
+
+    <span class="c1"># Load best weights (EMA if available)</span>
+    <span class="k">if</span> <span class="n">best_sd</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="p">(</span><span class="n">ema_model</span> <span class="ow">or</span> <span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">best_sd</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ema_model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">ema_model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">())</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">✅ Training complete with feature set: </span><span class="si">{</span><span class="n">features</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">model</span><span class="p">,</span> <span class="n">history</span><span class="p">,</span> <span class="n">val_loader</span><span class="p">,</span> <span class="n">ticker_to_id</span><span class="p">,</span> <span class="n">scalers</span><span class="p">,</span> <span class="n">features</span></div>
+
+
+
+<span class="c1"># ============================================================</span>
+<span class="c1"># 🔹 Helper Utilities for Inference and Checkpointing</span>
+<span class="c1"># ============================================================</span>
+
+
+<div class="viewcode-block" id="make_last_windows">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.make_last_windows">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_last_windows</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">window</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extract the last `window` timesteps per ticker for inference.</span>
+
+<span class="sd">    :param df: Feature DataFrame with [&#39;ticker&#39;,&#39;date&#39;, &lt;features...&gt;] sorted by date within ticker.</span>
+<span class="sd">    :type df: pandas.DataFrame</span>
+<span class="sd">    :param window: Number of trailing rows to keep per ticker.</span>
+<span class="sd">    :type window: int</span>
+<span class="sd">    :return: Concatenated DataFrame of last windows for all tickers.</span>
+<span class="sd">    :rtype: pandas.DataFrame</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">sort_values</span><span class="p">([</span><span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">])</span>
+    <span class="n">last_windows</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;ticker&quot;</span><span class="p">):</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="n">window</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">g</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="n">last_windows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">last_windows</span><span class="p">,</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="predict_next_day">
+<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.predict_next_day">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">predict_next_day</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span>
+    <span class="n">df_last_windows</span><span class="p">,</span>
+    <span class="n">ticker_to_id</span><span class="p">,</span>
+    <span class="n">scalers</span><span class="p">,</span>
+    <span class="n">window</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">,</span>
+    <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Predict next-day (multi-horizon) volatility for each ticker using the latest window.</span>
+
+<span class="sd">    Aligns inference features to the per-ticker scaler schema (fills missing features with 0,</span>
+<span class="sd">    drops extras), scales inputs, runs the model, and returns a tidy table.</span>
+
+<span class="sd">    :param model: Trained GlobalVolForecaster.</span>
+<span class="sd">    :type model: torch.nn.Module</span>
+<span class="sd">    :param df_last_windows: DataFrame with the most recent window per ticker; must include [&#39;ticker&#39;,&#39;date&#39;, &lt;features&gt;].</span>
+<span class="sd">    :type df_last_windows: pandas.DataFrame</span>
+<span class="sd">    :param ticker_to_id: Mapping from ticker symbol to integer ID used by the model.</span>
+<span class="sd">    :type ticker_to_id: dict[str, int]</span>
+<span class="sd">    :param scalers: Per-ticker fitted StandardScaler objects (from training).</span>
+<span class="sd">    :type scalers: dict[str, StandardScaler]</span>
+<span class="sd">    :param window: Window length used during training (for validation of shapes).</span>
+<span class="sd">    :type window: int</span>
+<span class="sd">    :param device: Compute device for inference (&#39;cpu&#39; or &#39;cuda&#39;).</span>
+<span class="sd">    :type device: str</span>
+<span class="sd">    :param show_progress: Show a tqdm progress bar during prediction.</span>
+<span class="sd">    :type show_progress: bool</span>
+<span class="sd">    :return: DataFrame with [&#39;ticker&#39;,&#39;horizon&#39;,&#39;forecast_vol_scaled&#39;].</span>
+<span class="sd">    :rtype: pandas.DataFrame</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    <span class="n">preds</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">tickers</span> <span class="o">=</span> <span class="n">df_last_windows</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+    <span class="c1"># print(f&quot;Predicting next-day vols for {len(tickers)} tickers...&quot;)</span>
+
+    <span class="c1"># Disable tqdm if nested</span>
+    <span class="n">iterator</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span>
+        <span class="n">df_last_windows</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;ticker&quot;</span><span class="p">),</span>
+        <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Predicting next-day vols&quot;</span><span class="p">,</span>
+        <span class="n">disable</span><span class="o">=</span><span class="ow">not</span> <span class="n">show_progress</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">iterator</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ticker_to_id</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;⚠️ Skipping </span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2">: not found in training ticker map.&quot;</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="n">t_id</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">ticker_to_id</span><span class="p">[</span><span class="n">t</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">scaler</span> <span class="o">=</span> <span class="n">scalers</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+
+        <span class="c1"># --- Align feature sets between training and inference ---</span>
+        <span class="n">fitted_feats</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">scaler</span><span class="p">,</span> <span class="s2">&quot;feature_names_in_&quot;</span><span class="p">,</span> <span class="p">[]))</span>
+        <span class="n">current_feats</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">fitted_feats</span><span class="p">:</span>
+            <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">fitted_feats</span> <span class="k">if</span> <span class="n">f</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">current_feats</span><span class="p">]</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">current_feats</span> <span class="k">if</span> <span class="n">f</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fitted_feats</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;⚠️ Missing features for </span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2"> (filled with zeros)&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">missing</span><span class="p">:</span>
+                    <span class="n">g</span><span class="p">[</span><span class="n">f</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">if</span> <span class="n">extra</span><span class="p">:</span>
+                <span class="n">g</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extra</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+
+            <span class="n">g</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="n">fitted_feats</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;⚠️ Scaler for </span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2"> has no feature_names_in_; using numeric columns only.&quot;</span>
+            <span class="p">)</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">select_dtypes</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">)</span>
+
+        <span class="c1"># --- Scale and predict ---</span>
+        <span class="n">X_scaled</span> <span class="o">=</span> <span class="n">scaler</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+        <span class="n">X_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">X_scaled</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span>
+            <span class="mi">0</span>
+        <span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">yhat</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">t_id</span><span class="p">,</span> <span class="n">X_tensor</span><span class="p">)</span>
+
+        <span class="n">yhat_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">yhat</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span>
+
+        <span class="c1"># --- Expand multi-horizon forecasts ---</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">yhat_np</span><span class="p">):</span>
+            <span class="n">preds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;ticker&quot;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span>
+                    <span class="s2">&quot;horizon&quot;</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>  <span class="c1"># or use cfg.horizons if available</span>
+                    <span class="s2">&quot;forecast_vol_scaled&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">),</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+
+    <span class="c1"># --- Create standardized DataFrame ---</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">preds</span><span class="p">)</span>
+
+    <span class="c1"># Defensive fallback in case of unexpected output</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="s2">&quot;horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;forecast_vol_scaled&quot;</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">out</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Rahul Karthik.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -67,6 +67,52 @@ def _coerce_to_long(df_in: pd.DataFrame) -> pd.DataFrame:
 
     raise ValueError("Input DataFrame format not recognized for SignalEngine.")
 
+# --- Position Classification (multi-layer) utility ---
+def classify_position(row):
+    """
+    Classify a trading position from cross-sectional and term spreads.
+
+    :param row: Mapping-like object (e.g. pandas.Series) containing at minimum:
+                 ``vol_zscore`` (float). Optional keys: ``vol_spread`` (float)
+                 and ``term_spread_10v5`` (float).
+    :type row: Mapping[str, float]
+    :returns: Position label: ``"long"``, ``"short"``, or ``"neutral"``.
+    :rtype: str
+
+    :raises KeyError: If ``vol_zscore`` is missing from ``row``.
+
+    .. note::
+       Decision thresholds (hard-coded):
+         - z-score threshold: > 1.0 → high, < -1.0 → low
+         - vol_spread threshold: > 0.07 / < -0.07  (±7%)
+         - term_spread_10v5 threshold: > 0.035 / < -0.035 (±3.5%)
+
+    Example
+    -------
+    >>> classify_position({'vol_zscore': 1.2, 'vol_spread': 0.08})
+    'long'
+    >>> classify_position({'vol_zscore': -1.3, 'term_spread_10v5': -0.05})
+    'short'
+    """
+    z = row["vol_zscore"]
+    spot_spread = row.get("vol_spread", np.nan)
+    term_spread = row.get("term_spread_10v5", np.nan)
+
+    # LONG → clearly high vol and rising curve
+    if (z > 1.0) and ((spot_spread > 0.07) or (term_spread > 0.035)):
+        return "long"
+
+    # SHORT → clearly low vol and falling curve
+    elif (z < -1.0) and ((spot_spread < -0.07) or (term_spread < -0.035)):
+        return "short"
+
+    # otherwise NEUTRAL
+    else:
+        return "neutral"
+
+
+
+
 
 # ============================================================
 # ⚙️ SignalEngine: Cross-Sectional and Sector Intelligence
@@ -260,6 +306,22 @@ class SignalEngine:
         else:
             df["vol_spread"] = np.nan
 
+        # --- 2b. Inter-horizon (term-structure) spreads, e.g., 10d vs 5d
+        # Compute per ticker
+        term_spreads = []
+        for ticker, dsub in df.groupby("ticker"):
+            if set([5, 10]).issubset(dsub["horizon"].unique()):
+                vol_5 = dsub.loc[dsub["horizon"] == 5, "forecast_vol"].values[0]
+                vol_10 = dsub.loc[dsub["horizon"] == 10, "forecast_vol"].values[0]
+                spread_10v5 = (vol_10 / (vol_5 + 1e-8)) - 1
+                term_spreads.append((ticker, spread_10v5))
+            else:
+                term_spreads.append((ticker, np.nan))
+
+        term_df = pd.DataFrame(term_spreads, columns=["ticker", "term_spread_10v5"])
+        df = df.merge(term_df, on="ticker", how="left")
+
+
         # --- 3. Cross-sectional ranks (strength & direction)
         df["xsec_rank"] = df.groupby("horizon")["vol_zscore"].rank(pct=True)
         df["signal_strength"] = (df["xsec_rank"] - 0.5) * 2
@@ -277,11 +339,7 @@ class SignalEngine:
             df = self._sector_rollups(df)
 
         # --- 6. Position Classification
-        df["position"] = pd.cut(
-            df["vol_zscore"],
-            bins=[-np.inf, -1.0, 1.0, np.inf],
-            labels=["long", "neutral", "short"],
-        )
+        df["position"] = df.apply(classify_position, axis=1)
 
         self.signals = df
         return df

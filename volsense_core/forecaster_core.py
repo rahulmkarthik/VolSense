@@ -393,3 +393,83 @@ class VolSenseForecaster:
 
         else:
             raise ValueError(f"Unknown method: {self.method}")
+    
+    # ============================================================
+    # 💾 Checkpoint Saving
+    # ============================================================
+    def save_checkpoint(self, save_dir: str = "models", version: str = "latest"):
+        """
+        Save trained model and associated artifacts in standardized VolSense formats:
+        - full.pkl : complete model object (safe only for local reloads)
+        - bundle.pkl : portable dict with state_dict, scalers, ticker map, config
+        - .pt + .meta.json : minimal, CPU-safe reload for inference
+
+        Works for BaseLSTM, GlobalVolForecaster, and GARCH family models.
+
+        Args:
+            save_dir: Target directory for saving model artifacts.
+            version: Version tag appended to file names (e.g., 'v509').
+        """
+        import os, json, pickle, torch
+
+        os.makedirs(save_dir, exist_ok=True)
+        base = os.path.join(save_dir, f"volsense_{self.method}_{version}")
+
+        # --- Common metadata ---
+        meta = {
+            "arch": self.model.__class__.__name__,
+            "module_path": self.model.__module__,
+            "config": getattr(self.cfg, "__dict__", {}),
+            "method": self.method,
+            "device": self.device,
+        }
+
+        # --- Branch 1️⃣: Neural models (LSTM / Global LSTM) ---
+        if self.method in ["lstm", "global_lstm"]:
+            print(f"💾 Saving {self.method.upper()} checkpoint bundle...")
+
+            # CPU-safe copy
+            model_cpu = self.model.to("cpu")
+
+            # a) Full pickle (for local reload)
+            with open(base + "_full.pkl", "wb") as f:
+                pickle.dump(model_cpu, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            # b) Bundle pickle (portable)
+            bundle = {
+                "arch": meta["arch"],
+                "module_path": meta["module_path"],
+                "state_dict": model_cpu.state_dict(),
+                "config": meta["config"],
+                "horizons": getattr(self.cfg, "horizons", [1, 5, 10]),
+            }
+            if self.method == "global_lstm":
+                bundle.update({
+                    "ticker_to_id": self.global_ticker_to_id,
+                    "scalers": self.global_scalers,
+                    "features": getattr(self, "global_features", None),
+                })
+            with open(base + "_bundle.pkl", "wb") as f:
+                pickle.dump(bundle, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            # c) Raw .pt + meta.json
+            torch.save({"model_state_dict": model_cpu.state_dict()}, base + ".pt")
+            meta_path = base + ".meta.json"
+            with open(meta_path, "w") as f:
+                json.dump(meta, f, indent=2)
+
+            print(f"✅ Saved artifacts:\n - {base}_full.pkl\n - {base}_bundle.pkl\n - {base}.pt / .meta.json")
+
+        # --- Branch 2️⃣: GARCH family ---
+        elif self.method in ["garch", "egarch", "gjr"]:
+            print(f"💾 Saving {self.method.upper()} checkpoint (ARCH model)...")
+            with open(base + "_full.pkl", "wb") as f:
+                pickle.dump(self.model, f, protocol=pickle.HIGHEST_PROTOCOL)
+            meta["dist"] = getattr(self.model, "dist", "t")
+            with open(base + ".meta.json", "w") as f:
+                json.dump(meta, f, indent=2)
+            print(f"✅ Saved GARCH checkpoint: {base}_full.pkl")
+
+        else:
+            print(f"⚠️ Unsupported method type: {self.method}. Skipping save.")
+

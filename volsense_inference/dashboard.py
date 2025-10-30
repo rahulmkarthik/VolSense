@@ -412,32 +412,32 @@ if run_btn or st.session_state.forecast_data is not None:
         # ──────────────────────────────────────────────────────────────────────
         with tab_signals:
             st.subheader("Cross-Sectional Signal Table")
+            # ───────────────────────────────────────────────
             # Filters
+            # ───────────────────────────────────────────────
             sectors = ["All"] + sorted(sig_df["sector"].dropna().unique().tolist())
-            c1, c2, c3, c4 = st.columns([1, 1, 1, 1.4])
+            c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1.2])
             with c1:
-                sector_filter = st.selectbox(
-                    "Sector", sectors, index=0, key="sig_sector"
-                )
+                sector_filter = st.selectbox("Sector", sectors, index=0, key="sig_sector")
             with c2:
                 horizon_filter = st.selectbox(
-                    "Horizon",
-                    sorted(sig_df["horizon"].unique().tolist()),
-                    key="sig_horizon",
+                    "Horizon", sorted(sig_df["horizon"].unique().tolist()), key="sig_horizon"
                 )
             with c3:
                 regime = st.selectbox(
-                    "Regime",
-                    ["All", "calm", "normal", "spike"],
-                    index=0,
-                    key="sig_regime",
+                    "Regime", ["All", "calm", "normal", "spike"], index=0, key="sig_regime"
                 )
             with c4:
+                position_filter = st.selectbox(
+                    "Position", ["All", "long", "neutral", "short"], index=0, key="sig_position"
+                )
+            with c5:
                 sort_by = st.selectbox(
                     "Sort by",
                     [
                         "vol_zscore",
                         "vol_spread",
+                        "term_spread_10v5",
                         "rank_universe",
                         "rank_sector",
                         "ticker",
@@ -445,42 +445,34 @@ if run_btn or st.session_state.forecast_data is not None:
                     key="sig_sort",
                 )
 
-            # ────────────────────────────────────────────────────────
-            # Safe filtering logic for Signal Table
-            # ────────────────────────────────────────────────────────
+            # ───────────────────────────────────────────────
+            # Safe filtering logic
+            # ───────────────────────────────────────────────
             table = sig_df.copy()
-
-            # Normalize types
             if "horizon" in table.columns:
                 table["horizon"] = table["horizon"].astype(str)
             horizon_filter = str(horizon_filter)
-
             if "sector" in table.columns:
                 table["sector"] = table["sector"].astype(str)
 
-            # Apply filters safely
             if sector_filter != "All" and "sector" in table.columns:
                 table = table[table["sector"] == sector_filter]
-
             if horizon_filter != "All" and "horizon" in table.columns:
                 table = table[table["horizon"] == horizon_filter]
-
             if regime != "All" and "regime_flag" in table.columns:
                 table = table[table["regime_flag"] == regime]
+            if position_filter != "All" and "position" in table.columns:
+                table = table[table["position"] == position_filter]
 
+            # ───────────────────────────────────────────────
             # Subset and display
+            # ───────────────────────────────────────────────
             cols = [
-                "ticker",
-                "sector",
-                "horizon",
-                "forecast_vol",
-                "today_vol",
-                "vol_spread",
-                "vol_zscore",
-                "rank_universe",
-                "rank_sector",
-                "position",
-                "regime_flag",
+                "ticker","sector","horizon",
+                "forecast_vol","today_vol",
+                "vol_spread","term_spread_10v5",
+                "vol_zscore","rank_universe","rank_sector",
+                "position","regime_flag",
             ]
             cols = [c for c in cols if c in table.columns]
             table = table[cols].sort_values(sort_by, ascending=False)
@@ -488,20 +480,21 @@ if run_btn or st.session_state.forecast_data is not None:
             if table.empty:
                 st.warning("⚠️ No signals available for the selected filters.")
             else:
+                st.caption(f"📊 Positions: {table['position'].value_counts().to_dict()}")
                 st.dataframe(
-                    table.style.format(
-                        {
-                            "forecast_vol": "{:.4f}".format,
-                            "today_vol": "{:.4f}".format,
-                            "vol_spread": "{:+.2%}".format,
-                            "vol_zscore": "{:+.2f}".format,
-                            "rank_universe": lambda x: f"{x:.2f}",
-                            "rank_sector": lambda x: f"{x:.2f}",
-                        }
-                    ),
+                    table.style.format({
+                        "forecast_vol": "{:.4f}".format,
+                        "today_vol": "{:.4f}".format,
+                        "vol_spread": "{:+.2%}".format,
+                        "term_spread_10v5": "{:+.2%}".format,
+                        "vol_zscore": "{:+.2f}".format,
+                        "rank_universe": lambda x: f"{x:.2f}",
+                        "rank_sector": lambda x: f"{x:.2f}",
+                    }),
                     use_container_width=True,
                     height=520,
                 )
+
 
     except Exception as e:
         st.error(f"❌ Error: {e}")

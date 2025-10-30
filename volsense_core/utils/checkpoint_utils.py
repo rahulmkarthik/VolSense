@@ -5,6 +5,27 @@
 # and builds reconstructible meta and bundle files.
 # ============================================================
 
+"""
+Checkpoint utilities for VolSense models.
+
+This module provides helpers to build metadata, construct portable
+bundles, and save/load model artifacts in multiple formats.
+
+Public functions
+----------------
+build_meta_from_model(model, cfg=None, ticker_to_id=None, features=None)
+    Build a reconstructible metadata dictionary from a trained model.
+
+build_bundle(model, meta, cfg=None)
+    Create a portable bundle dict containing state_dict + meta.
+
+save_checkpoint(model, cfg=None, version="model", save_dir="models", ...)
+    Persist the model in three VolSense-supported formats.
+
+load_meta(model_version, checkpoints_dir="models")
+    Quick inspector to load a model's meta.json.
+"""
+
 import os
 import json
 import pickle
@@ -19,8 +40,24 @@ from typing import Any, Dict
 
 def build_meta_from_model(model: Any, cfg: Any = None, ticker_to_id=None, features=None) -> Dict:
     """
-    Build a standardized, reconstructible metadata dictionary
-    for any VolSense model (BaseLSTM, GlobalVolForecaster, etc.).
+    Build a standardized, reconstructible metadata dictionary for a VolSense model.
+
+    The returned metadata is suitable for saving as "<stem>.meta.json" and
+    contains architecture name/module, selected constructor arguments and
+    high-level training/configuration fields.
+
+    :param model: Trained model object (e.g., GlobalVolForecaster or BaseLSTM).
+    :type model: Any
+    :param cfg: Training/config object used to produce the model (optional).
+    :type cfg: Any or None
+    :param ticker_to_id: Optional mapping of ticker -> embedding id (optional).
+    :type ticker_to_id: dict or None
+    :param features: Explicit list of features used during training (optional).
+    :type features: list[str] or None
+    :returns: Metadata dictionary containing keys `arch`, `module_path`, `features`,
+              `extra_features`, `horizons`, `ticker_to_id`, and `arch_params`.
+    :rtype: dict
+    :raises TypeError: If model lacks an inspectable constructor (rare).
     """
 
     name = model.__class__.__name__
@@ -82,7 +119,21 @@ def build_meta_from_model(model: Any, cfg: Any = None, ticker_to_id=None, featur
 def build_bundle(model: Any, meta: Dict, cfg: Any = None) -> Dict:
     """
     Construct a portable bundle for pickle-based saving.
-    Includes state_dict and meta for reconstructibility.
+
+    The bundle contains:
+      - state_dict: model.state_dict() (CPU tensors)
+      - meta: metadata dict produced by :func:`build_meta_from_model`
+      - arch, module_path, arch_params, ticker_to_id, features, extra_features, horizons
+      - config (optional): cfg as a dict when provided
+
+    :param model: Trained model object with `.state_dict()` method.
+    :type model: Any
+    :param meta: Metadata dictionary (see :func:`build_meta_from_model`).
+    :type meta: dict
+    :param cfg: Training configuration object (optional).
+    :type cfg: Any or None
+    :returns: Serializable bundle suitable for writing with pickle.
+    :rtype: dict
     """
     safe_state = model.state_dict()  # ✅ only tensors
     bundle = {
@@ -108,11 +159,28 @@ def build_bundle(model: Any, meta: Dict, cfg: Any = None) -> Dict:
 def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_dir: str = "models",
                     ticker_to_id=None, features=None):
     """
-    Save model in all supported VolSense formats:
-        - .full.pkl
-        - _bundle.pkl
-        - .meta.json + .pth
-    Works for BaseLSTM, GlobalVolForecaster, and GARCH models.
+    Save model in all supported VolSense formats.
+
+    The function writes three artifact styles for maximal compatibility:
+      1. <save_dir>/<version>.full.pkl    (pickled model object)
+      2. <save_dir>/<version>_bundle.pkl  (pickle'd bundle dict)
+      3. <save_dir>/<version>.pth + .meta.json (portable torch state + meta)
+
+    :param model: Trained model object to serialize.
+    :type model: Any
+    :param cfg: Training config object (optional).
+    :type cfg: Any or None
+    :param version: Version tag or stem used to name files.
+    :type version: str
+    :param save_dir: Directory to write artifacts to.
+    :type save_dir: str
+    :param ticker_to_id: Optional ticker->id mapping to include in metadata.
+    :type ticker_to_id: dict or None
+    :param features: Feature list to embed into metadata.
+    :type features: list[str] or None
+    :returns: The meta dictionary that was written to <version>.meta.json.
+    :rtype: dict
+    :raises OSError: If the save directory cannot be created or files cannot be written.
     """
     os.makedirs(save_dir, exist_ok=True)
     base = os.path.join(save_dir, version)
@@ -145,7 +213,17 @@ def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_di
 # ============================================================
 
 def load_meta(model_version: str, checkpoints_dir: str = "models") -> Dict:
-    """Load metadata only for quick inspection."""
+    """
+    Load metadata only for quick inspection.
+
+    :param model_version: Version stem used to locate "<model_version>.meta.json".
+    :type model_version: str
+    :param checkpoints_dir: Directory where model artifacts are stored.
+    :type checkpoints_dir: str
+    :returns: Parsed metadata dictionary.
+    :rtype: dict
+    :raises FileNotFoundError: If the referenced meta.json file does not exist.
+    """
     meta_path = os.path.join(checkpoints_dir, model_version + ".meta.json")
     if not os.path.exists(meta_path):
         raise FileNotFoundError(f"Metadata not found for {model_version}")

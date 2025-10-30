@@ -92,6 +92,7 @@ def _scale_features(
     return df_scaled
 
 
+# --- replace _forward with this robust variant ---
 def _forward(model, X: torch.Tensor, tid_tensor: Optional[torch.Tensor]) -> np.ndarray:
     """
     Execute a forward pass, optionally providing ticker IDs to the model.
@@ -110,12 +111,28 @@ def _forward(model, X: torch.Tensor, tid_tensor: Optional[torch.Tensor]) -> np.n
     """
     model.eval()
     with torch.no_grad():
+        # Try (tid, X) if we have ids
+        if tid_tensor is not None:
+            try:
+                out = model(tid_tensor, X)
+                return out.cpu().numpy().reshape(-1)
+            except TypeError:
+                pass
+            try:
+                out = model(X, tid_tensor)
+                return out.cpu().numpy().reshape(-1)
+            except TypeError:
+                pass
+        # Try classic single-arg
         try:
-            out = model(tid_tensor, X) if tid_tensor is not None else model(X)
-        except TypeError:
-            # For models that don't take ticker IDs
             out = model(X)
+            return out.cpu().numpy().reshape(-1)
+        except TypeError:
+            pass
+        # Last resort for models that accept (None, X)
+        out = model(None, X)
         return out.cpu().numpy().reshape(-1)
+
 
 
 # ---------------------------------------------------------------------------
@@ -186,10 +203,10 @@ def predict_single(
     X = torch.tensor(X_df.values, dtype=torch.float32).unsqueeze(0)
 
     # default to 0 if ticker not in dict
-    tid_tensor = None
-    if ticker_to_id:
-        tid = ticker_to_id.get(ticker, 0)
-        tid_tensor = torch.tensor([tid], dtype=torch.long)
+    tid_tensor = torch.tensor(
+        [ticker_to_id.get(ticker, 0)] if ticker_to_id else [0],
+        dtype=torch.long
+    )
 
     yhat = _forward(model, X, tid_tensor)
 
@@ -270,6 +287,10 @@ def attach_realized(df_preds: pd.DataFrame, df_recent: pd.DataFrame) -> pd.DataF
     :return: DataFrame augmented with 'realized_vol' and derived diagnostics when available.
     :rtype: pandas.DataFrame
     """
+    
+    if df_preds is None or not hasattr(df_preds, "columns"):
+        print("⚠️ df_preds is None or not a DataFrame")
+        return pd.DataFrame()
     if "realized_vol" not in df_recent.columns:
         return df_preds
 

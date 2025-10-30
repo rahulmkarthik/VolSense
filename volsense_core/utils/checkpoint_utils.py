@@ -107,6 +107,22 @@ def build_meta_from_model(model: Any, cfg: Any = None, ticker_to_id=None, featur
             arch_params.pop(bad_key, None)
 
     meta["arch_params"] = arch_params
+
+    # --- Minimal JSON-safe config extraction (e.g., target_col for inverse transforms) ---
+    target_col = None
+    if cfg is not None:
+        # cfg may be a dict-like or an object with attributes
+        if isinstance(cfg, dict):
+            target_col = cfg.get("target_col") or (cfg.get("config") or {}).get("target_col")
+        else:
+            target_col = getattr(cfg, "target_col", None)
+            cfg_config = getattr(cfg, "config", None)
+            if isinstance(cfg_config, dict):
+                target_col = target_col or cfg_config.get("target_col")
+            else:
+                target_col = target_col or getattr(cfg_config, "target_col", None)
+
+    meta["config"] = {"target_col": target_col} if target_col is not None else {}
     
     return meta
 
@@ -147,8 +163,11 @@ def build_bundle(model: Any, meta: Dict, cfg: Any = None) -> Dict:
         "extra_features": meta.get("extra_features", []),
         "horizons": meta.get("horizons", []),
     }
+    # ...existing code...
     if cfg is not None:
         bundle["config"] = getattr(cfg, "__dict__", {})
+        # include the JSON-safe config we stored in meta (e.g., target_col)
+        bundle["config"] = meta.get("config", {})
     return bundle
 
 

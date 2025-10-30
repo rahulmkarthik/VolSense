@@ -73,6 +73,11 @@ class VolSenseForecaster:
     All results are on realized (non-log) volatility scale.
     Output schema:
       ['asof_date','date','ticker','horizon','forecast_vol','realized_vol','model']
+
+    :param method: One of 'lstm', 'global_lstm', 'garch', 'egarch', 'gjr'.
+    :param device: 'cpu' or 'cuda'.
+    :param mode: Default prediction mode ('eval' or 'inference').
+    :param kwargs: method-specific configuration (window, horizons, epochs, extra_features, etc.)
     """
 
     def __init__(self, method="lstm", device="cpu", mode="eval", **kwargs):
@@ -119,20 +124,26 @@ class VolSenseForecaster:
         """
         Fit the selected forecasting model.
 
-        For 'lstm', trains a per-ticker BaseLSTM. For 'global_lstm', trains a shared model
-        across tickers. For GARCH family, fits a ticker-specific ARCH/GARCH variant.
+        LSTM:
+          - trains a per-ticker BaseLSTM.
 
-        :param data: Input DataFrame containing at least ['date','ticker','return','realized_vol'] and any extra features.
-        :type data: pandas.DataFrame
-        :param train_kwargs: Optional overrides for training hyperparameters.
-        :type train_kwargs: dict
-        :raises KeyError: If required extra_features are missing from the input DataFrame.
-        :raises ValueError: If method is unknown.
-        :return: Self, with trained model and configuration attached.
+        Global LSTM:
+          - trains a single GlobalVolForecaster across all tickers.
+
+        GARCH family:
+          - fits a ticker-specific ARCH/GARCH variant.
+
+        :param data: pandas.DataFrame containing required columns (date,ticker,return,realized_vol).
+        :returns: self (trained forecaster)
         :rtype: VolSenseForecaster
+        :raises KeyError: missing extra_features columns.
+        :raises ValueError: unknown method.
         """
         extra_feats = self.kwargs.get("extra_features", None)
 
+        # -------------------------------
+        # LSTM (Ticker-specific)
+        # -------------------------------
         if self.method == "lstm":
             print("🧩 Training BaseLSTM Forecaster...")
             self.ticker = data["ticker"].iloc[0]
@@ -151,72 +162,78 @@ class VolSenseForecaster:
             )
             self.cfg = cfg
 
-            # Validate extra features for LSTM
+            # Validate extra features for LSTM if provided
             if extra_feats is not None:
                 missing = [c for c in extra_feats if c not in data.columns]
                 if missing:
                     raise KeyError(f"Missing columns for extra_features: {missing}")
 
-                self.model, self.hist, loaders = train_baselstm(data, cfg)
-                self._val_loader = loaders[1]
-                return self
+            # Train regardless of whether extra_feats was provided
+            self.model, self.hist, loaders = train_baselstm(data, cfg)
+            self._val_loader = loaders[1]
+            return self
 
-            elif self.method in ["garch", "egarch", "gjr"]:
-                print(f"📈 Fitting {self.method.upper()} Forecaster...")
-                # Ensure single-ticker data
-                if "ticker" in data.columns and data["ticker"].nunique() > 1:
-                    if not self.ticker:
-                        self.ticker = data["ticker"].iloc[0]
-                    data = data[data["ticker"] == self.ticker].copy()
-
+        # -------------------------------
+        # GARCH family (ticker-specific)
+        # -------------------------------
+        elif self.method in ["garch", "egarch", "gjr"]:
+            print(f"📈 Fitting {self.method.upper()} Forecaster...")
+            # Ensure single-ticker data
+            if "ticker" in data.columns and data["ticker"].nunique() > 1:
                 if not self.ticker:
                     self.ticker = data["ticker"].iloc[0]
+                data = data[data["ticker"] == self.ticker].copy()
 
-                self.data = data.copy()
-                ret_series = self.data.dropna(subset=["return"]).set_index("date")[
-                    "return"
-                ]
-                self.model.fit(ret_series)
-                print(
-                    f"✅ {self.method.upper()} fit complete for {self.ticker} ({len(ret_series)} obs)."
+            if not self.ticker:
+                self.ticker = data["ticker"].iloc[0]
+
+            self.data = data.copy()
+            ret_series = self.data.dropna(subset=["return"]).set_index("date")["return"]
+            self.model.fit(ret_series)
+            print(
+                f"✅ {self.method.upper()} fit complete for {self.ticker} ({len(ret_series)} obs)."
+            )
+            return self
+
+        # -------------------------------
+        # Global LSTM (shared model)
+        # -------------------------------
+        elif self.method == "global_lstm":
+            print("🌐 Training GlobalVolForecaster...")
+            cfg = GlobalTrainConfig(
+                window=self.kwargs.get("window", 40),
+                horizons=self.kwargs.get("horizons", [1, 5, 10]),
+                val_start=self.kwargs.get("val_start", "2023-01-01"),
+                device=self.device,
+                epochs=self.kwargs.get("epochs", 10),
+                extra_features=extra_feats,
+            )
+            self.cfg = cfg
+
+            # Validate extra features for Global LSTM if provided
+            if extra_feats is not None:
+                missing = [c for c in extra_feats if c not in data.columns]
+                if missing:
+                    raise KeyError(f"Missing columns for extra_features: {missing}")
+
+            model, hist, val_loader, t2i, scalers, feats = train_global_model(
+                data, cfg
+            )
+            self.model = model
+            self.hist = hist
+            self._val_loader = val_loader
+            self.global_ticker_to_id = t2i
+            self.global_scalers = scalers
+            self.global_window = cfg.window
+            if self.kwargs.get("global_ckpt_path"):
+                save_checkpoint(
+                    self.kwargs["global_ckpt_path"], model, t2i, scalers
                 )
-                return self
+            return self
 
-            elif self.method == "global_lstm":
-                print("🌐 Training GlobalVolForecaster...")
-                cfg = GlobalTrainConfig(
-                    window=self.kwargs.get("window", 30),
-                    horizons=self.kwargs.get("horizons", [1, 5, 10]),
-                    val_start=self.kwargs.get("val_start", "2023-01-01"),
-                    device=self.device,
-                    epochs=self.kwargs.get("epochs", 10),
-                    extra_features=extra_feats,
-                )
-                self.cfg = cfg
+        else:
+            raise ValueError(f"Unknown method: {self.method}")
 
-                # Validate extra features for Global LSTM
-                if extra_feats is not None:
-                    missing = [c for c in extra_feats if c not in data.columns]
-                    if missing:
-                        raise KeyError(f"Missing columns for extra_features: {missing}")
-
-                model, hist, val_loader, t2i, scalers, feats = train_global_model(
-                    data, cfg
-                )
-                self.model = model
-                self.hist = hist
-                self._val_loader = val_loader
-                self.global_ticker_to_id = t2i
-                self.global_scalers = scalers
-                self.global_window = cfg.window
-                if self.kwargs.get("global_ckpt_path"):
-                    save_checkpoint(
-                        self.kwargs["global_ckpt_path"], model, t2i, scalers
-                    )
-                return self
-
-            else:
-                raise ValueError(f"Unknown method: {self.method}")
 
     # ============================================================
     # 🔮 Prediction
@@ -394,82 +411,72 @@ class VolSenseForecaster:
         else:
             raise ValueError(f"Unknown method: {self.method}")
     
-    # ============================================================
-    # 💾 Checkpoint Saving
-    # ============================================================
-    def save_checkpoint(self, save_dir: str = "models", version: str = "latest"):
-        """
-        Save trained model and associated artifacts in standardized VolSense formats:
-        - full.pkl : complete model object (safe only for local reloads)
-        - bundle.pkl : portable dict with state_dict, scalers, ticker map, config
-        - .pt + .meta.json : minimal, CPU-safe reload for inference
 
-        Works for BaseLSTM, GlobalVolForecaster, and GARCH family models.
-
-        Args:
-            save_dir: Target directory for saving model artifacts.
-            version: Version tag appended to file names (e.g., 'v509').
+    # ============================================================
+    # 💾 Unified Checkpoint Saving (BaseLSTM + GlobalVolForecaster)
+    # ============================================================
+    def save(self, save_dir: str = "models", version: str = "latest", device: str = "cpu"):
         """
-        import os, json, pickle, torch
+            Save trained model and training artifacts in standardized VolSense formats.
+
+            Produces:
+            - <stem>_full.pkl
+            - <stem>_bundle.pkl
+            - <stem>.meta.json + <stem>.pt
+
+            :param save_dir: Directory to store model artifacts.
+            :param version: Version tag (e.g., 'v509').
+            :param device: 'cpu' or 'cuda' (model will be moved to this device for serialization).
+            :returns: meta dict produced by save_checkpoint utility.
+            :rtype: dict
+        """
+        import os
+        from volsense_core.utils.checkpoint_utils import save_checkpoint
 
         os.makedirs(save_dir, exist_ok=True)
-        base = os.path.join(save_dir, f"volsense_{self.method}_{version}")
 
-        # --- Common metadata ---
-        meta = {
-            "arch": self.model.__class__.__name__,
-            "module_path": self.model.__module__,
-            "config": getattr(self.cfg, "__dict__", {}),
-            "method": self.method,
-            "device": self.device,
-        }
+        # --- Validate device ---
+        device = device.lower()
+        if device not in ("cpu", "cuda"):
+            raise ValueError("Device must be 'cpu' or 'cuda'")
 
-        # --- Branch 1️⃣: Neural models (LSTM / Global LSTM) ---
-        if self.method in ["lstm", "global_lstm"]:
-            print(f"💾 Saving {self.method.upper()} checkpoint bundle...")
+        # --- Move model to the requested device ---
+        self.model.to(device)
+        print(f"💾 Preparing to save model on device: {device.upper()}")
 
-            # CPU-safe copy
-            model_cpu = self.model.to("cpu")
-
-            # a) Full pickle (for local reload)
-            with open(base + "_full.pkl", "wb") as f:
-                pickle.dump(model_cpu, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-            # b) Bundle pickle (portable)
-            bundle = {
-                "arch": meta["arch"],
-                "module_path": meta["module_path"],
-                "state_dict": model_cpu.state_dict(),
-                "config": meta["config"],
-                "horizons": getattr(self.cfg, "horizons", [1, 5, 10]),
-            }
-            if self.method == "global_lstm":
-                bundle.update({
-                    "ticker_to_id": self.global_ticker_to_id,
-                    "scalers": self.global_scalers,
-                    "features": getattr(self, "global_features", None),
-                })
-            with open(base + "_bundle.pkl", "wb") as f:
-                pickle.dump(bundle, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-            # c) Raw .pt + meta.json
-            torch.save({"model_state_dict": model_cpu.state_dict()}, base + ".pt")
-            meta_path = base + ".meta.json"
-            with open(meta_path, "w") as f:
-                json.dump(meta, f, indent=2)
-
-            print(f"✅ Saved artifacts:\n - {base}_full.pkl\n - {base}_bundle.pkl\n - {base}.pt / .meta.json")
-
-        # --- Branch 2️⃣: GARCH family ---
-        elif self.method in ["garch", "egarch", "gjr"]:
-            print(f"💾 Saving {self.method.upper()} checkpoint (ARCH model)...")
-            with open(base + "_full.pkl", "wb") as f:
-                pickle.dump(self.model, f, protocol=pickle.HIGHEST_PROTOCOL)
-            meta["dist"] = getattr(self.model, "dist", "t")
-            with open(base + ".meta.json", "w") as f:
-                json.dump(meta, f, indent=2)
-            print(f"✅ Saved GARCH checkpoint: {base}_full.pkl")
-
+        # --- Identify model type ---
+        model_class = self.model.__class__.__name__.lower()
+        if "lstm" in model_class:
+            arch_type = "baselstm" if "base" in model_class else "globalvolforecaster"
         else:
-            print(f"⚠️ Unsupported method type: {self.method}. Skipping save.")
+            arch_type = model_class
 
+        # --- Compose version tag ---
+        version_tag = f"{arch_type}_{version}"
+
+        # --- Extract features and ticker mappings ---
+        if arch_type == "globalvolforecaster":
+            features = getattr(self, "global_features", None)
+            ticker_to_id = getattr(self, "global_ticker_to_id", None)
+        elif arch_type == "baselstm":
+            features = getattr(self.cfg, "features", None)
+            ticker_to_id = {getattr(self, "ticker", "TICKER"): 0}
+        else:
+            features = getattr(self.cfg, "features", [])
+            ticker_to_id = {}
+
+        # --- Call the centralized saver ---
+        meta = save_checkpoint(
+            model=self.model,
+            cfg=self.cfg,
+            version=version_tag,
+            save_dir=save_dir,
+            ticker_to_id=ticker_to_id,
+            features=features,
+        )
+
+        print(f"\n✅ Model saved successfully in {save_dir}: {version_tag}")
+        print(f"   Formats generated: .full.pkl, _bundle.pkl, .meta.json + .pth")
+        print(f"   Serialized on device: {device.upper()}")
+        print("   🔁 Ready for reloading via: load_model(..., checkpoints_dir='models')")
+        return meta

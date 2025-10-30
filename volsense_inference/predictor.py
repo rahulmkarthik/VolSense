@@ -210,7 +210,31 @@ def predict_single(
 
     yhat = _forward(model, X, tid_tensor)
 
-    if meta.get("config", {}).get("target_col", "").endswith("_log"):
+    # --- EXPONENTIATION SAFETY LOGIC ---
+    # Priority order:
+    #   1. meta["config"]["target_col"]
+    #   2. meta["target_col"]
+    #   3. default assume log if model name smells like global / v5xx
+    tc_from_config = meta.get("config", {}).get("target_col")
+    tc_fallback = meta.get("target_col", None)
+
+    target_col_name = tc_from_config or tc_fallback or ""
+
+    # heuristic: many of our models forecast log-vol
+    looks_like_log = (
+        "_log" in target_col_name.lower()
+        or target_col_name.lower().endswith("log")
+        or "vol_log" in target_col_name.lower()
+    )
+
+    # ultimate fallback for older global models where we forgot to store target_col:
+    # global models (v5xx) *always* train on realized_vol_log right now.
+    if not looks_like_log:
+        arch_name = str(meta.get("arch", "")).lower()
+        if "globalvolforecaster" in arch_name:
+            looks_like_log = True
+
+    if looks_like_log:
         yhat = np.exp(yhat)
 
     horizons = meta.get("horizons", [1])

@@ -47,7 +47,7 @@ def _resolve_ckpt_path(model_version: str, checkpoints_dir: str) -> str:
     provided `model_version` (no suffix).
 
     :param model_version: Version tag or stem used for checkpoint filenames
-                          (e.g. "global_vol_forecaster_multi_v509").
+                          (e.g. "v507").
     :type model_version: str
     :param checkpoints_dir: Directory name (relative to cwd) to search for
                             model artifacts (e.g. "models").
@@ -323,7 +323,7 @@ def load_model(model_version: str, checkpoints_dir: str = "models", device: str 
     The returned tuple contains:
       (model, meta, scalers, ticker_to_id, features)
 
-    :param model_version: Version identifier matching checkpoint stems (e.g. "global_vol_forecaster_multi_v509").
+    :param model_version: Version identifier matching checkpoint stems (e.g. "global_vol_forecaster_multi_v507").
     :type model_version: str
     :param checkpoints_dir: Relative directory name containing model artifacts.
     :type checkpoints_dir: str
@@ -333,7 +333,7 @@ def load_model(model_version: str, checkpoints_dir: str = "models", device: str 
     :rtype: tuple
     :raises FileNotFoundError: If no supported artifact layout is found for the version.
     :example:
-        >>> model, meta, scalers, t2i, features = load_model("global_vol_forecaster_multi_v509", "models", device="cpu")
+        >>> model, meta, scalers, t2i, features = load_model("global_vol_forecaster_multi_v507", "models", device="cpu")
     """
     base = _resolve_ckpt_path(model_version, checkpoints_dir)
 

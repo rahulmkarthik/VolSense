@@ -7,7 +7,7 @@ VolSense Inference — Sector mappings and color palettes.
 This module centralizes:
   1) Ticker-to-sector dictionaries for different model universes:
      - SECTOR_MAP_109: compact universe used by v109 models
-     - SECTOR_MAP_509: extended universe used by v509 models
+     - SECTOR_MAP_507: extended universe used by v507 models
   2) SECTOR_COLORS: consistent hex colors per sector for plots/dashboards
 
 Helpers:
@@ -149,8 +149,8 @@ SECTOR_MAP_109 = {
 }
 
 
-# --- 509-ticker model (v509) --------------------------------
-SECTOR_MAP_509 = {
+# --- 507-ticker model (v507) --------------------------------
+SECTOR_MAP_507 = {
     # Technology
     **{
         t: "Technology"
@@ -778,7 +778,7 @@ def get_sector_map(version: str = "v109") -> dict[str, str]:
     """
     Return the ticker-to-sector mapping for a given model version.
 
-    :param version: Model version key ('v109' for small map, 'v509' for large map).
+    :param version: Model version key ('v109' for small map, 'v507' for large map).
     :type version: str
     :raises ValueError: If the version key is not recognized.
     :return: Dictionary mapping ticker symbols to sector names.
@@ -787,8 +787,8 @@ def get_sector_map(version: str = "v109") -> dict[str, str]:
     version = version.lower()
     if version in ("v109", "109", "small"):
         return SECTOR_MAP_109
-    elif version in ("v509", "509", "large"):
-        return SECTOR_MAP_509
+    elif version in ("v507", "507", "large"):
+        return SECTOR_MAP_507
     else:
         raise ValueError(f"Unknown model version: {version}")
 
@@ -797,14 +797,14 @@ def export_to_json(path="sector_map.json"):
     """
     Export available sector maps to a single JSON file.
 
-    The JSON contains two top-level keys: "v109" and "v509".
+    The JSON contains two top-level keys: "v109" and "v507".
 
     :param path: Filesystem path to write the JSON file.
     :type path: str
     :return: None
     :rtype: None
     """
-    combined = {"v109": SECTOR_MAP_109, "v509": SECTOR_MAP_509}
+    combined = {"v109": SECTOR_MAP_109, "v507": SECTOR_MAP_507}
     Path(path).write_text(json.dumps(combined, indent=2))
     print(f"💾 Sector mappings exported to {path}")
 

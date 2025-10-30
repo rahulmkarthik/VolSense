@@ -337,20 +337,20 @@ def load_model(model_version: str, checkpoints_dir: str = "models", device: str 
     """
     base = _resolve_ckpt_path(model_version, checkpoints_dir)
 
-    # full.pkl (legacy)
-    full_path = base + ".full.pkl"
-    if os.path.exists(full_path):
-        return _load_full_pickle(full_path, device)
-
-    # bundle.pkl (combined)
-    bundle_path = base + "_bundle.pkl"
-    if os.path.exists(bundle_path):
-        return _load_bundle_pickle(bundle_path, device)
-
     # meta.json + pth (portable)
     meta_path = base + ".meta.json"
     pth_path = base + ".pth"
     if os.path.exists(meta_path) and os.path.exists(pth_path):
         return _load_meta_pth(base, device)
+    
+        # bundle.pkl (combined)
+    bundle_path = base + "_bundle.pkl"
+    if os.path.exists(bundle_path):
+        return _load_bundle_pickle(bundle_path, device)
+
+    # full.pkl (legacy)
+    full_path = base + ".full.pkl"
+    if os.path.exists(full_path):
+        return _load_full_pickle(full_path, device)
 
     raise FileNotFoundError(f"No valid checkpoint found for {model_version} in {checkpoints_dir}")

@@ -229,6 +229,12 @@ if run_btn or st.session_state.forecast_data is not None:
                 use_container_width=True,
                 height=380,
             )
+            # Export CSV button for the overview table
+            export_csv_button(
+                preds[ordered_cols],
+                f"volsense_forecast_{date.today()}.csv",
+                "📥 Export Predictions",
+            )
             #export_csv_button(preds, f"volsense_forecast_{date.today()}.csv", "Export Predictions")
 
         with tab_tickers:

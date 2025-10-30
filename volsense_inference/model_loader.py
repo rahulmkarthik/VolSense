@@ -7,6 +7,26 @@
 #   - .meta.json + .pth → modern portable
 # ============================================================
 
+"""
+Model loader utilities for VolSense inference.
+
+This module provides a single entrypoint `load_model()` which locates
+and loads model artifacts saved in one of three supported formats:
+
+- legacy ".full.pkl" (pickled model or bundle)
+- combined "<stem>_bundle.pkl" (dict with state + meta)
+- portable "<stem>.meta.json" + "<stem>.pth" (state_dict + metadata)
+
+All loaders return a tuple:
+    (model, meta, scalers, ticker_to_id, features)
+
+The module focuses on safe CPU-device loading and conservative defaults
+so artifacts saved on different environments (Colab, local) can be loaded
+reliably.
+
+Sphinx-style documentation is provided on public helpers.
+"""
+
 import os
 import json
 import pickle
@@ -18,7 +38,24 @@ import torch
 # 🔹 Resolve checkpoint path
 # ------------------------------------------------------------
 def _resolve_ckpt_path(model_version: str, checkpoints_dir: str) -> str:
-    """Return absolute path to model checkpoint base (no suffix)."""
+    """
+    Resolve the absolute base path for a model checkpoint stem.
+
+    The function searches for `checkpoints_dir` in the current working
+    directory and the parent directory, preferring the parent if both
+    exist. The returned string is the absolute path joined with the
+    provided `model_version` (no suffix).
+
+    :param model_version: Version tag or stem used for checkpoint filenames
+                          (e.g. "global_vol_forecaster_multi_v509").
+    :type model_version: str
+    :param checkpoints_dir: Directory name (relative to cwd) to search for
+                            model artifacts (e.g. "models").
+    :type checkpoints_dir: str
+    :return: Absolute path to the checkpoint stem (without suffix).
+    :rtype: str
+    :raises FileNotFoundError: If no matching checkpoints directory is found.
+    """
     cwd = os.getcwd()
     local_ckpt = os.path.abspath(os.path.join(cwd, checkpoints_dir))
     parent_ckpt = os.path.abspath(os.path.join(cwd, "..", checkpoints_dir))
@@ -35,6 +72,18 @@ def _resolve_ckpt_path(model_version: str, checkpoints_dir: str) -> str:
 
 
 def _import_class(module_path: str, class_name: str):
+    """
+    Dynamically import and return a class given its module path and name.
+
+    :param module_path: Full python module path (e.g.
+                        "volsense_core.models.global_vol_forecaster").
+    :type module_path: str
+    :param class_name: Class name to import from the module.
+    :type class_name: str
+    :return: Imported class object.
+    :rtype: type
+    :raises (ImportError, AttributeError): If module or attribute cannot be found.
+    """
     mod = importlib.import_module(module_path)
     return getattr(mod, class_name)
 
@@ -43,6 +92,23 @@ def _import_class(module_path: str, class_name: str):
 # 🔹 1️⃣ Legacy full.pkl loader (v109)
 # ------------------------------------------------------------
 def _load_full_pickle(path: str, device: str):
+    """
+    Load a legacy ".full.pkl" artifact.
+
+    The ".full.pkl" file may contain either:
+      - a bundle dict: {"model": <model>, "meta": {...}, "ticker_to_id": {...}, "features": [...]}
+      - a direct pickled model object
+
+    This loader extracts model metadata and ensures the model is moved to
+    the requested device and set to eval().
+
+    :param path: Path to the ".full.pkl" file.
+    :type path: str
+    :param device: Torch device specifier accepted by model.to() (e.g. "cpu" or "cuda").
+    :type device: str
+    :return: (model, meta, scalers, ticker_to_id, features)
+    :rtype: tuple
+    """
     with open(path, "rb") as f:
         bundle = pickle.load(f)
 
@@ -101,11 +167,19 @@ def _load_full_pickle(path: str, device: str):
 # ------------------------------------------------------------
 def _load_bundle_pickle(path: str, device: str):
     """
-    Load model bundle saved via checkpoint_utils.save_checkpoint().
+    Load model from portable (.meta.json + .pth) format.
 
-    Fully reconstructs the architecture using stored meta['arch_params'],
-    and applies safe defaults for any missing parameters. Ensures that
-    model.input_size aligns with the stored feature list.
+    The meta.json should contain enough information to reconstruct the
+    model architecture (module_path, arch, arch_params, features, ticker_to_id).
+    The .pth is expected to be a torch.state_dict saved via torch.save().
+
+    :param base: Checkpoint stem (path without suffix).
+    :type base: str
+    :param device: Device for torch.load map_location and model.to().
+    :type device: str
+    :return: (model, meta, scalers, ticker_to_id, features)
+    :rtype: tuple
+    :raises FileNotFoundError: if the meta or pth file is missing.
     """
     with open(path, "rb") as f:
         bundle = pickle.load(f)
@@ -166,9 +240,17 @@ def _load_meta_pth(base: str, device: str):
     """
     Load model from portable (.meta.json + .pth) format.
 
-    Uses meta['arch_params'] when available and fills any missing
-    constructor arguments with defaults. Ensures input_size matches
-    the feature count before returning.
+    The meta.json should contain enough information to reconstruct the
+    model architecture (module_path, arch, arch_params, features, ticker_to_id).
+    The .pth is expected to be a torch.state_dict saved via torch.save().
+
+    :param base: Checkpoint stem (path without suffix).
+    :type base: str
+    :param device: Device for torch.load map_location and model.to().
+    :type device: str
+    :return: (model, meta, scalers, ticker_to_id, features)
+    :rtype: tuple
+    :raises FileNotFoundError: if the meta or pth file is missing.
     """
     meta_path = base + ".meta.json"
     pth_path = base + ".pth"
@@ -230,10 +312,28 @@ def _load_meta_pth(base: str, device: str):
 def load_model(model_version: str, checkpoints_dir: str = "models", device: str = "cpu"):
     """
     Universal VolSense model loader.
-    Automatically detects and loads:
-        - .full.pkl
-        - _bundle.pkl
-        - .meta.json + .pth
+
+    This function attempts to locate and load artifacts for `model_version`
+    from `checkpoints_dir`. Supported artifact layouts (priority order):
+
+      1. <stem>.full.pkl
+      2. <stem>_bundle.pkl
+      3. <stem>.meta.json + <stem>.pth
+
+    The returned tuple contains:
+      (model, meta, scalers, ticker_to_id, features)
+
+    :param model_version: Version identifier matching checkpoint stems (e.g. "global_vol_forecaster_multi_v509").
+    :type model_version: str
+    :param checkpoints_dir: Relative directory name containing model artifacts.
+    :type checkpoints_dir: str
+    :param device: Torch device to move the loaded model to (default "cpu").
+    :type device: str
+    :return: Tuple with loaded model and auxiliary metadata/assets.
+    :rtype: tuple
+    :raises FileNotFoundError: If no supported artifact layout is found for the version.
+    :example:
+        >>> model, meta, scalers, t2i, features = load_model("global_vol_forecaster_multi_v509", "models", device="cpu")
     """
     base = _resolve_ckpt_path(model_version, checkpoints_dir)
 

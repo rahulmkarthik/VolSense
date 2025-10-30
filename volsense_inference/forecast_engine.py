@@ -1,3 +1,41 @@
+"""
+volsense_inference.forecast_engine
+=================================
+
+High-level forecasting runtime for VolSense.
+
+This module exposes the Forecast runtime class which orchestrates data fetching,
+feature engineering, batch inference against a pretrained VolSense model, and
+lightweight analytics and visualization helpers.
+
+Primary class
+-------------
+Forecast
+    - Loads a pretrained model and its artifacts (scalers, metadata, feature list)
+      via volsense_inference.model_loader.load_model.
+    - Prepares recent market data using volsense_core.data.fetch.build_dataset
+      and volsense_core.data.feature_engineering.build_features to ensure the
+      inference inputs match the training-time schema.
+    - Runs batched inference using volsense_inference.predictor.predict_batch,
+      attaches realized volatility values, and exposes an Analytics helper for
+      cross-sectional signal computations and simple plots.
+
+Usage example
+-------------
+>>> from volsense_inference.forecast_engine import Forecast
+>>> f = Forecast(model_version="v507", checkpoints_dir="../models", start="2020-01-01")
+>>> preds = f.run(["SPY", "QQQ"])
+>>> f.plot("SPY")
+
+Notes
+-----
+- The Forecast class expects model artifacts to be available in the checkpoints
+  directory (meta + state or supported bundle format). See
+  volsense_inference.model_loader for loading behavior and supported formats.
+- Forecast.plot produces a matplotlib Figure when show=False, otherwise it
+  renders and closes the figure to avoid duplicate captures in notebook contexts.
+
+"""
 import pandas as pd
 import matplotlib.pyplot as plt
 

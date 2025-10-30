@@ -1,3 +1,47 @@
+"""
+volsense_core.forecaster_core
+=============================
+
+.. module:: volsense_core.forecaster_core
+   :synopsis: Unified training and inference runtime for VolSense.
+
+Overview
+--------
+This module provides a high-level wrapper and helpers for training and
+evaluating VolSense forecasting backends including:
+
+- BaseLSTM (ticker-specific recurrent forecaster)
+- GlobalVolForecaster (multi-ticker shared model)
+- ARCH-family forecasters (GARCH, EGARCH, GJR)
+
+Public API
+----------
+Classes
+  VolSenseForecaster
+    Unified interface to train, evaluate and persist different forecasting
+    backends. Produces standardized forecast DataFrames on the realized
+    volatility scale.
+
+Functions
+  make_forecast_df(preds, actuals, dates, tickers, horizons, model_name)
+    Build a tidy evaluation DataFrame from model predictions and realized
+    values. Used internally by VolSenseForecaster for consistent output
+    formatting.
+
+Usage
+-----
+>>> from volsense_core.forecaster_core import VolSenseForecaster
+>>> vf = VolSenseForecaster(method="global_lstm", device="cpu")
+>>> vf.fit(training_df)
+>>> df_results = vf.predict(evaluation_df)
+
+Notes
+-----
+- All neural models expect inputs and features produced by the pipeline in
+  volsense_core.data.feature_engineering.
+- Forecast outputs use the column schema:
+  ['asof_date','date','ticker','horizon','forecast_vol','realized_vol','model'].
+"""
 import numpy as np
 import pandas as pd
 from pandas.tseries.offsets import BDay
@@ -13,7 +57,6 @@ from volsense_core.models.global_vol_forecaster import (
     train_global_model,
     predict_next_day,
     make_last_windows,
-    save_checkpoint,
 )
 from volsense_core.models.lstm_forecaster import TrainConfig as LSTMTrainConfig
 from volsense_core.models.global_vol_forecaster import TrainConfig as GlobalTrainConfig
@@ -425,7 +468,7 @@ class VolSenseForecaster:
             - <stem>.meta.json + <stem>.pt
 
             :param save_dir: Directory to store model artifacts.
-            :param version: Version tag (e.g., 'v509').
+            :param version: Version tag (e.g., 'v507').
             :param device: 'cpu' or 'cuda' (model will be moved to this device for serialization).
             :returns: meta dict produced by save_checkpoint utility.
             :rtype: dict

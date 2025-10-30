@@ -1,5 +1,5 @@
 # ============================================================
-# volsense_inference/model_loader_refactored.py
+# volsense_inference/model_loader.py
 # Unified VolSense Loader
 # Supports:
 #   - *.full.pkl        → legacy pickled model

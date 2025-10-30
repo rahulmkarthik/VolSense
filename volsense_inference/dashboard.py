@@ -3,8 +3,6 @@ Streamlit dashboard for VolSense.
 
 Provides a small interactive UI to run forecasts, inspect per-ticker plots,
 sector heatmaps and cross-sectional signals.
-
-Sphinx (reStructuredText) documentation
 ---------------------------------------
 
 This module exposes the Streamlit application and several helper functions:

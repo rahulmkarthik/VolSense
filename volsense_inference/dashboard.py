@@ -222,23 +222,29 @@ filename: str, label: str = "📥 Export CSV"):
 st.sidebar.title("VolSense Dashboard")
 st.sidebar.caption("Trader-facing Volatility Analytics & Signals")
 
-TICKERS = [  # Index / ETF
+TICKERS = [ 
+    # 100 cross-sector tickers to initialize the dashboard with
+    # ----- Index / ETF -----
     "SPY","QQQ","DIA","IWM","GLD","SLV","TLT","HYG","EEM",
-    # Tech
-    "AAPL","MSFT","GOOG","AMZN","META","NVDA","AVGO","AMD","INTC","ORCL",
-    "CRM","TXN","QCOM","ADI","MU","CSCO",
-    # Financials
-    "JPM","BAC","C","WFC","GS","MS","V","MA","AXP","SCHW",
-    # Healthcare
+    # ----- Technology (17) -----
+    "AAPL","MSFT","GOOG","GOOGL","AMZN","META","NVDA","AVGO","AMD","INTC",
+    "ORCL","TXN","QCOM","ADBE","CSCO","NOW","INTU",
+    # ----- Financials (13) -----
+    "JPM","BAC","C","WFC","GS","MS","V","MA","BLK","PNC","USB","TFC","COF",
+    # ----- Healthcare (13) -----
     "JNJ","PFE","MRK","UNH","ABBV","ABT","LLY","BMY","TMO","CVS",
-    # Energy / Materials
-    "XOM","CVX","COP","SLB","HAL","BP","BHP","RIO","FCX",
-    # Consumer Discretionary
-    "TSLA","HD","MCD","NKE","SBUX","TGT","BKNG","CMG",
-    # Industrials
-    "CAT","BA","HON","UPS","FDX","LMT","GE",
-    # Consumer Staples
-    "PG","KO","PEP","COST","WMT"]
+    "AMGN","REGN","MDT",
+    # ----- Energy / Materials (12) -----
+    "XOM","CVX","COP","SLB","HAL","EOG","BHP","RIO","FCX","LIN","APD","NUE",
+    # ----- Consumer Discretionary (11) -----
+    "TSLA","HD","MCD","NKE","SBUX","TGT","BKNG","CMG","LOW","MAR","EBAY",
+    # ----- Industrials (8) -----
+    "CAT","BA","HON","UPS","FDX","LMT","GE","DE",
+    # ----- Consumer Staples (8) -----
+    "PG","KO","PEP","COST","WMT","MDLZ","CL","KHC",
+    # ----- Communication Services (9) -----
+    "NFLX","DIS","T","VZ","TMUS","CMCSA","CHTR","EA","TTWO"
+]
 
 with st.sidebar:
     model_version = st.text_input(

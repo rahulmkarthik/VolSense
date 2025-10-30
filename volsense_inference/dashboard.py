@@ -1,4 +1,29 @@
-# dashboard.py
+"""
+Streamlit dashboard for VolSense.
+
+Provides a small interactive UI to run forecasts, inspect per-ticker plots,
+sector heatmaps and cross-sectional signals.
+
+Sphinx (reStructuredText) documentation
+---------------------------------------
+
+This module exposes the Streamlit application and several helper functions:
+
+- :func:`_parse_tickers` - parse user comma-separated tickers
+- :func:`_safe_style_format` - style numeric columns for display
+- :func:`_detect_horizons` - detect forecast horizons from dataframe columns
+- :func:`_load_forecast_model` - cached model loader
+- :func:`run_volsense` - run forecasts + signals (cached)
+- :func:`export_csv_button` - download button for DataFrame CSV export
+
+Typical usage
+~~~~~~~~~~~~~
+Run the Streamlit app:
+
+.. code-block:: bash
+
+   streamlit run volsense_inference/dashboard.py
+"""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -39,13 +64,28 @@ if "tabs_list" not in st.session_state:
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 def _parse_tickers(s: str) -> List[str]:
+    """
+    Parse a comma-separated ticker string into a sorted list of unique tickers.
+
+    :param s: Comma-separated tickers entered by the user.
+    :type s: str
+    :return: Sorted list of uppercase, de-duplicated ticker symbols.
+    :rtype: List[str]
+    """
     return sorted({t.strip().upper() for t in s.split(",") if t.strip()})
 
 
 def _safe_style_format(df: pd.DataFrame, formatter):
     """
-    Apply formatter only to numeric columns.
-    Avoids errors when non-numeric data (e.g., strings) exist.
+    Apply a number formatter to numeric columns of a DataFrame and return a Styler.
+
+    This avoids formatting attempts on non-numeric columns (which would raise).
+
+    :param df: DataFrame to format.
+    :type df: pandas.DataFrame
+    :param formatter: Callable or format string to apply to numeric columns.
+    :return: pandas Styler with applied formatting.
+    :rtype: pandas.io.formats.style.Styler
     """
     num_cols = df.select_dtypes(include=[np.number]).columns
     format_dict = {c: formatter for c in num_cols}
@@ -53,6 +93,14 @@ def _safe_style_format(df: pd.DataFrame, formatter):
 
 
 def _detect_horizons(df: pd.DataFrame) -> List[int]:
+    """
+    Detect integer horizon values from column names like 'pred_vol_5'.
+
+    :param df: Forecast DataFrame containing horizon columns.
+    :type df: pandas.DataFrame
+    :return: Sorted list of unique horizon integers discovered.
+    :rtype: List[int]
+    """
     cols = [c for c in df.columns if c.startswith("pred_vol_")]
     hs = []
     for c in cols:
@@ -64,7 +112,18 @@ def _detect_horizons(df: pd.DataFrame) -> List[int]:
 
 @st.cache_resource(show_spinner=False)
 def _load_forecast_model(model_version: str, checkpoints_dir: str):
-    """Cache the model object so it's not reloaded on runs"""
+    """
+    Cached loader for Forecast object.
+
+    Uses Streamlit's cache_resource to avoid re-loading heavy models on each interaction.
+
+    :param model_version: Model version/stem to load (e.g., "v109").
+    :type model_version: str
+    :param checkpoints_dir: Directory containing model artifacts.
+    :type checkpoints_dir: str
+    :return: Instantiated Forecast object ready to run.
+    :rtype: volsense_inference.forecast_engine.Forecast
+    """
     fcast = Forecast(
         model_version=model_version, checkpoints_dir=checkpoints_dir, start="2005-01-01"
     )
@@ -75,6 +134,23 @@ def _load_forecast_model(model_version: str, checkpoints_dir: str):
 def run_volsense(
     model_version: str, checkpoints_dir: str, start: str, tickers: List[str]
 ):
+    """
+    Run VolSense forecasts and compute analytics and signals.
+
+    This function is cached for 30 minutes to avoid repeated expensive runs.
+
+    :param model_version: Model version to use for forecasting.
+    :type model_version: str
+    :param checkpoints_dir: Directory with model artifacts.
+    :type checkpoints_dir: str
+    :param start: Start date string for feature fetch.
+    :type start: str
+    :param tickers: List of tickers to forecast.
+    :type tickers: List[str]
+    :return: Tuple (Forecast instance, predictions DataFrame, analytics object,
+             analytics summary DataFrame, SignalEngine instance, signals DataFrame)
+    :rtype: tuple
+    """
     fcast = _load_forecast_model(model_version, checkpoints_dir)
     preds = fcast.run(
         tickers
@@ -99,6 +175,15 @@ def run_volsense(
 
 
 def _pretty_number(x, nd=3):
+    """
+    Human-friendly numeric formatter used by the UI.
+
+    :param x: Numeric value (or NaN).
+    :param nd: Number of decimal places to format.
+    :type nd: int
+    :return: Formatted string or empty string for NaN.
+    :rtype: str
+    """
     if pd.isna(x):
         return ""
     return f"{x:.{nd}f}"
@@ -109,7 +194,17 @@ def _pretty_number(x, nd=3):
 
 def export_csv_button(df:pd.DataFrame,
 filename: str, label: str = "📥 Export CSV"):
-    """Generate a download button for a DataFrame as CSV."""
+    """
+    Create a Streamlit download button that exports a DataFrame as CSV.
+
+    :param df: DataFrame to export.
+    :type df: pandas.DataFrame
+    :param filename: Suggested filename for the downloaded CSV.
+    :type filename: str
+    :param label: Button label text.
+    :type label: str
+    :return: None
+    """
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label=label,

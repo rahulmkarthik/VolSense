@@ -138,7 +138,7 @@ class SignalEngine:
     """
 
     def __init__(
-        self, data: Optional[pd.DataFrame] = None, model_version: str = "v109"
+        self, data: Optional[pd.DataFrame] = None, model_version: str = "v507"
     ):
         """
         Initialize the SignalEngine with optional snapshot data.

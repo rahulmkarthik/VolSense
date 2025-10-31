@@ -116,7 +116,7 @@ Launches an intuitive dashboard providing:
 - Sector heatmaps and Z-score distributions.
 - Cross-sectional signal visualization with position, regime, and horizon filters.
 - One-click CSV export for further analysis.
-- 
+ 
 ## Documentation
 
 Full technical documentation is generated via Sphinx and Napoleon, including:

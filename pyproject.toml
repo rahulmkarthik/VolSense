@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Explainable volatility forecasting and signal intelligence framework"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
   { name = "Rahul Karthik", email = "rahul.m.karthik@gmail.com" }
 ]
@@ -41,7 +41,6 @@ dependencies = [
   "torch>=2.2",
   "torchvision>=0.17",
   "torchaudio>=2.2",
-  "shap>=0.44",
   "matplotlib>=3.8",
   "seaborn>=0.13",
   "plotly>=5.18",

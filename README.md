@@ -64,7 +64,7 @@ A portable, production-grade inference layer enabling researchers and traders to
 
 ## Data & Feature Engineering
 
-- Automated OHLCV ingestion via **Yahoo Finance** and `multi_fetch.py`.  
+- Automated OHLCV ingestion via **Yahoo Finance** and `fetch.py`.  
 - Unified feature generation with `build_features()` ensuring identical transformations for training and inference.  
 - Core features include:
   - `vol_3d`, `vol_20d`, `vol_60d`, `vol_ratio`, `vol_vol`, `vol_chg`

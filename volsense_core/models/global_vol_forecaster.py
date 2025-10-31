@@ -840,8 +840,33 @@ def predict_next_day(
             )
             g = g.select_dtypes(include=np.number)
 
-        # --- Scale and predict ---
-        X_scaled = scaler.transform(g.fillna(0.0))
+        # --- Scale and predict (robust alignment) ---
+        g_num = g.select_dtypes(include=np.number).copy()
+
+        if getattr(scaler, "feature_names_in_", None):
+            expected_cols = [c for c in scaler.feature_names_in_ if c in g_num.columns]
+            # reindex will add missing names as NaN -> fill with 0.0
+            g_num = g_num.reindex(columns=expected_cols, fill_value=0.0)
+        else:
+            expected_len = None
+            if getattr(scaler, "mean_", None) is not None:
+                try:
+                    expected_len = int(scaler.mean_.shape[1])
+                except Exception:
+                    expected_len = None
+
+            if expected_len is not None and g_num.shape[1] != expected_len:
+                print(
+                    f"⚠️ scaler dim ({expected_len}) != numeric cols ({g_num.shape[1]}). "
+                    "Trimming/padding numeric inputs to match."
+                )
+                if g_num.shape[1] > expected_len:
+                    g_num = g_num.iloc[:, :expected_len]
+                else:
+                    for i in range(expected_len - g_num.shape[1]):
+                        g_num[f"_pad_{i}"] = 0.0
+
+        X_scaled = scaler.transform(g_num.fillna(0.0))
         X_tensor = torch.tensor(X_scaled, dtype=torch.float32, device=device).unsqueeze(
             0
         )

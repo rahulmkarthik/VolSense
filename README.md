@@ -76,13 +76,15 @@ A portable, production-grade inference layer enabling researchers and traders to
 
 ## Explainability
 
-VolSense emphasizes **interpretable AI** through:
-- **SHAP-based feature attribution** across horizons (`1d`, `5d`, `10d`).  
-- **Regime-wise decomposition** — analyzing feature weights under calm, normal, and spike regimes.  
-- **Temporal sensitivity analysis** — identifying short-term vs structural volatility drivers.  
-- **Partial dependence plots** and **correlation heatmaps** for interpretive validation.
+VolSense incorporates a multi-layered **explainability suite** purpose-built for sequence-based volatility forecasting, ensuring transparency across both features and time:
 
----
+- **Attention heatmaps** — visualize where the model “looks” across the past 40-day window, revealing temporal focus patterns for each forecast horizon.  
+- **Feature sensitivity analysis** — quantifies how changes in key drivers (e.g., `abs_return`, `vol_20d`, `beta_20d`) influence log-volatility forecasts at different horizons (`1d`, `5d`, `10d`).  
+- **Temporal sensitivity curves** — highlight how recency affects predictive power, showing that recent shocks dominate short-term forecasts while older volatility events fade naturally.  
+- **Cross-horizon explainability** — compare how feature importance and attention dynamics evolve from reactive (1-day) to smoothed (10-day) predictions.  
+- **Human-aligned interpretation** — findings align with financial intuition: volatility clusters, decays over time, and remains influenced by recent market shocks.  
+
+Together, these tools make VolSense not only **accurate**, but also **interpretable** — bridging quantitative modeling with human reasoning about market dynamics.
 
 ## Evaluation
 

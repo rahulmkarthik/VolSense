@@ -246,7 +246,7 @@ TICKERS = [
 
 with st.sidebar:
     model_version = st.text_input(
-        "Model version", value="v109"
+        "Model version", value="v507"
     )  # matches your checkpoints naming
     checkpoints_dir = st.text_input("Checkpoints directory", value="models")
     default_tickers = ", ".join(TICKERS)

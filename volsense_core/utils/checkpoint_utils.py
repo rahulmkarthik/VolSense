@@ -33,7 +33,6 @@ import torch
 import inspect
 from typing import Any, Dict
 
-
 # ============================================================
 # 🔹 Meta Builder (auto-detects architecture)
 # ============================================================
@@ -176,7 +175,7 @@ def build_bundle(model: Any, meta: Dict, cfg: Any = None) -> Dict:
 # ============================================================
 
 def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_dir: str = "models",
-                    ticker_to_id=None, features=None):
+                    ticker_to_id=None, features=None, scalers=None):
     """
     Save model in all supported VolSense formats.
 
@@ -197,6 +196,8 @@ def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_di
     :type ticker_to_id: dict or None
     :param features: Feature list to embed into metadata.
     :type features: list[str] or None
+    :param scalers: Optional dict of feature scalers to persist in the metadata.
+    :type scalers: dict[str, TorchStandardScaler] or None
     :returns: The meta dictionary that was written to <version>.meta.json.
     :rtype: dict
     :raises OSError: If the save directory cannot be created or files cannot be written.
@@ -207,6 +208,15 @@ def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_di
     # --- Build meta and bundle ---
     meta = build_meta_from_model(model, cfg, ticker_to_id=ticker_to_id, features=features)
     bundle = build_bundle(model, meta, cfg)
+
+    # 🔹 NEW: persist scaler states into meta
+    if scalers is not None:
+        meta["scalers"] = {}
+        for name, sc in scalers.items():
+            try:
+                meta["scalers"][name] = sc.state_dict()   # for TorchStandardScaler
+            except Exception:
+                meta["scalers"][name] = sc.__dict__
 
     # 1️⃣ full.pkl
     with open(base + ".full.pkl", "wb") as f:

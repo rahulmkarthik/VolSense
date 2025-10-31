@@ -36,7 +36,7 @@ A modular experimentation framework supporting both classical and neural volatil
 - Regime-wise validation on calm (2013-14), spike (2020-21), and forward (2023-present) periods.  
 - Integrated evaluation layer (RMSE, MAE, correlation, Durbin–Watson, feature importance).
 
-Two flagship models — **v109** (109 tickers) and **v509** (507 tickers) — are trained and released as production-ready baselines.
+Two flagship models — **v109** (109 tickers) and **v507** (507 tickers) — are trained and released as production-ready baselines.
 
 ---
 

@@ -104,10 +104,13 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     Computes per-ticker:
       - vol_3d: 3-day mean of realized_vol
       - vol_10d: 10-day mean of realized_vol
+      - vol_20d: 20-day mean of realized_vol
+      - vol_60d: 60-day mean of realized_vol
       - vol_ratio: vol_3d / (vol_10d + eps)
       - vol_chg: vol_3d - vol_10d
       - vol_vol: 10-day std of realized_vol
       - ewma_vol_10d: EWMA of realized_vol with span=10
+      - return_sharpe_20d: 20-day mean(return) / std(return)
 
     :param df: Input DataFrame containing at least ['ticker','realized_vol'].
     :type df: pandas.DataFrame
@@ -122,6 +125,8 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["vol_10d"] = g["realized_vol"].apply(
         lambda s: s.rolling(10, min_periods=1).mean()
     )
+    df["vol_20d"] = df["realized_vol"].rolling(20).mean()
+    df["vol_60d"] = df["realized_vol"].rolling(60).mean()
     df["vol_ratio"] = df["vol_3d"] / (df["vol_10d"] + eps)
     df["vol_chg"] = df["vol_3d"] - df["vol_10d"]
     df["vol_vol"] = g["realized_vol"].apply(
@@ -131,6 +136,7 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["ewma_vol_10d"] = g["realized_vol"].apply(
         lambda s: s.ewm(span=10, adjust=False).mean()
     )
+    df["return_sharpe_20d"] = df["return"].rolling(20).mean() / df["return"].rolling(20).std()
     return df
 
 
@@ -165,6 +171,39 @@ def add_market_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["skew_5d"] = g["return"].apply(
         lambda s: s.rolling(5, min_periods=3).apply(_skew5, raw=True)
     )
+    df["vol_skew_20d"] = df["realized_vol"].rolling(20).skew()
+    df["vol_kurt_20d"] = df["realized_vol"].rolling(20).kurt()
+    df["vol_entropy"] = df["realized_vol"].rolling(20).apply(
+    lambda x: -np.sum((p := np.histogram(x, bins=10, density=True)[0]) * np.log(p + 1e-6)), raw=False)
+
+    # absolute return moments
+    df["abs_return"] = df["return"].abs()
+    df["ret_sq"] = df["return"] ** 2
+
+    # RSI (14-day)
+    delta = df["return"].diff()
+    gain = delta.where(delta > 0, 0.0).rolling(14).mean()
+    loss = -delta.where(delta < 0, 0.0).rolling(14).mean()
+    rs = gain / (loss + 1e-6)
+    df["rsi_14"] = 100 - (100 / (1 + rs))
+
+
+    # MACD diff
+    ema_fast = df["return"].ewm(span=12, adjust=False).mean()
+    ema_slow = df["return"].ewm(span=26, adjust=False).mean()
+    macd = ema_fast - ema_slow
+    signal = macd.ewm(span=9, adjust=False).mean()
+    df["macd_diff"] = macd - signal
+
+
+    # Absolute + interactive features
+    df["vol_stress"] = df["vol_ratio"] * df["market_stress"]
+    df["skew_scaled_return"] = df["abs_return"] * df["skew_5d"]
+
+
+    # Clean up extreme values
+    df = df.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
     return df
 
 
@@ -175,8 +214,6 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     Computes:
       - day_of_week: normalized day index in [0,1] (Mon=0, Sun=1 via 6.0 divisor)
       - month_sin, month_cos: cyclical month encodings
-      - abs_return: absolute daily return
-      - ret_sq: squared daily return
 
     :param df: Input DataFrame containing 'date' and 'return'.
     :type df: pandas.DataFrame
@@ -187,8 +224,6 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     df["day_of_week"] = df["date"].dt.dayofweek / 6.0
     df["month_sin"] = np.sin(2 * np.pi * df["date"].dt.month / 12)
     df["month_cos"] = np.cos(2 * np.pi * df["date"].dt.month / 12)
-    df["abs_return"] = df["return"].abs()
-    df["ret_sq"] = df["return"] ** 2
     return df
 
 
@@ -218,9 +253,15 @@ def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame
     include = include or [
         "vol_3d",
         "vol_10d",
+        "vol_20d",
+        "vol_60d",
         "vol_ratio",
         "vol_chg",
         "vol_vol",
+        "vol_skew_20d",
+        "vol_kurt_20d",
+        "vol_entropy",
+        "return_sharpe_20d",
         "ewma_vol_10d",
         "market_stress",
         "market_stress_1d_lag",
@@ -230,6 +271,10 @@ def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame
         "month_cos",
         "abs_return",
         "ret_sq",
+        "rsi_14",
+        "macd_diff",
+        "vol_stress",
+        "skew_scaled_return",
     ]
     exclude = set(exclude or [])
 

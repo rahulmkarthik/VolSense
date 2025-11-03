@@ -4,7 +4,9 @@ import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import List
 import numpy as np
+import pandas as pd
 from torch.utils.data import DataLoader, TensorDataset
+from typing import List, Tuple, Dict
 
 
 # --------------------------------------------------------------------
@@ -35,23 +37,23 @@ class VolNetXConfig:
 
 
 # --------------------------------------------------------------------
-# 🧠 Feature-Wise Attention (Optional)
+# 🧠 Feature-Wise Attention (Fixed)
 # --------------------------------------------------------------------
 class FeatureAttention(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim: int):
         super().__init__()
         self.attn = nn.Linear(input_dim, input_dim)
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x):
-        # x: [B, T, F]
-        weights = self.softmax(self.attn(x))
+        B, T, F = x.shape
+        x_flat = x.view(-1, F)               # [B*T, F]
+        attn_flat = self.attn(x_flat)        # [B*T, F]
+        attn = attn_flat.view(B, T, F)       # [B, T, F]
+        weights = self.softmax(attn)
         return x * weights
 
 
-# --------------------------------------------------------------------
-# 🔮 VolNetX Model
-# --------------------------------------------------------------------
 class VolNetX(nn.Module):
     def __init__(self,
                  n_tickers: int,
@@ -72,27 +74,31 @@ class VolNetX(nn.Module):
         self.horizons = horizons
         self.separate_heads = separate_heads
         self.use_transformer = use_transformer
+        self.use_ticker_embedding = use_ticker_embedding
+        self.use_feature_attention = use_feature_attention
 
-        self.input_size = input_size
-        if use_ticker_embedding:
-            self.emb = nn.Embedding(n_tickers, emb_dim)
-            input_size += emb_dim
+        self.emb = nn.Embedding(n_tickers, emb_dim) if use_ticker_embedding else None
+        final_input_dim = input_size + (emb_dim if use_ticker_embedding else 0)
 
         if use_feature_attention:
-            self.feature_attn = FeatureAttention(input_size)
+            self.feature_attn = FeatureAttention(final_input_dim)
 
-        self.encoder = nn.LSTM(input_size, hidden_dim, batch_first=True,
-                               num_layers=num_layers, dropout=dropout)
+
+        self.encoder = nn.LSTM(
+            input_size=final_input_dim,
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            dropout=dropout,
+            batch_first=True
+        )
 
         if use_transformer:
-            encoder_layer = nn.TransformerEncoderLayer(
-                d_model=hidden_dim, nhead=4, batch_first=True)
+            encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_dim, nhead=4, batch_first=True)
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=1)
 
         if use_layernorm:
             self.norm = nn.LayerNorm(hidden_dim)
 
-        # Output heads
         out_dim = len(horizons)
         if separate_heads:
             self.heads = nn.ModuleList([
@@ -100,7 +106,8 @@ class VolNetX(nn.Module):
                     nn.Linear(hidden_dim, hidden_dim // 2),
                     nn.ReLU(),
                     nn.Linear(hidden_dim // 2, 1)
-                ) for _ in horizons])
+                ) for _ in horizons
+            ])
         else:
             self.head = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim // 2),
@@ -109,33 +116,36 @@ class VolNetX(nn.Module):
             )
 
     def forward(self, tidx, x):
-        if hasattr(self, "emb"):
+        assert x.ndim == 3 and x.shape[1] == self.window, f"Expected shape [B, T={self.window}, F], got {x.shape}"
+
+
+        if self.use_ticker_embedding and self.emb is not None:
             emb = self.emb(tidx)
-            emb = emb.unsqueeze(1).repeat(1, x.size(1), 1)
+            emb = emb.unsqueeze(1).expand(-1, x.size(1), -1)
             x = torch.cat([x, emb], dim=-1)
 
-        if hasattr(self, "feature_attn"):
+        if self.use_feature_attention:
             x = self.feature_attn(x)
-
+        
         x, _ = self.encoder(x)
 
-        if hasattr(self, "transformer"):
-            x = self.transformer(x)
+        x = x[:, -1]  # Take the last timestep only — [B, H]
 
-        x = x[:, -1]
         if hasattr(self, "norm"):
             x = self.norm(x)
 
         if self.separate_heads:
-            return torch.cat([h(x) for h in self.heads], dim=-1)
+            return torch.cat([h(x) for h in self.heads], dim=-1)  # [B, H]
         else:
             return self.head(x)
+
 
 
 # --------------------------------------------------------------------
 # 🏋️ Training Utility
 # --------------------------------------------------------------------
 def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: int):
+
     model = VolNetX(
         n_tickers=n_tickers,
         window=config.window,
@@ -194,6 +204,80 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
                     break
 
     return model
+
+        
+# --------------------------------------------------------------------
+# 🛠️ Dataset Preparation
+# --------------------------------------------------------------------
+
+def build_volnetx_dataset(
+    df: pd.DataFrame,
+    features: List[str],
+    target_col: str = "realized_vol_log",
+    window: int = 65,
+    horizons: List[int] = [1, 5, 10],
+    batch_size: int = 64,
+    split_ratio: float = 0.8,
+    device: str = "cpu"
+) -> Tuple[Dict[str, int], DataLoader, DataLoader, TensorDataset, TensorDataset]:
+    """
+    Build VolNetX-compatible rolling window dataset with ticker ID mapping and torch DataLoaders.
+
+    Returns:
+        ticker_to_id: Mapping from ticker to integer ID
+        train_loader, val_loader: DataLoaders for training and validation
+        train_ds, val_ds: Underlying torch datasets
+    """
+    df = df.sort_values(["ticker", "date"]).copy()
+    tickers = df["ticker"].unique().tolist()
+    ticker_to_id = {t: i for i, t in enumerate(tickers)}
+    df["tidx"] = df["ticker"].map(ticker_to_id)
+
+    X_buffer, Y_buffer, T_buffer = [], [], []
+
+    for t in tickers:
+        g = df[df["ticker"] == t].reset_index(drop=True)
+        if len(g) < window + max(horizons):
+            continue
+
+        X = g[features].values.astype(np.float32)
+        y = g[target_col].values.astype(np.float32)
+        idx = np.arange(window + max(horizons), len(g))
+
+        # ✅ Correct sliding window shape: [n, window, features]
+        X_rolled = np.lib.stride_tricks.sliding_window_view(X, window, axis=0)
+        X_rolled = X_rolled[idx - window]
+
+
+        y_targets = np.stack([y[idx - h] for h in horizons], axis=1)
+        t_id = np.full(len(idx), ticker_to_id[t], dtype=np.int64)
+
+        X_buffer.append(X_rolled)
+        Y_buffer.append(y_targets)
+        T_buffer.append(t_id)
+
+    X_tensor = torch.tensor(np.concatenate(X_buffer))
+
+    # 🛠️ Fix the shape: convert [B, F, T] → [B, T, F]
+    if X_tensor.shape[1] == len(features) and X_tensor.shape[2] == window:
+        X_tensor = X_tensor.transpose(1, 2)
+
+    y_tensor = torch.tensor(np.concatenate(Y_buffer))
+    tidx_tensor = torch.tensor(np.concatenate(T_buffer), dtype=torch.long)
+
+    # ✅ Guarantee tidx is 1D
+    if tidx_tensor.ndim > 1:
+        tidx_tensor = tidx_tensor.view(-1)
+
+    # Train/Val Split
+    n = len(X_tensor)
+    split = int(n * split_ratio)
+    train_ds = TensorDataset(X_tensor[:split], tidx_tensor[:split], y_tensor[:split])
+    val_ds = TensorDataset(X_tensor[split:], tidx_tensor[split:], y_tensor[split:])
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size)
+
+    return ticker_to_id, train_loader, val_loader, train_ds, val_ds
 
 
 # --------------------------------------------------------------------

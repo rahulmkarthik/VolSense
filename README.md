@@ -127,6 +127,8 @@ Full technical documentation is generated via Sphinx and Napoleon, including:
 
 ## Repository Structure
 
+```
+
 VolSense/
 │
 ├── volsense_core/
@@ -164,6 +166,8 @@ VolSense/
 ├── README.md
 ├── requirements.txt
 └── .gitignore
+
+```
 
 ## Credits & License
 

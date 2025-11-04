@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+from volsense_core.data.fetch import fetch_earnings_dates
+from volsense_inference.sector_mapping import get_ticker_type_map
 
 EPS = 1e-6
 
@@ -191,8 +193,43 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     df["ret_sq"] = df["return"] ** 2
     return df
 
+def add_earnings_flag(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds a binary column `is_earnings_day` to indicate if a row is an earnings event.
+    Assumes both `df` and `earnings_df` have 'ticker' and 'date' columns.
+    """
+    df = df.copy()
+    df["is_earnings_day"] = 0
 
-def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame:
+    if earnings_df is not None and not earnings_df.empty:
+        earnings_df = earnings_df.drop_duplicates(["ticker", "date"])
+        earnings_df["is_earnings_day"] = 1
+        df = df.merge(
+            earnings_df[["ticker", "date", "is_earnings_day"]],
+            on=["ticker", "date"],
+            how="left",
+        )
+        df["is_earnings_day"] = df["is_earnings_day"].fillna(0).astype(int)
+
+    return df
+
+def add_ticker_type_column(df: pd.DataFrame, version: str = "v507") -> pd.DataFrame:
+    """
+    Add a 'ticker_type' column to identify asset class (Equity, ETF, Crypto, etc).
+
+    :param df: Input DataFrame with 'ticker' column.
+    :param version: Sector map version to use.
+    :return: DataFrame with added ticker_type column.
+    """
+    df = df.copy()
+    type_map = get_ticker_type_map(version)
+    df["ticker_type"] = df["ticker"].map(type_map).fillna("Unknown")
+    return df
+
+
+
+def build_features(df: pd.DataFrame, include=None, exclude=None, 
+                   include_earnings_flag: bool = False,) -> pd.DataFrame:
     """
     Build a full feature set with inclusion/exclusion controls.
 
@@ -201,13 +238,17 @@ def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame
       2) add_rolling_features
       3) add_market_features
       4) add_calendar_features
-      5) Filter to core columns + requested engineered features
+      5) (optional) add_earnings_flag
+      6) add_ticker_type_column
+      7) Filter to core columns + requested engineered features
 
     :param df: Input DataFrame (raw OHLCV or long table with 'return' and 'realized_vol').
     :type df: pandas.DataFrame
     :param include: Feature names to include; if None, uses the default feature list.
     :type include: list[str] or None
     :param exclude: Feature names to exclude from the final set.
+    :param include_earnings_flag: Whether to add an earnings day flag feature.
+    :type include_earnings_flag: bool
     :type exclude: list[str] or set[str] or None
     :raises ValueError: Propagated if base feature computation cannot infer dates.
     :raises KeyError: Propagated if required columns for returns are missing.
@@ -237,9 +278,26 @@ def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame
     df = add_rolling_features(df)
     df = add_market_features(df)
     df = add_calendar_features(df)
+    df = add_ticker_type_column(df, version="v507")
+
+    # 🗓️ Earnings event flag
+    if include_earnings_flag:
+        assert "ticker" in df.columns and "date" in df.columns, \
+            "Input dataframe must contain 'ticker' and 'date' columns"
+
+        tickers = df["ticker"].unique().tolist()
+        start_date = str(df["date"].min().date())
+        end_date = str(df["date"].max().date())
+
+        earnings_df = fetch_earnings_dates(tickers, start_date, end_date)
+        df = add_earnings_flag(df, earnings_df)
+        include.append("is_earnings_day")
+        include.append("ticker_type")
 
     # Filter to requested engineered features + core columns
     keep = set(include) - exclude
     core = {"date", "ticker", "return", "realized_vol", "realized_vol_log"}
     cols = [c for c in list(core) + list(keep) if c in df.columns]
+    df = df.loc[:, ~df.columns.duplicated()]
+
     return df[cols].sort_values(["ticker", "date"]).reset_index(drop=True)

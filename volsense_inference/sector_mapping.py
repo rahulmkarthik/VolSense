@@ -791,6 +791,32 @@ def get_sector_map(version: str = "v109") -> dict[str, str]:
         return SECTOR_MAP_507
     else:
         raise ValueError(f"Unknown model version: {version}")
+    
+def get_ticker_type_map(version: str = "v507") -> dict[str, str]:
+    """
+    Categorize each ticker into a high-level type (e.g. 'Equity', 'ETF', 'Crypto').
+
+    :param version: Sector map version to use ('v109' or 'v507').
+    :return: Dictionary mapping ticker → ticker_type
+    """
+    sector_map = get_sector_map(version)
+    ticker_type = {}
+
+    for t, sector in sector_map.items():
+        if "Crypto" in sector:
+            ticker_type[t] = "Crypto"
+        elif "Volatility" in sector:
+            ticker_type[t] = "Hedge"
+        elif "Index" in sector or "ETF" in sector:
+            ticker_type[t] = "ETF"
+        elif "FX" in sector:
+            ticker_type[t] = "FX"
+        elif "Fixed Income" in sector:
+            ticker_type[t] = "Bond"
+        else:
+            ticker_type[t] = "Equity"
+
+    return ticker_type
 
 
 def export_to_json(path="sector_map.json"):

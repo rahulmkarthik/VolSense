@@ -22,6 +22,7 @@ Run the Streamlit app:
 
    streamlit run volsense_inference/dashboard.py
 """
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -108,6 +109,7 @@ def _detect_horizons(df: pd.DataFrame) -> List[int]:
             pass
     return sorted(set(hs))
 
+
 @st.cache_resource(show_spinner=False)
 def _load_forecast_model(model_version: str, checkpoints_dir: str):
     """
@@ -186,12 +188,13 @@ def _pretty_number(x, nd=3):
         return ""
     return f"{x:.{nd}f}"
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV Export helper
 # ──────────────────────────────────────────────────────────────────────────────
 
-def export_csv_button(df:pd.DataFrame,
-filename: str, label: str = "📥 Export CSV"):
+
+def export_csv_button(df: pd.DataFrame, filename: str, label: str = "📥 Export CSV"):
     """
     Create a Streamlit download button that exports a DataFrame as CSV.
 
@@ -203,15 +206,14 @@ filename: str, label: str = "📥 Export CSV"):
     :type label: str
     :return: None
     """
-    csv = df.to_csv(index=False).encode('utf-8')
+    csv = df.to_csv(index=False).encode("utf-8")
     st.download_button(
         label=label,
         data=csv,
         file_name=filename,
-        mime='text/csv',
+        mime="text/csv",
         use_container_width=True,
     )
-
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -220,28 +222,117 @@ filename: str, label: str = "📥 Export CSV"):
 st.sidebar.title("VolSense Dashboard")
 st.sidebar.caption("Trader-facing Volatility Analytics & Signals")
 
-TICKERS = [ 
+TICKERS = [
     # 100 cross-sector tickers to initialize the dashboard with
     # ----- Index / ETF -----
-    "SPY","QQQ","DIA","IWM","GLD","SLV","TLT","HYG","EEM",
+    "SPY",
+    "QQQ",
+    "DIA",
+    "IWM",
+    "GLD",
+    "SLV",
+    "TLT",
+    "HYG",
+    "EEM",
     # ----- Technology (17) -----
-    "AAPL","MSFT","GOOG","GOOGL","AMZN","META","NVDA","AVGO","AMD","INTC",
-    "ORCL","TXN","QCOM","ADBE","CSCO","NOW","INTU",
+    "AAPL",
+    "MSFT",
+    "GOOG",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "NVDA",
+    "AVGO",
+    "AMD",
+    "INTC",
+    "ORCL",
+    "TXN",
+    "QCOM",
+    "ADBE",
+    "CSCO",
+    "NOW",
+    "INTU",
     # ----- Financials (13) -----
-    "JPM","BAC","C","WFC","GS","MS","V","MA","BLK","PNC","USB","TFC","COF",
+    "JPM",
+    "BAC",
+    "C",
+    "WFC",
+    "GS",
+    "MS",
+    "V",
+    "MA",
+    "BLK",
+    "PNC",
+    "USB",
+    "TFC",
+    "COF",
     # ----- Healthcare (13) -----
-    "JNJ","PFE","MRK","UNH","ABBV","ABT","LLY","BMY","TMO","CVS",
-    "AMGN","REGN","MDT",
+    "JNJ",
+    "PFE",
+    "MRK",
+    "UNH",
+    "ABBV",
+    "ABT",
+    "LLY",
+    "BMY",
+    "TMO",
+    "CVS",
+    "AMGN",
+    "REGN",
+    "MDT",
     # ----- Energy / Materials (12) -----
-    "XOM","CVX","COP","SLB","HAL","EOG","BHP","RIO","FCX","LIN","APD","NUE",
+    "XOM",
+    "CVX",
+    "COP",
+    "SLB",
+    "HAL",
+    "EOG",
+    "BHP",
+    "RIO",
+    "FCX",
+    "LIN",
+    "APD",
+    "NUE",
     # ----- Consumer Discretionary (11) -----
-    "TSLA","HD","MCD","NKE","SBUX","TGT","BKNG","CMG","LOW","MAR","EBAY",
+    "TSLA",
+    "HD",
+    "MCD",
+    "NKE",
+    "SBUX",
+    "TGT",
+    "BKNG",
+    "CMG",
+    "LOW",
+    "MAR",
+    "EBAY",
     # ----- Industrials (8) -----
-    "CAT","BA","HON","UPS","FDX","LMT","GE","DE",
+    "CAT",
+    "BA",
+    "HON",
+    "UPS",
+    "FDX",
+    "LMT",
+    "GE",
+    "DE",
     # ----- Consumer Staples (8) -----
-    "PG","KO","PEP","COST","WMT","MDLZ","CL","KHC",
+    "PG",
+    "KO",
+    "PEP",
+    "COST",
+    "WMT",
+    "MDLZ",
+    "CL",
+    "KHC",
     # ----- Communication Services (9) -----
-    "NFLX","DIS","T","VZ","TMUS","CMCSA","CHTR","EA","TTWO"
+    "NFLX",
+    "DIS",
+    "T",
+    "VZ",
+    "TMUS",
+    "CMCSA",
+    "CHTR",
+    "EA",
+    "TTWO",
 ]
 
 with st.sidebar:
@@ -334,7 +425,7 @@ if run_btn or st.session_state.forecast_data is not None:
                 f"volsense_forecast_{date.today()}.csv",
                 "📥 Export Predictions",
             )
-            #export_csv_button(preds, f"volsense_forecast_{date.today()}.csv", "Export Predictions")
+            # export_csv_button(preds, f"volsense_forecast_{date.today()}.csv", "Export Predictions")
 
         with tab_tickers:
             st.subheader("Per-Ticker Forecast vs Realized")
@@ -422,18 +513,28 @@ if run_btn or st.session_state.forecast_data is not None:
             sectors = ["All"] + sorted(sig_df["sector"].dropna().unique().tolist())
             c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1.2])
             with c1:
-                sector_filter = st.selectbox("Sector", sectors, index=0, key="sig_sector")
+                sector_filter = st.selectbox(
+                    "Sector", sectors, index=0, key="sig_sector"
+                )
             with c2:
                 horizon_filter = st.selectbox(
-                    "Horizon", sorted(sig_df["horizon"].unique().tolist()), key="sig_horizon"
+                    "Horizon",
+                    sorted(sig_df["horizon"].unique().tolist()),
+                    key="sig_horizon",
                 )
             with c3:
                 regime = st.selectbox(
-                    "Regime", ["All", "calm", "normal", "spike"], index=0, key="sig_regime"
+                    "Regime",
+                    ["All", "calm", "normal", "spike"],
+                    index=0,
+                    key="sig_regime",
                 )
             with c4:
                 position_filter = st.selectbox(
-                    "Position", ["All", "long", "neutral", "short"], index=0, key="sig_position"
+                    "Position",
+                    ["All", "long", "neutral", "short"],
+                    index=0,
+                    key="sig_position",
                 )
             with c5:
                 sort_by = st.selectbox(
@@ -472,11 +573,18 @@ if run_btn or st.session_state.forecast_data is not None:
             # Subset and display
             # ───────────────────────────────────────────────
             cols = [
-                "ticker","sector","horizon",
-                "forecast_vol","today_vol",
-                "vol_spread","term_spread_10v5",
-                "vol_zscore","rank_universe","rank_sector",
-                "position","regime_flag",
+                "ticker",
+                "sector",
+                "horizon",
+                "forecast_vol",
+                "today_vol",
+                "vol_spread",
+                "term_spread_10v5",
+                "vol_zscore",
+                "rank_universe",
+                "rank_sector",
+                "position",
+                "regime_flag",
             ]
             cols = [c for c in cols if c in table.columns]
             table = table[cols].sort_values(sort_by, ascending=False)
@@ -484,21 +592,24 @@ if run_btn or st.session_state.forecast_data is not None:
             if table.empty:
                 st.warning("⚠️ No signals available for the selected filters.")
             else:
-                st.caption(f"📊 Positions: {table['position'].value_counts().to_dict()}")
+                st.caption(
+                    f"📊 Positions: {table['position'].value_counts().to_dict()}"
+                )
                 st.dataframe(
-                    table.style.format({
-                        "forecast_vol": "{:.4f}".format,
-                        "today_vol": "{:.4f}".format,
-                        "vol_spread": "{:+.2%}".format,
-                        "term_spread_10v5": "{:+.2%}".format,
-                        "vol_zscore": "{:+.2f}".format,
-                        "rank_universe": lambda x: f"{x:.2f}",
-                        "rank_sector": lambda x: f"{x:.2f}",
-                    }),
+                    table.style.format(
+                        {
+                            "forecast_vol": "{:.4f}".format,
+                            "today_vol": "{:.4f}".format,
+                            "vol_spread": "{:+.2%}".format,
+                            "term_spread_10v5": "{:+.2%}".format,
+                            "vol_zscore": "{:+.2f}".format,
+                            "rank_universe": lambda x: f"{x:.2f}",
+                            "rank_sector": lambda x: f"{x:.2f}",
+                        }
+                    ),
                     use_container_width=True,
                     height=520,
                 )
-
 
     except Exception as e:
         st.error(f"❌ Error: {e}")

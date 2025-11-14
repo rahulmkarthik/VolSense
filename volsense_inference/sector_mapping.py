@@ -791,7 +791,8 @@ def get_sector_map(version: str = "v109") -> dict[str, str]:
         return SECTOR_MAP_507
     else:
         raise ValueError(f"Unknown model version: {version}")
-    
+
+
 def get_ticker_type_map(version: str = "v507") -> dict[str, str]:
     """
     Categorize each ticker into a high-level type (e.g. 'Equity', 'ETF', 'Crypto').

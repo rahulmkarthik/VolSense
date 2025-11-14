@@ -193,6 +193,7 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     df["ret_sq"] = df["return"] ** 2
     return df
 
+
 def add_earnings_flag(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFrame:
     """
     Adds a binary column `is_earnings_day` to indicate if a row is an earnings event.
@@ -213,6 +214,7 @@ def add_earnings_flag(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFra
 
     return df
 
+
 def add_ticker_type_column(df: pd.DataFrame, version: str = "v507") -> pd.DataFrame:
     """
     Add a 'ticker_type' column to identify asset class (Equity, ETF, Crypto, etc).
@@ -227,9 +229,12 @@ def add_ticker_type_column(df: pd.DataFrame, version: str = "v507") -> pd.DataFr
     return df
 
 
-
-def build_features(df: pd.DataFrame, include=None, exclude=None, 
-                   include_earnings_flag: bool = False,) -> pd.DataFrame:
+def build_features(
+    df: pd.DataFrame,
+    include=None,
+    exclude=None,
+    include_earnings_flag: bool = False,
+) -> pd.DataFrame:
     """
     Build a full feature set with inclusion/exclusion controls.
 
@@ -282,8 +287,9 @@ def build_features(df: pd.DataFrame, include=None, exclude=None,
 
     # 🗓️ Earnings event flag
     if include_earnings_flag:
-        assert "ticker" in df.columns and "date" in df.columns, \
-            "Input dataframe must contain 'ticker' and 'date' columns"
+        assert (
+            "ticker" in df.columns and "date" in df.columns
+        ), "Input dataframe must contain 'ticker' and 'date' columns"
 
         tickers = df["ticker"].unique().tolist()
         start_date = str(df["date"].min().date())

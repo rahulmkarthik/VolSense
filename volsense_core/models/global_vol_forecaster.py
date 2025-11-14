@@ -10,7 +10,6 @@ import pandas as pd
 from tqdm import tqdm
 import torch
 import torch.nn as nn
-import os
 from volsense_core.utils.scalers import TorchStandardScaler as StandardScaler
 from dataclasses import dataclass
 from torch.utils.data import DataLoader

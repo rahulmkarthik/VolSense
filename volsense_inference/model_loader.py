@@ -66,7 +66,9 @@ def _resolve_ckpt_path(model_version: str, checkpoints_dir: str) -> str:
     elif os.path.exists(local_ckpt):
         ckpt_dir = local_ckpt
     else:
-        raise FileNotFoundError(f"Could not locate checkpoint directory: {checkpoints_dir}")
+        raise FileNotFoundError(
+            f"Could not locate checkpoint directory: {checkpoints_dir}"
+        )
 
     return os.path.join(ckpt_dir, model_version)
 
@@ -128,7 +130,8 @@ def _load_full_pickle(path: str, device: str):
             meta["horizons"] = list(getattr(model, "horizons"))
         if hasattr(model, "config") and isinstance(model.config, dict):
             meta["config"] = {
-                k: v for k, v in model.config.items()
+                k: v
+                for k, v in model.config.items()
                 if isinstance(v, (int, float, bool, str, list))
             }
         ticker_to_id = getattr(model, "ticker_to_id", {}) or {}
@@ -186,7 +189,10 @@ def _load_bundle_pickle(path: str, device: str):
 
     # --- Extract bundle metadata ---
     meta = bundle.get("meta", {})
-    module_path = bundle.get("module_path", meta.get("module_path", "volsense_core.models.global_vol_forecaster"))
+    module_path = bundle.get(
+        "module_path",
+        meta.get("module_path", "volsense_core.models.global_vol_forecaster"),
+    )
     arch = bundle.get("arch", meta.get("arch", "GlobalVolForecaster"))
     arch_params = dict(bundle.get("arch_params", meta.get("arch_params", {})))
 
@@ -230,7 +236,6 @@ def _load_bundle_pickle(path: str, device: str):
     model.input_size = len(features)
 
     return model, meta, None, ticker_to_id, features
-
 
 
 # ------------------------------------------------------------
@@ -305,11 +310,12 @@ def _load_meta_pth(base: str, device: str):
     return model, meta, None, ticker_to_id, features
 
 
-
 # ------------------------------------------------------------
 # 🔹 Entrypoint
 # ------------------------------------------------------------
-def load_model(model_version: str, checkpoints_dir: str = "models", device: str = "cpu"):
+def load_model(
+    model_version: str, checkpoints_dir: str = "models", device: str = "cpu"
+):
     """
     Universal VolSense model loader.
 
@@ -342,7 +348,7 @@ def load_model(model_version: str, checkpoints_dir: str = "models", device: str 
     pth_path = base + ".pth"
     if os.path.exists(meta_path) and os.path.exists(pth_path):
         return _load_meta_pth(base, device)
-    
+
         # bundle.pkl (combined)
     bundle_path = base + "_bundle.pkl"
     if os.path.exists(bundle_path):
@@ -353,4 +359,6 @@ def load_model(model_version: str, checkpoints_dir: str = "models", device: str 
     if os.path.exists(full_path):
         return _load_full_pickle(full_path, device)
 
-    raise FileNotFoundError(f"No valid checkpoint found for {model_version} in {checkpoints_dir}")
+    raise FileNotFoundError(
+        f"No valid checkpoint found for {model_version} in {checkpoints_dir}"
+    )

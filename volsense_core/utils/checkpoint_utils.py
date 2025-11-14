@@ -37,7 +37,10 @@ from typing import Any, Dict
 # 🔹 Meta Builder (auto-detects architecture)
 # ============================================================
 
-def build_meta_from_model(model: Any, cfg: Any = None, ticker_to_id=None, features=None) -> Dict:
+
+def build_meta_from_model(
+    model: Any, cfg: Any = None, ticker_to_id=None, features=None
+) -> Dict:
     """
     Build a standardized, reconstructible metadata dictionary for a VolSense model.
 
@@ -63,15 +66,14 @@ def build_meta_from_model(model: Any, cfg: Any = None, ticker_to_id=None, featur
     module_path = model.__module__
 
     meta = {
-    "arch": name,
-    "module_path": module_path,
-    "features": features or getattr(cfg, "extra_features", getattr(cfg, "features", [])),
-    "extra_features": getattr(cfg, "extra_features", []),
-    "horizons": getattr(cfg, "horizons", []),
-    "ticker_to_id": ticker_to_id or {},
+        "arch": name,
+        "module_path": module_path,
+        "features": features
+        or getattr(cfg, "extra_features", getattr(cfg, "features", [])),
+        "extra_features": getattr(cfg, "extra_features", []),
+        "horizons": getattr(cfg, "horizons", []),
+        "ticker_to_id": ticker_to_id or {},
     }
-
-
 
     # Inspect constructor and extract matching attributes
     sig = inspect.signature(model.__init__)
@@ -87,16 +89,31 @@ def build_meta_from_model(model: Any, cfg: Any = None, ticker_to_id=None, featur
 
         # --- Model-specific augmentations ---
         if name.lower().startswith("glob"):
-            extra_keys = ["emb_dim", "hidden_dim", "num_layers", "dropout",
-                        "separate_heads", "use_layernorm"]
+            extra_keys = [
+                "emb_dim",
+                "hidden_dim",
+                "num_layers",
+                "dropout",
+                "separate_heads",
+                "use_layernorm",
+            ]
             for k in extra_keys:
                 if hasattr(model, k):
                     arch_params[k] = getattr(model, k)
 
         elif name.lower().startswith("base"):
-            extra_keys = ["input_dim", "hidden_dim", "num_layers", "dropout", "n_horizons",
-                        "use_layernorm", "use_attention", "feat_dropout_p", "residual_head",
-                        "output_activation"]
+            extra_keys = [
+                "input_dim",
+                "hidden_dim",
+                "num_layers",
+                "dropout",
+                "n_horizons",
+                "use_layernorm",
+                "use_attention",
+                "feat_dropout_p",
+                "residual_head",
+                "output_activation",
+            ]
             for k in extra_keys:
                 if hasattr(model, k):
                     arch_params[k] = getattr(model, k)
@@ -112,7 +129,9 @@ def build_meta_from_model(model: Any, cfg: Any = None, ticker_to_id=None, featur
     if cfg is not None:
         # cfg may be a dict-like or an object with attributes
         if isinstance(cfg, dict):
-            target_col = cfg.get("target_col") or (cfg.get("config") or {}).get("target_col")
+            target_col = cfg.get("target_col") or (cfg.get("config") or {}).get(
+                "target_col"
+            )
         else:
             target_col = getattr(cfg, "target_col", None)
             cfg_config = getattr(cfg, "config", None)
@@ -122,14 +141,14 @@ def build_meta_from_model(model: Any, cfg: Any = None, ticker_to_id=None, featur
                 target_col = target_col or getattr(cfg_config, "target_col", None)
 
     meta["config"] = {"target_col": target_col} if target_col is not None else {}
-    
-    return meta
 
+    return meta
 
 
 # ============================================================
 # 🔹 Bundle Builder (model-aware)
 # ============================================================
+
 
 def build_bundle(model: Any, meta: Dict, cfg: Any = None) -> Dict:
     """
@@ -174,8 +193,16 @@ def build_bundle(model: Any, meta: Dict, cfg: Any = None) -> Dict:
 # 💾 Unified Saver
 # ============================================================
 
-def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_dir: str = "models",
-                    ticker_to_id=None, features=None, scalers=None):
+
+def save_checkpoint(
+    model: Any,
+    cfg: Any = None,
+    version: str = "model",
+    save_dir: str = "models",
+    ticker_to_id=None,
+    features=None,
+    scalers=None,
+):
     """
     Save model in all supported VolSense formats.
 
@@ -206,7 +233,9 @@ def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_di
     base = os.path.join(save_dir, version)
 
     # --- Build meta and bundle ---
-    meta = build_meta_from_model(model, cfg, ticker_to_id=ticker_to_id, features=features)
+    meta = build_meta_from_model(
+        model, cfg, ticker_to_id=ticker_to_id, features=features
+    )
     bundle = build_bundle(model, meta, cfg)
 
     # 🔹 NEW: persist scaler states into meta
@@ -214,7 +243,7 @@ def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_di
         meta["scalers"] = {}
         for name, sc in scalers.items():
             try:
-                meta["scalers"][name] = sc.state_dict()   # for TorchStandardScaler
+                meta["scalers"][name] = sc.state_dict()  # for TorchStandardScaler
             except Exception:
                 meta["scalers"][name] = sc.__dict__
 
@@ -240,6 +269,7 @@ def save_checkpoint(model: Any, cfg: Any = None, version: str = "model", save_di
 # ============================================================
 # 🔍 Optional: Meta Inspector
 # ============================================================
+
 
 def load_meta(model_version: str, checkpoints_dir: str = "models") -> Dict:
     """

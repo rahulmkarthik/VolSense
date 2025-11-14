@@ -168,13 +168,12 @@ def build_dataset(
     )
     return dataset
 
+
 # ============================================================
 # 🗓️ Earnings Events Fetcher
 # ============================================================
 def fetch_earnings_dates(
-    tickers: List[str],
-    start_date: str,
-    end_date: str
+    tickers: List[str], start_date: str, end_date: str
 ) -> pd.DataFrame:
     import yfinance as yf
 
@@ -204,9 +203,8 @@ def fetch_earnings_dates(
 
     df = pd.concat(events, ignore_index=True)
     df = df[
-        (df["Date"] >= pd.to_datetime(start_date)) &
-        (df["Date"] <= pd.to_datetime(end_date))
+        (df["Date"] >= pd.to_datetime(start_date))
+        & (df["Date"] <= pd.to_datetime(end_date))
     ].rename(columns={"Date": "date", "Ticker": "ticker"})
 
     return df.sort_values(["ticker", "date"]).reset_index(drop=True)
-

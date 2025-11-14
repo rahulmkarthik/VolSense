@@ -42,6 +42,7 @@ Notes
 - Forecast outputs use the column schema:
   ['asof_date','date','ticker','horizon','forecast_vol','realized_vol','model'].
 """
+
 import numpy as np
 import pandas as pd
 from pandas.tseries.offsets import BDay
@@ -259,9 +260,7 @@ class VolSenseForecaster:
                 if missing:
                     raise KeyError(f"Missing columns for extra_features: {missing}")
 
-            model, hist, val_loader, t2i, scalers, feats = train_global_model(
-                data, cfg
-            )
+            model, hist, val_loader, t2i, scalers, feats = train_global_model(data, cfg)
             self.model = model
             self.hist = hist
             self._val_loader = val_loader
@@ -269,14 +268,11 @@ class VolSenseForecaster:
             self.global_scalers = scalers
             self.global_window = cfg.window
             if self.kwargs.get("global_ckpt_path"):
-                save_checkpoint(
-                    self.kwargs["global_ckpt_path"], model, t2i, scalers
-                )
+                save_checkpoint(self.kwargs["global_ckpt_path"], model, t2i, scalers)
             return self
 
         else:
             raise ValueError(f"Unknown method: {self.method}")
-
 
     # ============================================================
     # 🔮 Prediction
@@ -453,25 +449,26 @@ class VolSenseForecaster:
 
         else:
             raise ValueError(f"Unknown method: {self.method}")
-    
 
     # ============================================================
     # 💾 Unified Checkpoint Saving (BaseLSTM + GlobalVolForecaster)
     # ============================================================
-    def save(self, save_dir: str = "models", version: str = "latest", device: str = "cpu"):
+    def save(
+        self, save_dir: str = "models", version: str = "latest", device: str = "cpu"
+    ):
         """
-            Save trained model and training artifacts in standardized VolSense formats.
+        Save trained model and training artifacts in standardized VolSense formats.
 
-            Produces:
-            - <stem>_full.pkl
-            - <stem>_bundle.pkl
-            - <stem>.meta.json + <stem>.pt
+        Produces:
+        - <stem>_full.pkl
+        - <stem>_bundle.pkl
+        - <stem>.meta.json + <stem>.pt
 
-            :param save_dir: Directory to store model artifacts.
-            :param version: Version tag (e.g., 'v507').
-            :param device: 'cpu' or 'cuda' (model will be moved to this device for serialization).
-            :returns: meta dict produced by save_checkpoint utility.
-            :rtype: dict
+        :param save_dir: Directory to store model artifacts.
+        :param version: Version tag (e.g., 'v507').
+        :param device: 'cpu' or 'cuda' (model will be moved to this device for serialization).
+        :returns: meta dict produced by save_checkpoint utility.
+        :rtype: dict
         """
         import os
         from volsense_core.utils.checkpoint_utils import save_checkpoint
@@ -519,7 +516,9 @@ class VolSenseForecaster:
         )
 
         print(f"\n✅ Model saved successfully in {save_dir}: {version_tag}")
-        print(f"   Formats generated: .full.pkl, _bundle.pkl, .meta.json + .pth")
+        print("   Formats generated: .full.pkl, _bundle.pkl, .meta.json + .pth")
         print(f"   Serialized on device: {device.upper()}")
-        print("   🔁 Ready for reloading via: load_model(..., checkpoints_dir='models')")
+        print(
+            "   🔁 Ready for reloading via: load_model(..., checkpoints_dir='models')"
+        )
         return meta

@@ -36,6 +36,7 @@ Notes
   renders and closes the figure to avoid duplicate captures in notebook contexts.
 
 """
+
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta

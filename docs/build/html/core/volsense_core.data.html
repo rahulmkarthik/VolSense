@@ -19,7 +19,9 @@
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="volsense_core.models package" href="volsense_core.models.html" />
+    <link rel="prev" title="volsense_core package" href="volsense_core.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -41,36 +43,57 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"><ul>
-<li><a class="reference internal" href="#">volsense_core.data package</a><ul>
-<li><a class="reference internal" href="#submodules">Submodules</a></li>
-<li><a class="reference internal" href="#module-volsense_core.data.data_utils">volsense_core.data.data_utils module</a><ul>
-<li><a class="reference internal" href="#volsense_core.data.data_utils.get_or_fetch_multi"><code class="docutils literal notranslate"><span class="pre">get_or_fetch_multi()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.data_utils.get_or_fetch_single"><code class="docutils literal notranslate"><span class="pre">get_or_fetch_single()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.data_utils.load_from_cache"><code class="docutils literal notranslate"><span class="pre">load_from_cache()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.data_utils.make_rolling_windows"><code class="docutils literal notranslate"><span class="pre">make_rolling_windows()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.data_utils.save_to_cache"><code class="docutils literal notranslate"><span class="pre">save_to_cache()</span></code></a></li>
+              <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">volsense_core.data package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-volsense_core.data.data_utils">volsense_core.data.data_utils module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.data_utils.get_or_fetch_multi"><code class="docutils literal notranslate"><span class="pre">get_or_fetch_multi()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.data_utils.get_or_fetch_single"><code class="docutils literal notranslate"><span class="pre">get_or_fetch_single()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.data_utils.load_from_cache"><code class="docutils literal notranslate"><span class="pre">load_from_cache()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.data_utils.make_rolling_windows"><code class="docutils literal notranslate"><span class="pre">make_rolling_windows()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.data_utils.save_to_cache"><code class="docutils literal notranslate"><span class="pre">save_to_cache()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-volsense_core.data.feature_engineering">volsense_core.data.feature_engineering module</a><ul>
-<li><a class="reference internal" href="#volsense_core.data.feature_engineering.add_calendar_features"><code class="docutils literal notranslate"><span class="pre">add_calendar_features()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.feature_engineering.add_market_features"><code class="docutils literal notranslate"><span class="pre">add_market_features()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.feature_engineering.add_rolling_features"><code class="docutils literal notranslate"><span class="pre">add_rolling_features()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.feature_engineering.build_features"><code class="docutils literal notranslate"><span class="pre">build_features()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.feature_engineering.compute_base_features"><code class="docutils literal notranslate"><span class="pre">compute_base_features()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-volsense_core.data.feature_engineering">volsense_core.data.feature_engineering module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.feature_engineering.add_calendar_features"><code class="docutils literal notranslate"><span class="pre">add_calendar_features()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.feature_engineering.add_earnings_flag"><code class="docutils literal notranslate"><span class="pre">add_earnings_flag()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.feature_engineering.add_market_features"><code class="docutils literal notranslate"><span class="pre">add_market_features()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.feature_engineering.add_rolling_features"><code class="docutils literal notranslate"><span class="pre">add_rolling_features()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.feature_engineering.add_ticker_type_column"><code class="docutils literal notranslate"><span class="pre">add_ticker_type_column()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.feature_engineering.build_features"><code class="docutils literal notranslate"><span class="pre">build_features()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.feature_engineering.compute_base_features"><code class="docutils literal notranslate"><span class="pre">compute_base_features()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-volsense_core.data.fetch">volsense_core.data.fetch module</a><ul>
-<li><a class="reference internal" href="#volsense_core.data.fetch.build_dataset"><code class="docutils literal notranslate"><span class="pre">build_dataset()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.data.fetch.fetch_ohlcv"><code class="docutils literal notranslate"><span class="pre">fetch_ohlcv()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-volsense_core.data.fetch">volsense_core.data.fetch module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.fetch.build_dataset"><code class="docutils literal notranslate"><span class="pre">build_dataset()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.fetch.fetch_earnings_dates"><code class="docutils literal notranslate"><span class="pre">fetch_earnings_dates()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.data.fetch.fetch_ohlcv"><code class="docutils literal notranslate"><span class="pre">fetch_ohlcv()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-volsense_core.data">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-volsense_core.data">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
 </ul>
-</div>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -85,6 +108,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="volsense_core.html">volsense_core package</a></li>
       <li class="breadcrumb-item active">volsense_core.data package</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/core/volsense_core.data.rst.txt" rel="nofollow"> View page source</a>
@@ -253,6 +277,13 @@ index by <cite>stride</cite> each step. Assumes the DataFrame includes a ‘date
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="volsense_core.data.feature_engineering.add_earnings_flag">
+<span class="sig-name descname"><span class="pre">add_earnings_flag</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">earnings_df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="reference internal" href="../_modules/volsense_core/data/feature_engineering.html#add_earnings_flag"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.data.feature_engineering.add_earnings_flag" title="Link to this definition"></a></dt>
+<dd><p>Adds a binary column <cite>is_earnings_day</cite> to indicate if a row is an earnings event.
+Assumes both <cite>df</cite> and <cite>earnings_df</cite> have ‘ticker’ and ‘date’ columns.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="volsense_core.data.feature_engineering.add_market_features">
 <span class="sig-name descname"><span class="pre">add_market_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="reference internal" href="../_modules/volsense_core/data/feature_engineering.html#add_market_features"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.data.feature_engineering.add_market_features" title="Link to this definition"></a></dt>
 <dd><p>Add cross-sectional market stress, its lag, and short-horizon return skew.</p>
@@ -312,8 +343,25 @@ index by <cite>stride</cite> each step. Assumes the DataFrame includes a ‘date
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="volsense_core.data.feature_engineering.add_ticker_type_column">
+<span class="sig-name descname"><span class="pre">add_ticker_type_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'v507'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="reference internal" href="../_modules/volsense_core/data/feature_engineering.html#add_ticker_type_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.data.feature_engineering.add_ticker_type_column" title="Link to this definition"></a></dt>
+<dd><p>Add a ‘ticker_type’ column to identify asset class (Equity, ETF, Crypto, etc).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> – Input DataFrame with ‘ticker’ column.</p></li>
+<li><p><strong>version</strong> – Sector map version to use.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>DataFrame with added ticker_type column.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="volsense_core.data.feature_engineering.build_features">
-<span class="sig-name descname"><span class="pre">build_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="reference internal" href="../_modules/volsense_core/data/feature_engineering.html#build_features"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.data.feature_engineering.build_features" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">build_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_earnings_flag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="reference internal" href="../_modules/volsense_core/data/feature_engineering.html#build_features"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.data.feature_engineering.build_features" title="Link to this definition"></a></dt>
 <dd><p>Build a full feature set with inclusion/exclusion controls.</p>
 <dl class="simple">
 <dt>Pipeline:</dt><dd><ol class="arabic simple">
@@ -321,6 +369,8 @@ index by <cite>stride</cite> each step. Assumes the DataFrame includes a ‘date
 <li><p>add_rolling_features</p></li>
 <li><p>add_market_features</p></li>
 <li><p>add_calendar_features</p></li>
+<li><p>(optional) add_earnings_flag</p></li>
+<li><p>add_ticker_type_column</p></li>
 <li><p>Filter to core columns + requested engineered features</p></li>
 </ol>
 </dd>
@@ -331,6 +381,7 @@ index by <cite>stride</cite> each step. Assumes the DataFrame includes a ‘date
 <li><p><strong>df</strong> (<em>pandas.DataFrame</em>) – Input DataFrame (raw OHLCV or long table with ‘return’ and ‘realized_vol’).</p></li>
 <li><p><strong>include</strong> (<em>list</em><em>[</em><em>str</em><em>] or </em><em>None</em>) – Feature names to include; if None, uses the default feature list.</p></li>
 <li><p><strong>exclude</strong> (<em>list</em><em>[</em><em>str</em><em>] or </em><em>set</em><em>[</em><em>str</em><em>] or </em><em>None</em>) – Feature names to exclude from the final set.</p></li>
+<li><p><strong>include_earnings_flag</strong> (<em>bool</em>) – Whether to add an earnings day flag feature.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
@@ -419,6 +470,11 @@ as a rolling standard deviation over the given window, annualized by sqrt(252).<
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="volsense_core.data.fetch.fetch_earnings_dates">
+<span class="sig-name descname"><span class="pre">fetch_earnings_dates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_date</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="reference internal" href="../_modules/volsense_core/data/fetch.html#fetch_earnings_dates"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.data.fetch.fetch_earnings_dates" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="volsense_core.data.fetch.fetch_ohlcv">
 <span class="sig-name descname"><span class="pre">fetch_ohlcv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tickers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'2000-01-01'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_progress</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">DataFrame</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/volsense_core/data/fetch.html#fetch_ohlcv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.data.fetch.fetch_ohlcv" title="Link to this definition"></a></dt>
 <dd><p>Fetch OHLCV data for one or more tickers from Yahoo Finance.</p>
@@ -450,7 +506,10 @@ as a rolling standard deviation over the given window, annualized by sqrt(252).<
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="volsense_core.html" class="btn btn-neutral float-left" title="volsense_core package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="volsense_core.models.html" class="btn btn-neutral float-right" title="volsense_core.models package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 

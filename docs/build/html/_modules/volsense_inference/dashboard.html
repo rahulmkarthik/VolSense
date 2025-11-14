@@ -40,14 +40,14 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">⚙️ Core Modules</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.html">volsense_core package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.data.html">volsense_core.data package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.models.html">volsense_core.models package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">🧠 Inference Modules</span></p>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.html">volsense_inference package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
@@ -58,7 +58,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">📓 Research &amp; Notebooks</span></p>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
 </ul>
@@ -342,7 +342,7 @@
 
 <span class="k">with</span> <span class="n">st</span><span class="o">.</span><span class="n">sidebar</span><span class="p">:</span>
     <span class="n">model_version</span> <span class="o">=</span> <span class="n">st</span><span class="o">.</span><span class="n">text_input</span><span class="p">(</span>
-        <span class="s2">&quot;Model version&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">&quot;v109&quot;</span>
+        <span class="s2">&quot;Model version&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">&quot;v507&quot;</span>
     <span class="p">)</span>  <span class="c1"># matches your checkpoints naming</span>
     <span class="n">checkpoints_dir</span> <span class="o">=</span> <span class="n">st</span><span class="o">.</span><span class="n">text_input</span><span class="p">(</span><span class="s2">&quot;Checkpoints directory&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">&quot;models&quot;</span><span class="p">)</span>
     <span class="n">default_tickers</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">TICKERS</span><span class="p">)</span>

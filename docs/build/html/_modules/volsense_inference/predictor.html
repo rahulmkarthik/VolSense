@@ -42,9 +42,25 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../core/index.html">VolSense Core Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../inference/index.html">VolSense Inference Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../notebooks/index.html">VolSense Research and Application Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
 </ul>
 
         </div>
@@ -217,7 +233,7 @@
 
 
 <div class="viewcode-block" id="predict_single">
-<a class="viewcode-back" href="../../inference/volsense_inference.html#volsense_inference.predictor.predict_single">[docs]</a>
+<a class="viewcode-back" href="../../inference/volsense_inference.predictor.html#volsense_inference.predictor.predict_single">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">predict_single</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
     <span class="n">meta</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
@@ -324,7 +340,7 @@
 
 
 <div class="viewcode-block" id="predict_batch">
-<a class="viewcode-back" href="../../inference/volsense_inference.html#volsense_inference.predictor.predict_batch">[docs]</a>
+<a class="viewcode-back" href="../../inference/volsense_inference.predictor.html#volsense_inference.predictor.predict_batch">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">predict_batch</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
     <span class="n">meta</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
@@ -374,7 +390,7 @@
 
 
 <div class="viewcode-block" id="attach_realized">
-<a class="viewcode-back" href="../../inference/volsense_inference.html#volsense_inference.predictor.attach_realized">[docs]</a>
+<a class="viewcode-back" href="../../inference/volsense_inference.predictor.html#volsense_inference.predictor.attach_realized">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">attach_realized</span><span class="p">(</span><span class="n">df_preds</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">df_recent</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Attach the latest realized volatility to each forecast row and compute diffs.</span>

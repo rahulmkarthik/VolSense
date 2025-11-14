@@ -42,9 +42,25 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../core/index.html">VolSense Core Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../inference/index.html">VolSense Inference Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/index.html">VolSense Research and Application Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
 </ul>
 
         </div>
@@ -83,7 +99,7 @@
 
 
 <div class="viewcode-block" id="collate_with_dates">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.collate_with_dates">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.collate_with_dates">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">collate_with_dates</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Collate function that stacks tensors and keeps Python datetime objects as a list.</span>
@@ -104,7 +120,7 @@
 <span class="c1"># 1) Training configuration</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="TrainConfig">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.TrainConfig">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.TrainConfig">[docs]</a>
 <span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">TrainConfig</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -182,7 +198,7 @@
 <span class="c1"># 2) Dataset</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="MultiVolDataset">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.MultiVolDataset">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.MultiVolDataset">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">MultiVolDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Windowed multi-horizon dataset for single- or multi-ticker realized vol data.</span>
@@ -328,7 +344,7 @@
 <span class="c1"># 3) Model</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="FeatureDropout">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.FeatureDropout">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.FeatureDropout">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">FeatureDropout</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Feature-wise dropout mask shared across time steps (stochastic feature erasing).&quot;&quot;&quot;</span>
 
@@ -343,7 +359,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">p</span>
 
 <div class="viewcode-block" id="FeatureDropout.forward">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.FeatureDropout.forward">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.FeatureDropout.forward">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Apply channel-wise dropout with a single mask per sample across time.</span>
@@ -363,7 +379,7 @@
 
 
 <div class="viewcode-block" id="BaseLSTM">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.BaseLSTM">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.BaseLSTM">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">BaseLSTM</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    LSTM-based multi-horizon forecaster with optional self-attention and residual head.</span>
@@ -446,7 +462,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">out_act</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">()</span>
 
 <div class="viewcode-block" id="BaseLSTM.forward">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.BaseLSTM.forward">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.BaseLSTM.forward">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Forward pass through feature-dropout, LSTM, optional attention, and heads.</span>
@@ -475,7 +491,7 @@
 <span class="c1"># 4) Training / evaluation utilities</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="build_splits">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.build_splits">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.build_splits">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_splits</span><span class="p">(</span>
     <span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">]:</span>
@@ -497,7 +513,7 @@
 
 
 <div class="viewcode-block" id="build_dataloaders">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.build_dataloaders">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.build_dataloaders">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_dataloaders</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create training and validation DataLoaders and return feature columns.</span>
@@ -537,7 +553,7 @@
 
 
 <div class="viewcode-block" id="train_baselstm">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.train_baselstm">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.train_baselstm">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">train_baselstm</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Train the BaseLSTM model and return the model, history, and loaders.</span>
@@ -640,7 +656,7 @@
 
 
 <div class="viewcode-block" id="evaluate_baselstm">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.lstm_forecaster.evaluate_baselstm">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.lstm_forecaster.html#volsense_core.models.lstm_forecaster.evaluate_baselstm">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">evaluate_baselstm</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">loader</span><span class="p">:</span> <span class="n">DataLoader</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
 <span class="p">):</span>

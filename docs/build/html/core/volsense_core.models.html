@@ -19,7 +19,9 @@
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="volsense_core.forecaster_core module" href="volsense_core.forecaster_core.html" />
+    <link rel="prev" title="volsense_core.data package" href="volsense_core.data.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -41,138 +43,156 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"><ul>
-<li><a class="reference internal" href="#">volsense_core.models package</a><ul>
-<li><a class="reference internal" href="#submodules">Submodules</a></li>
-<li><a class="reference internal" href="#module-volsense_core.models.garch_methods">volsense_core.models.garch_methods module</a><ul>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.fit"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.fit()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.get_config"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.get_config()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.predict"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.predict()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.result"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.result</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.rolling_forecast"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.rolling_forecast()</span></code></a></li>
+              <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">volsense_core.models package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-volsense_core.models.garch_methods">volsense_core.models.garch_methods module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.fit"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.fit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.get_config"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.get_config()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.predict"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.predict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.result"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.result</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster.rolling_forecast"><code class="docutils literal notranslate"><span class="pre">ARCHForecaster.rolling_forecast()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig"><code class="docutils literal notranslate"><span class="pre">GARCHConfig</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.annualize"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.annualize</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.dist"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.dist</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.fit_kwargs"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.fit_kwargs</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.mean"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.mean</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.model"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.model</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.o"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.o</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.p"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.p</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.q"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.q</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.scale"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.scale</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig"><code class="docutils literal notranslate"><span class="pre">GARCHConfig</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.annualize"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.annualize</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.dist"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.dist</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.fit_kwargs"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.fit_kwargs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.mean"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.mean</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.model"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.model</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.o"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.o</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.p"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.p</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.q"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.q</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig.scale"><code class="docutils literal notranslate"><span class="pre">GARCHConfig.scale</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.fit_arch"><code class="docutils literal notranslate"><span class="pre">fit_arch()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.forecast_arch"><code class="docutils literal notranslate"><span class="pre">forecast_arch()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.garch_methods.standardize_outputs"><code class="docutils literal notranslate"><span class="pre">standardize_outputs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.garch_methods.fit_arch"><code class="docutils literal notranslate"><span class="pre">fit_arch()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.garch_methods.forecast_arch"><code class="docutils literal notranslate"><span class="pre">forecast_arch()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.garch_methods.standardize_outputs"><code class="docutils literal notranslate"><span class="pre">standardize_outputs()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-volsense_core.models.global_vol_forecaster">volsense_core.models.global_vol_forecaster module</a><ul>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.FeatureDropout"><code class="docutils literal notranslate"><span class="pre">FeatureDropout</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.FeatureDropout.forward"><code class="docutils literal notranslate"><span class="pre">FeatureDropout.forward()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-volsense_core.models.global_vol_forecaster">volsense_core.models.global_vol_forecaster module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.FeatureDropout"><code class="docutils literal notranslate"><span class="pre">FeatureDropout</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.FeatureDropout.forward"><code class="docutils literal notranslate"><span class="pre">FeatureDropout.forward()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.GlobalVolForecaster"><code class="docutils literal notranslate"><span class="pre">GlobalVolForecaster</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.GlobalVolForecaster.forward"><code class="docutils literal notranslate"><span class="pre">GlobalVolForecaster.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.GlobalVolForecaster"><code class="docutils literal notranslate"><span class="pre">GlobalVolForecaster</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.GlobalVolForecaster.forward"><code class="docutils literal notranslate"><span class="pre">GlobalVolForecaster.forward()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig"><code class="docutils literal notranslate"><span class="pre">TrainConfig</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.attention"><code class="docutils literal notranslate"><span class="pre">TrainConfig.attention</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.batch_size"><code class="docutils literal notranslate"><span class="pre">TrainConfig.batch_size</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.cosine_restarts"><code class="docutils literal notranslate"><span class="pre">TrainConfig.cosine_restarts</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.cosine_schedule"><code class="docutils literal notranslate"><span class="pre">TrainConfig.cosine_schedule</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.device"><code class="docutils literal notranslate"><span class="pre">TrainConfig.device</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.dropout"><code class="docutils literal notranslate"><span class="pre">TrainConfig.dropout</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.dynamic_window_jitter"><code class="docutils literal notranslate"><span class="pre">TrainConfig.dynamic_window_jitter</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.early_stop"><code class="docutils literal notranslate"><span class="pre">TrainConfig.early_stop</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.ema_decay"><code class="docutils literal notranslate"><span class="pre">TrainConfig.ema_decay</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.embargo_days"><code class="docutils literal notranslate"><span class="pre">TrainConfig.embargo_days</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.epochs"><code class="docutils literal notranslate"><span class="pre">TrainConfig.epochs</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.extra_features"><code class="docutils literal notranslate"><span class="pre">TrainConfig.extra_features</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.feat_dropout_p"><code class="docutils literal notranslate"><span class="pre">TrainConfig.feat_dropout_p</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.grad_clip"><code class="docutils literal notranslate"><span class="pre">TrainConfig.grad_clip</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.horizons"><code class="docutils literal notranslate"><span class="pre">TrainConfig.horizons</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.loss_horizon_weights"><code class="docutils literal notranslate"><span class="pre">TrainConfig.loss_horizon_weights</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.lr"><code class="docutils literal notranslate"><span class="pre">TrainConfig.lr</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.min_delta"><code class="docutils literal notranslate"><span class="pre">TrainConfig.min_delta</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.num_workers"><code class="docutils literal notranslate"><span class="pre">TrainConfig.num_workers</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.oversample_high_vol"><code class="docutils literal notranslate"><span class="pre">TrainConfig.oversample_high_vol</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.patience"><code class="docutils literal notranslate"><span class="pre">TrainConfig.patience</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.pin_memory"><code class="docutils literal notranslate"><span class="pre">TrainConfig.pin_memory</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.residual_head"><code class="docutils literal notranslate"><span class="pre">TrainConfig.residual_head</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.separate_heads"><code class="docutils literal notranslate"><span class="pre">TrainConfig.separate_heads</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.stride"><code class="docutils literal notranslate"><span class="pre">TrainConfig.stride</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.target_col"><code class="docutils literal notranslate"><span class="pre">TrainConfig.target_col</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.use_ema"><code class="docutils literal notranslate"><span class="pre">TrainConfig.use_ema</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.use_layernorm"><code class="docutils literal notranslate"><span class="pre">TrainConfig.use_layernorm</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.val_end"><code class="docutils literal notranslate"><span class="pre">TrainConfig.val_end</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.val_mode"><code class="docutils literal notranslate"><span class="pre">TrainConfig.val_mode</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.val_start"><code class="docutils literal notranslate"><span class="pre">TrainConfig.val_start</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.variational_dropout_p"><code class="docutils literal notranslate"><span class="pre">TrainConfig.variational_dropout_p</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.window"><code class="docutils literal notranslate"><span class="pre">TrainConfig.window</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig"><code class="docutils literal notranslate"><span class="pre">TrainConfig</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.attention"><code class="docutils literal notranslate"><span class="pre">TrainConfig.attention</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.batch_size"><code class="docutils literal notranslate"><span class="pre">TrainConfig.batch_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.cosine_restarts"><code class="docutils literal notranslate"><span class="pre">TrainConfig.cosine_restarts</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.cosine_schedule"><code class="docutils literal notranslate"><span class="pre">TrainConfig.cosine_schedule</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.device"><code class="docutils literal notranslate"><span class="pre">TrainConfig.device</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.dropout"><code class="docutils literal notranslate"><span class="pre">TrainConfig.dropout</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.dynamic_window_jitter"><code class="docutils literal notranslate"><span class="pre">TrainConfig.dynamic_window_jitter</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.early_stop"><code class="docutils literal notranslate"><span class="pre">TrainConfig.early_stop</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.ema_decay"><code class="docutils literal notranslate"><span class="pre">TrainConfig.ema_decay</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.embargo_days"><code class="docutils literal notranslate"><span class="pre">TrainConfig.embargo_days</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.epochs"><code class="docutils literal notranslate"><span class="pre">TrainConfig.epochs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.extra_features"><code class="docutils literal notranslate"><span class="pre">TrainConfig.extra_features</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.feat_dropout_p"><code class="docutils literal notranslate"><span class="pre">TrainConfig.feat_dropout_p</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.grad_clip"><code class="docutils literal notranslate"><span class="pre">TrainConfig.grad_clip</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.horizons"><code class="docutils literal notranslate"><span class="pre">TrainConfig.horizons</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.loss_horizon_weights"><code class="docutils literal notranslate"><span class="pre">TrainConfig.loss_horizon_weights</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.lr"><code class="docutils literal notranslate"><span class="pre">TrainConfig.lr</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.min_delta"><code class="docutils literal notranslate"><span class="pre">TrainConfig.min_delta</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.num_workers"><code class="docutils literal notranslate"><span class="pre">TrainConfig.num_workers</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.oversample_high_vol"><code class="docutils literal notranslate"><span class="pre">TrainConfig.oversample_high_vol</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.patience"><code class="docutils literal notranslate"><span class="pre">TrainConfig.patience</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.pin_memory"><code class="docutils literal notranslate"><span class="pre">TrainConfig.pin_memory</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.residual_head"><code class="docutils literal notranslate"><span class="pre">TrainConfig.residual_head</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.separate_heads"><code class="docutils literal notranslate"><span class="pre">TrainConfig.separate_heads</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.stride"><code class="docutils literal notranslate"><span class="pre">TrainConfig.stride</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.target_col"><code class="docutils literal notranslate"><span class="pre">TrainConfig.target_col</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.use_ema"><code class="docutils literal notranslate"><span class="pre">TrainConfig.use_ema</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.use_layernorm"><code class="docutils literal notranslate"><span class="pre">TrainConfig.use_layernorm</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.val_end"><code class="docutils literal notranslate"><span class="pre">TrainConfig.val_end</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.val_mode"><code class="docutils literal notranslate"><span class="pre">TrainConfig.val_mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.val_start"><code class="docutils literal notranslate"><span class="pre">TrainConfig.val_start</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.variational_dropout_p"><code class="docutils literal notranslate"><span class="pre">TrainConfig.variational_dropout_p</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.TrainConfig.window"><code class="docutils literal notranslate"><span class="pre">TrainConfig.window</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.VariationalInputDropout"><code class="docutils literal notranslate"><span class="pre">VariationalInputDropout</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.VariationalInputDropout.forward"><code class="docutils literal notranslate"><span class="pre">VariationalInputDropout.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.VariationalInputDropout"><code class="docutils literal notranslate"><span class="pre">VariationalInputDropout</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.VariationalInputDropout.forward"><code class="docutils literal notranslate"><span class="pre">VariationalInputDropout.forward()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.build_global_splits"><code class="docutils literal notranslate"><span class="pre">build_global_splits()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.clone_model_like"><code class="docutils literal notranslate"><span class="pre">clone_model_like()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.make_last_windows"><code class="docutils literal notranslate"><span class="pre">make_last_windows()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.predict_next_day"><code class="docutils literal notranslate"><span class="pre">predict_next_day()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.train_global_model"><code class="docutils literal notranslate"><span class="pre">train_global_model()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.update_ema"><code class="docutils literal notranslate"><span class="pre">update_ema()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.build_global_splits"><code class="docutils literal notranslate"><span class="pre">build_global_splits()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.clone_model_like"><code class="docutils literal notranslate"><span class="pre">clone_model_like()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.make_last_windows"><code class="docutils literal notranslate"><span class="pre">make_last_windows()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.predict_next_day"><code class="docutils literal notranslate"><span class="pre">predict_next_day()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.train_global_model"><code class="docutils literal notranslate"><span class="pre">train_global_model()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.global_vol_forecaster.update_ema"><code class="docutils literal notranslate"><span class="pre">update_ema()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-volsense_core.models.lstm_forecaster">volsense_core.models.lstm_forecaster module</a><ul>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.BaseLSTM"><code class="docutils literal notranslate"><span class="pre">BaseLSTM</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.BaseLSTM.forward"><code class="docutils literal notranslate"><span class="pre">BaseLSTM.forward()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-volsense_core.models.lstm_forecaster">volsense_core.models.lstm_forecaster module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.BaseLSTM"><code class="docutils literal notranslate"><span class="pre">BaseLSTM</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.BaseLSTM.forward"><code class="docutils literal notranslate"><span class="pre">BaseLSTM.forward()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.FeatureDropout"><code class="docutils literal notranslate"><span class="pre">FeatureDropout</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.FeatureDropout.forward"><code class="docutils literal notranslate"><span class="pre">FeatureDropout.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.FeatureDropout"><code class="docutils literal notranslate"><span class="pre">FeatureDropout</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.FeatureDropout.forward"><code class="docutils literal notranslate"><span class="pre">FeatureDropout.forward()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.MultiVolDataset"><code class="docutils literal notranslate"><span class="pre">MultiVolDataset</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig"><code class="docutils literal notranslate"><span class="pre">TrainConfig</span></code></a><ul>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.batch_size"><code class="docutils literal notranslate"><span class="pre">TrainConfig.batch_size</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.device"><code class="docutils literal notranslate"><span class="pre">TrainConfig.device</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.dropout"><code class="docutils literal notranslate"><span class="pre">TrainConfig.dropout</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.epochs"><code class="docutils literal notranslate"><span class="pre">TrainConfig.epochs</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.extra_features"><code class="docutils literal notranslate"><span class="pre">TrainConfig.extra_features</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.feat_dropout_p"><code class="docutils literal notranslate"><span class="pre">TrainConfig.feat_dropout_p</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.hidden_dim"><code class="docutils literal notranslate"><span class="pre">TrainConfig.hidden_dim</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.horizons"><code class="docutils literal notranslate"><span class="pre">TrainConfig.horizons</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.lr"><code class="docutils literal notranslate"><span class="pre">TrainConfig.lr</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.num_layers"><code class="docutils literal notranslate"><span class="pre">TrainConfig.num_layers</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.num_workers"><code class="docutils literal notranslate"><span class="pre">TrainConfig.num_workers</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.output_activation"><code class="docutils literal notranslate"><span class="pre">TrainConfig.output_activation</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.pin_memory"><code class="docutils literal notranslate"><span class="pre">TrainConfig.pin_memory</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.residual_head"><code class="docutils literal notranslate"><span class="pre">TrainConfig.residual_head</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.target_col"><code class="docutils literal notranslate"><span class="pre">TrainConfig.target_col</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.use_attention"><code class="docutils literal notranslate"><span class="pre">TrainConfig.use_attention</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.use_layernorm"><code class="docutils literal notranslate"><span class="pre">TrainConfig.use_layernorm</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.val_start"><code class="docutils literal notranslate"><span class="pre">TrainConfig.val_start</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.weight_decay"><code class="docutils literal notranslate"><span class="pre">TrainConfig.weight_decay</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.window"><code class="docutils literal notranslate"><span class="pre">TrainConfig.window</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.MultiVolDataset"><code class="docutils literal notranslate"><span class="pre">MultiVolDataset</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig"><code class="docutils literal notranslate"><span class="pre">TrainConfig</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.batch_size"><code class="docutils literal notranslate"><span class="pre">TrainConfig.batch_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.device"><code class="docutils literal notranslate"><span class="pre">TrainConfig.device</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.dropout"><code class="docutils literal notranslate"><span class="pre">TrainConfig.dropout</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.epochs"><code class="docutils literal notranslate"><span class="pre">TrainConfig.epochs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.extra_features"><code class="docutils literal notranslate"><span class="pre">TrainConfig.extra_features</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.feat_dropout_p"><code class="docutils literal notranslate"><span class="pre">TrainConfig.feat_dropout_p</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.hidden_dim"><code class="docutils literal notranslate"><span class="pre">TrainConfig.hidden_dim</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.horizons"><code class="docutils literal notranslate"><span class="pre">TrainConfig.horizons</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.lr"><code class="docutils literal notranslate"><span class="pre">TrainConfig.lr</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.num_layers"><code class="docutils literal notranslate"><span class="pre">TrainConfig.num_layers</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.num_workers"><code class="docutils literal notranslate"><span class="pre">TrainConfig.num_workers</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.output_activation"><code class="docutils literal notranslate"><span class="pre">TrainConfig.output_activation</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.pin_memory"><code class="docutils literal notranslate"><span class="pre">TrainConfig.pin_memory</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.residual_head"><code class="docutils literal notranslate"><span class="pre">TrainConfig.residual_head</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.target_col"><code class="docutils literal notranslate"><span class="pre">TrainConfig.target_col</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.use_attention"><code class="docutils literal notranslate"><span class="pre">TrainConfig.use_attention</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.use_layernorm"><code class="docutils literal notranslate"><span class="pre">TrainConfig.use_layernorm</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.val_start"><code class="docutils literal notranslate"><span class="pre">TrainConfig.val_start</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.weight_decay"><code class="docutils literal notranslate"><span class="pre">TrainConfig.weight_decay</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.TrainConfig.window"><code class="docutils literal notranslate"><span class="pre">TrainConfig.window</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.build_dataloaders"><code class="docutils literal notranslate"><span class="pre">build_dataloaders()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.build_splits"><code class="docutils literal notranslate"><span class="pre">build_splits()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.collate_with_dates"><code class="docutils literal notranslate"><span class="pre">collate_with_dates()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.evaluate_baselstm"><code class="docutils literal notranslate"><span class="pre">evaluate_baselstm()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_core.models.lstm_forecaster.train_baselstm"><code class="docutils literal notranslate"><span class="pre">train_baselstm()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.build_dataloaders"><code class="docutils literal notranslate"><span class="pre">build_dataloaders()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.build_splits"><code class="docutils literal notranslate"><span class="pre">build_splits()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.collate_with_dates"><code class="docutils literal notranslate"><span class="pre">collate_with_dates()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.evaluate_baselstm"><code class="docutils literal notranslate"><span class="pre">evaluate_baselstm()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#volsense_core.models.lstm_forecaster.train_baselstm"><code class="docutils literal notranslate"><span class="pre">train_baselstm()</span></code></a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#module-volsense_core.models">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-volsense_core.models">Module contents</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
 </ul>
-</div>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -187,6 +207,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="volsense_core.html">volsense_core package</a></li>
       <li class="breadcrumb-item active">volsense_core.models package</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/core/volsense_core.models.rst.txt" rel="nofollow"> View page source</a>
@@ -206,7 +227,7 @@
 <span id="volsense-core-models-garch-methods-module"></span><h2>volsense_core.models.garch_methods module<a class="headerlink" href="#module-volsense_core.models.garch_methods" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="volsense_core.models.garch_methods.ARCHForecaster">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ARCHForecaster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="volsense_core.models.garch_methods.html#volsense_core.models.garch_methods.GARCHConfig" title="volsense_core.models.garch_methods.GARCHConfig"><span class="pre">GARCHConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster" title="Link to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ARCHForecaster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#volsense_core.models.garch_methods.GARCHConfig" title="volsense_core.models.garch_methods.GARCHConfig"><span class="pre">GARCHConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Thin, safe wrapper around <cite>arch.arch_model</cite> supporting GARCH, EGARCH, and GJR.</p>
 <section id="usage">
@@ -219,7 +240,7 @@
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="volsense_core.models.garch_methods.ARCHForecaster.fit">
-<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">returns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Series</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="volsense_core.models.garch_methods.html#volsense_core.models.garch_methods.ARCHForecaster" title="volsense_core.models.garch_methods.ARCHForecaster"><span class="pre">ARCHForecaster</span></a></span></span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster.fit" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">returns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Series</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster" title="volsense_core.models.garch_methods.ARCHForecaster"><span class="pre">ARCHForecaster</span></a></span></span><a class="reference internal" href="../_modules/volsense_core/models/garch_methods.html#ARCHForecaster.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_core.models.garch_methods.ARCHForecaster.fit" title="Link to this definition"></a></dt>
 <dd><p>Fit the selected ARCH-family model to a return series.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -229,7 +250,7 @@
 <dd class="field-even"><p>Self, with fitted result accessible via .result.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference internal" href="volsense_core.models.garch_methods.html#volsense_core.models.garch_methods.ARCHForecaster" title="volsense_core.models.garch_methods.ARCHForecaster">ARCHForecaster</a></p>
+<dd class="field-odd"><p><a class="reference internal" href="#volsense_core.models.garch_methods.ARCHForecaster" title="volsense_core.models.garch_methods.ARCHForecaster">ARCHForecaster</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -1195,7 +1216,10 @@ are transformed back to the original volatility scale.</p>
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="volsense_core.data.html" class="btn btn-neutral float-left" title="volsense_core.data package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="volsense_core.forecaster_core.html" class="btn btn-neutral float-right" title="volsense_core.forecaster_core module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 

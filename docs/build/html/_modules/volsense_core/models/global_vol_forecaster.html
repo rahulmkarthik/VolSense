@@ -42,9 +42,25 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../core/index.html">VolSense Core Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../inference/index.html">VolSense Inference Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/index.html">VolSense Research and Application Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
 </ul>
 
         </div>
@@ -95,7 +111,7 @@
 <span class="c1"># 🧩 Config Dataclass</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="TrainConfig">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.TrainConfig">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.TrainConfig">[docs]</a>
 <span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">TrainConfig</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -224,7 +240,7 @@
 <span class="c1"># 🧠 Utility modules (feature dropout / variational dropout)</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="FeatureDropout">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.FeatureDropout">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.FeatureDropout">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">FeatureDropout</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Channel-wise (feature) dropout: same mask for all time-steps.&quot;&quot;&quot;</span>
 
@@ -239,7 +255,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">p</span>
 
 <div class="viewcode-block" id="FeatureDropout.forward">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.FeatureDropout.forward">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.FeatureDropout.forward">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Apply channel-wise dropout to inputs.</span>
@@ -262,7 +278,7 @@
 
 
 <div class="viewcode-block" id="VariationalInputDropout">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.VariationalInputDropout">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.VariationalInputDropout">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">VariationalInputDropout</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Variational (recurrent) dropout on inputs — same mask across time.&quot;&quot;&quot;</span>
 
@@ -277,7 +293,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">p</span>
 
 <div class="viewcode-block" id="VariationalInputDropout.forward">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.VariationalInputDropout.forward">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.VariationalInputDropout.forward">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Apply a time-consistent dropout mask across the input sequence.</span>
@@ -302,7 +318,7 @@
 <span class="c1"># 🧠 GlobalVolForecaster Model</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="GlobalVolForecaster">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.GlobalVolForecaster">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.GlobalVolForecaster">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GlobalVolForecaster</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Global sequence model for multi-ticker, multi-horizon volatility forecasting.</span>
@@ -420,7 +436,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">residual</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_horizons</span><span class="p">)</span>
 
 <div class="viewcode-block" id="GlobalVolForecaster.forward">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.GlobalVolForecaster.forward">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.GlobalVolForecaster.forward">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tkr_id</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Forward pass.</span>
@@ -468,7 +484,7 @@
 <span class="c1"># 🧮 Dataset Builder (per-ticker feature scaling; no target scaling)</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="build_global_splits">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.build_global_splits">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.build_global_splits">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_global_splits</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Build per-ticker scaled datasets and temporal train/validation splits.</span>
@@ -616,7 +632,7 @@
 <span class="c1"># 🔁 EMA helper</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="clone_model_like">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.clone_model_like">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.clone_model_like">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">clone_model_like</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Create a non-trainable copy of a model for EMA tracking.</span>
@@ -639,7 +655,7 @@
 
 
 <div class="viewcode-block" id="update_ema">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.update_ema">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.update_ema">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">update_ema</span><span class="p">(</span><span class="n">ema</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">decay</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Update EMA model weights and buffers from a source model.</span>
@@ -667,7 +683,7 @@
 <span class="c1"># 🚀 Training Loop (no manual loops outside; returns artifacts)</span>
 <span class="c1"># ============================================================</span>
 <div class="viewcode-block" id="train_global_model">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.train_global_model">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.train_global_model">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">train_global_model</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TrainConfig</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Train GlobalVolForecaster end-to-end and return artifacts.</span>
@@ -852,7 +868,7 @@
 
 
 <div class="viewcode-block" id="make_last_windows">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.make_last_windows">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.make_last_windows">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_last_windows</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">window</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Extract the last `window` timesteps per ticker for inference.</span>
@@ -875,7 +891,7 @@
 
 
 <div class="viewcode-block" id="predict_next_day">
-<a class="viewcode-back" href="../../../core/volsense_core.models.html#volsense_core.models.global_vol_forecaster.predict_next_day">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.models.global_vol_forecaster.html#volsense_core.models.global_vol_forecaster.predict_next_day">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">predict_next_day</span><span class="p">(</span>
     <span class="n">model</span><span class="p">,</span>
     <span class="n">df_last_windows</span><span class="p">,</span>
@@ -952,8 +968,33 @@
             <span class="p">)</span>
             <span class="n">g</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">select_dtypes</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">)</span>
 
-        <span class="c1"># --- Scale and predict ---</span>
-        <span class="n">X_scaled</span> <span class="o">=</span> <span class="n">scaler</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+        <span class="c1"># --- Scale and predict (robust alignment) ---</span>
+        <span class="n">g_num</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">select_dtypes</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">scaler</span><span class="p">,</span> <span class="s2">&quot;feature_names_in_&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="n">expected_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">scaler</span><span class="o">.</span><span class="n">feature_names_in_</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">g_num</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+            <span class="c1"># reindex will add missing names as NaN -&gt; fill with 0.0</span>
+            <span class="n">g_num</span> <span class="o">=</span> <span class="n">g_num</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">expected_cols</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">expected_len</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">scaler</span><span class="p">,</span> <span class="s2">&quot;mean_&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">expected_len</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">scaler</span><span class="o">.</span><span class="n">mean_</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="n">expected_len</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="n">expected_len</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">g_num</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">expected_len</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;⚠️ scaler dim (</span><span class="si">{</span><span class="n">expected_len</span><span class="si">}</span><span class="s2">) != numeric cols (</span><span class="si">{</span><span class="n">g_num</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">). &quot;</span>
+                    <span class="s2">&quot;Trimming/padding numeric inputs to match.&quot;</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">g_num</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">expected_len</span><span class="p">:</span>
+                    <span class="n">g_num</span> <span class="o">=</span> <span class="n">g_num</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span> <span class="p">:</span><span class="n">expected_len</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">expected_len</span> <span class="o">-</span> <span class="n">g_num</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                        <span class="n">g_num</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;_pad_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="n">X_scaled</span> <span class="o">=</span> <span class="n">scaler</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">g_num</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
         <span class="n">X_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">X_scaled</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span>
             <span class="mi">0</span>
         <span class="p">)</span>

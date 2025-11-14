@@ -42,9 +42,25 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../core/index.html">VolSense Core Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../inference/index.html">VolSense Inference Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/index.html">VolSense Research and Application Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
 </ul>
 
         </div>
@@ -74,6 +90,8 @@
   <h1>Source code for volsense_core.data.feature_engineering</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">volsense_core.data.fetch</span><span class="w"> </span><span class="kn">import</span> <span class="n">fetch_earnings_dates</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">volsense_inference.sector_mapping</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_ticker_type_map</span>
 
 <span class="n">EPS</span> <span class="o">=</span> <span class="mf">1e-6</span>
 
@@ -96,7 +114,7 @@
 
 
 <div class="viewcode-block" id="compute_base_features">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.feature_engineering.compute_base_features">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.feature_engineering.html#volsense_core.data.feature_engineering.compute_base_features">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">compute_base_features</span><span class="p">(</span>
     <span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">EPS</span><span class="p">,</span> <span class="n">vol_lookback</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
@@ -175,7 +193,7 @@
 
 
 <div class="viewcode-block" id="add_rolling_features">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.feature_engineering.add_rolling_features">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.feature_engineering.html#volsense_core.data.feature_engineering.add_rolling_features">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">add_rolling_features</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">EPS</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Add rolling volatility features and related derivatives.</span>
@@ -215,7 +233,7 @@
 
 
 <div class="viewcode-block" id="add_market_features">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.feature_engineering.add_market_features">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.feature_engineering.html#volsense_core.data.feature_engineering.add_market_features">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">add_market_features</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">EPS</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Add cross-sectional market stress, its lag, and short-horizon return skew.</span>
@@ -252,7 +270,7 @@
 
 
 <div class="viewcode-block" id="add_calendar_features">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.feature_engineering.add_calendar_features">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.feature_engineering.html#volsense_core.data.feature_engineering.add_calendar_features">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">add_calendar_features</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Add calendar encodings and absolute return moments.</span>
@@ -277,10 +295,51 @@
     <span class="k">return</span> <span class="n">df</span></div>
 
 
+<div class="viewcode-block" id="add_earnings_flag">
+<a class="viewcode-back" href="../../../core/volsense_core.data.feature_engineering.html#volsense_core.data.feature_engineering.add_earnings_flag">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">add_earnings_flag</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">earnings_df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Adds a binary column `is_earnings_day` to indicate if a row is an earnings event.</span>
+<span class="sd">    Assumes both `df` and `earnings_df` have &#39;ticker&#39; and &#39;date&#39; columns.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">df</span><span class="p">[</span><span class="s2">&quot;is_earnings_day&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">if</span> <span class="n">earnings_df</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">earnings_df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="n">earnings_df</span> <span class="o">=</span> <span class="n">earnings_df</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">([</span><span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">])</span>
+        <span class="n">earnings_df</span><span class="p">[</span><span class="s2">&quot;is_earnings_day&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span>
+            <span class="n">earnings_df</span><span class="p">[[</span><span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;is_earnings_day&quot;</span><span class="p">]],</span>
+            <span class="n">on</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">],</span>
+            <span class="n">how</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">df</span><span class="p">[</span><span class="s2">&quot;is_earnings_day&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;is_earnings_day&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">df</span></div>
+
+
+<div class="viewcode-block" id="add_ticker_type_column">
+<a class="viewcode-back" href="../../../core/volsense_core.data.feature_engineering.html#volsense_core.data.feature_engineering.add_ticker_type_column">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">add_ticker_type_column</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;v507&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add a &#39;ticker_type&#39; column to identify asset class (Equity, ETF, Crypto, etc).</span>
+
+<span class="sd">    :param df: Input DataFrame with &#39;ticker&#39; column.</span>
+<span class="sd">    :param version: Sector map version to use.</span>
+<span class="sd">    :return: DataFrame with added ticker_type column.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">type_map</span> <span class="o">=</span> <span class="n">get_ticker_type_map</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
+    <span class="n">df</span><span class="p">[</span><span class="s2">&quot;ticker_type&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">type_map</span><span class="p">)</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="s2">&quot;Unknown&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">df</span></div>
+
+
+
 
 <div class="viewcode-block" id="build_features">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.feature_engineering.build_features">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">build_features</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<a class="viewcode-back" href="../../../core/volsense_core.data.feature_engineering.html#volsense_core.data.feature_engineering.build_features">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_features</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                   <span class="n">include_earnings_flag</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Build a full feature set with inclusion/exclusion controls.</span>
 
@@ -289,13 +348,17 @@
 <span class="sd">      2) add_rolling_features</span>
 <span class="sd">      3) add_market_features</span>
 <span class="sd">      4) add_calendar_features</span>
-<span class="sd">      5) Filter to core columns + requested engineered features</span>
+<span class="sd">      5) (optional) add_earnings_flag</span>
+<span class="sd">      6) add_ticker_type_column</span>
+<span class="sd">      7) Filter to core columns + requested engineered features</span>
 
 <span class="sd">    :param df: Input DataFrame (raw OHLCV or long table with &#39;return&#39; and &#39;realized_vol&#39;).</span>
 <span class="sd">    :type df: pandas.DataFrame</span>
 <span class="sd">    :param include: Feature names to include; if None, uses the default feature list.</span>
 <span class="sd">    :type include: list[str] or None</span>
 <span class="sd">    :param exclude: Feature names to exclude from the final set.</span>
+<span class="sd">    :param include_earnings_flag: Whether to add an earnings day flag feature.</span>
+<span class="sd">    :type include_earnings_flag: bool</span>
 <span class="sd">    :type exclude: list[str] or set[str] or None</span>
 <span class="sd">    :raises ValueError: Propagated if base feature computation cannot infer dates.</span>
 <span class="sd">    :raises KeyError: Propagated if required columns for returns are missing.</span>
@@ -325,11 +388,28 @@
     <span class="n">df</span> <span class="o">=</span> <span class="n">add_rolling_features</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
     <span class="n">df</span> <span class="o">=</span> <span class="n">add_market_features</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
     <span class="n">df</span> <span class="o">=</span> <span class="n">add_calendar_features</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">add_ticker_type_column</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;v507&quot;</span><span class="p">)</span>
+
+    <span class="c1"># 🗓️ Earnings event flag</span>
+    <span class="k">if</span> <span class="n">include_earnings_flag</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="s2">&quot;ticker&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="s2">&quot;date&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">,</span> \
+            <span class="s2">&quot;Input dataframe must contain &#39;ticker&#39; and &#39;date&#39; columns&quot;</span>
+
+        <span class="n">tickers</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;ticker&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="n">start_date</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">date</span><span class="p">())</span>
+        <span class="n">end_date</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">date</span><span class="p">())</span>
+
+        <span class="n">earnings_df</span> <span class="o">=</span> <span class="n">fetch_earnings_dates</span><span class="p">(</span><span class="n">tickers</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span><span class="p">)</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">add_earnings_flag</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">earnings_df</span><span class="p">)</span>
+        <span class="n">include</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;is_earnings_day&quot;</span><span class="p">)</span>
+        <span class="n">include</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;ticker_type&quot;</span><span class="p">)</span>
 
     <span class="c1"># Filter to requested engineered features + core columns</span>
     <span class="n">keep</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">include</span><span class="p">)</span> <span class="o">-</span> <span class="n">exclude</span>
     <span class="n">core</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="s2">&quot;return&quot;</span><span class="p">,</span> <span class="s2">&quot;realized_vol&quot;</span><span class="p">,</span> <span class="s2">&quot;realized_vol_log&quot;</span><span class="p">}</span>
     <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">core</span><span class="p">)</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">keep</span><span class="p">)</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[:,</span> <span class="o">~</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">duplicated</span><span class="p">()]</span>
+
     <span class="k">return</span> <span class="n">df</span><span class="p">[</span><span class="n">cols</span><span class="p">]</span><span class="o">.</span><span class="n">sort_values</span><span class="p">([</span><span class="s2">&quot;ticker&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
 
 </pre></div>

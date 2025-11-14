@@ -19,7 +19,9 @@
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="VolSense Research and Application Notebooks" href="../notebooks/modules.html" />
+    <link rel="prev" title="volsense_inference.predictor module" href="volsense_inference.predictor.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -41,16 +43,35 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"><ul>
-<li><a class="reference internal" href="#">volsense_inference.sector_mapping module</a><ul>
-<li><a class="reference internal" href="#volsense_inference.sector_mapping.export_to_json"><code class="docutils literal notranslate"><span class="pre">export_to_json()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_inference.sector_mapping.get_color"><code class="docutils literal notranslate"><span class="pre">get_color()</span></code></a></li>
-<li><a class="reference internal" href="#volsense_inference.sector_mapping.get_sector_map"><code class="docutils literal notranslate"><span class="pre">get_sector_map()</span></code></a></li>
+              <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">volsense_inference.sector_mapping module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#volsense_inference.sector_mapping.export_to_json"><code class="docutils literal notranslate"><span class="pre">export_to_json()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#volsense_inference.sector_mapping.get_color"><code class="docutils literal notranslate"><span class="pre">get_color()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#volsense_inference.sector_mapping.get_sector_map"><code class="docutils literal notranslate"><span class="pre">get_sector_map()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#volsense_inference.sector_mapping.get_ticker_type_map"><code class="docutils literal notranslate"><span class="pre">get_ticker_type_map()</span></code></a></li>
 </ul>
 </li>
 </ul>
-</div>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -149,12 +170,29 @@
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="volsense_inference.sector_mapping.get_ticker_type_map">
+<span class="sig-name descname"><span class="pre">get_ticker_type_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'v507'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/volsense_inference/sector_mapping.html#get_ticker_type_map"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#volsense_inference.sector_mapping.get_ticker_type_map" title="Link to this definition"></a></dt>
+<dd><p>Categorize each ticker into a high-level type (e.g. ‘Equity’, ‘ETF’, ‘Crypto’).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>version</strong> – Sector map version to use (‘v109’ or ‘v507’).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dictionary mapping ticker → ticker_type</p>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="volsense_inference.predictor.html" class="btn btn-neutral float-left" title="volsense_inference.predictor module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../notebooks/modules.html" class="btn btn-neutral float-right" title="VolSense Research and Application Notebooks" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 

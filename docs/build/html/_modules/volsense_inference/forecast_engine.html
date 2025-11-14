@@ -40,14 +40,14 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">⚙️ Core Modules</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.html">volsense_core package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.data.html">volsense_core.data package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.models.html">volsense_core.models package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">🧠 Inference Modules</span></p>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.html">volsense_inference package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
@@ -58,7 +58,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">📓 Research &amp; Notebooks</span></p>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
 </ul>
@@ -128,6 +128,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">volsense_inference.model_loader</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_model</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">volsense_inference.predictor</span><span class="w"> </span><span class="kn">import</span> <span class="n">predict_batch</span><span class="p">,</span> <span class="n">attach_realized</span>
@@ -232,10 +233,12 @@
 <span class="sd">        :return: Recent feature DataFrame used for inference.</span>
 <span class="sd">        :rtype: pandas.DataFrame</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">end_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">today</span><span class="p">()</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+        <span class="n">start_date</span> <span class="o">=</span> <span class="p">(</span><span class="n">end_date</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">150</span><span class="p">))</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">df_recent</span> <span class="o">=</span> <span class="n">build_dataset</span><span class="p">(</span>
             <span class="n">tickers</span><span class="o">=</span><span class="n">tickers</span><span class="p">,</span>
-            <span class="n">start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
-            <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">start</span><span class="o">=</span><span class="n">start_date</span><span class="p">,</span>
+            <span class="n">end</span><span class="o">=</span><span class="n">end_date</span><span class="p">,</span>
             <span class="n">window</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">vol_window</span><span class="p">,</span>  <span class="c1"># &lt;-- use realized-vol lookback, not model window</span>
             <span class="n">cache_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>

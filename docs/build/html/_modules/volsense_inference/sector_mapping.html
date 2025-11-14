@@ -42,9 +42,25 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../core/index.html">VolSense Core Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../inference/index.html">VolSense Inference Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../notebooks/index.html">VolSense Research and Application Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
 </ul>
 
         </div>
@@ -849,7 +865,7 @@
 
 
 <div class="viewcode-block" id="get_sector_map">
-<a class="viewcode-back" href="../../inference/volsense_inference.html#volsense_inference.sector_mapping.get_sector_map">[docs]</a>
+<a class="viewcode-back" href="../../inference/volsense_inference.sector_mapping.html#volsense_inference.sector_mapping.get_sector_map">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_sector_map</span><span class="p">(</span><span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;v109&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return the ticker-to-sector mapping for a given model version.</span>
@@ -868,10 +884,39 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown model version: </span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
+    
+<div class="viewcode-block" id="get_ticker_type_map">
+<a class="viewcode-back" href="../../inference/volsense_inference.sector_mapping.html#volsense_inference.sector_mapping.get_ticker_type_map">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_ticker_type_map</span><span class="p">(</span><span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;v507&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Categorize each ticker into a high-level type (e.g. &#39;Equity&#39;, &#39;ETF&#39;, &#39;Crypto&#39;).</span>
+
+<span class="sd">    :param version: Sector map version to use (&#39;v109&#39; or &#39;v507&#39;).</span>
+<span class="sd">    :return: Dictionary mapping ticker → ticker_type</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sector_map</span> <span class="o">=</span> <span class="n">get_sector_map</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
+    <span class="n">ticker_type</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">sector</span> <span class="ow">in</span> <span class="n">sector_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="s2">&quot;Crypto&quot;</span> <span class="ow">in</span> <span class="n">sector</span><span class="p">:</span>
+            <span class="n">ticker_type</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;Crypto&quot;</span>
+        <span class="k">elif</span> <span class="s2">&quot;Volatility&quot;</span> <span class="ow">in</span> <span class="n">sector</span><span class="p">:</span>
+            <span class="n">ticker_type</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;Hedge&quot;</span>
+        <span class="k">elif</span> <span class="s2">&quot;Index&quot;</span> <span class="ow">in</span> <span class="n">sector</span> <span class="ow">or</span> <span class="s2">&quot;ETF&quot;</span> <span class="ow">in</span> <span class="n">sector</span><span class="p">:</span>
+            <span class="n">ticker_type</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;ETF&quot;</span>
+        <span class="k">elif</span> <span class="s2">&quot;FX&quot;</span> <span class="ow">in</span> <span class="n">sector</span><span class="p">:</span>
+            <span class="n">ticker_type</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;FX&quot;</span>
+        <span class="k">elif</span> <span class="s2">&quot;Fixed Income&quot;</span> <span class="ow">in</span> <span class="n">sector</span><span class="p">:</span>
+            <span class="n">ticker_type</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;Bond&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ticker_type</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;Equity&quot;</span>
+
+    <span class="k">return</span> <span class="n">ticker_type</span></div>
+
 
 
 <div class="viewcode-block" id="export_to_json">
-<a class="viewcode-back" href="../../inference/volsense_inference.html#volsense_inference.sector_mapping.export_to_json">[docs]</a>
+<a class="viewcode-back" href="../../inference/volsense_inference.sector_mapping.html#volsense_inference.sector_mapping.export_to_json">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">export_to_json</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s2">&quot;sector_map.json&quot;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Export available sector maps to a single JSON file.</span>
@@ -916,7 +961,7 @@
 
 
 <div class="viewcode-block" id="get_color">
-<a class="viewcode-back" href="../../inference/volsense_inference.html#volsense_inference.sector_mapping.get_color">[docs]</a>
+<a class="viewcode-back" href="../../inference/volsense_inference.sector_mapping.html#volsense_inference.sector_mapping.get_color">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_color</span><span class="p">(</span><span class="n">sector</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get a consistent hex color for a given sector label.</span>

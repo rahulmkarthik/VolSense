@@ -42,9 +42,25 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Core Modules</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../core/index.html">VolSense Core Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../inference/index.html">VolSense Inference Modules</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/index.html">VolSense Research and Application Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.html">volsense_core package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.data.html">volsense_core.data package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.models.html">volsense_core.models package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../core/volsense_core.forecaster_core.html">volsense_core.forecaster_core module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Inference Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.html">volsense_inference package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.analytics.html">volsense_inference.analytics module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.forecast_engine.html">volsense_inference.forecast_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.signal_engine.html">volsense_inference.signal_engine module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.dashboard.html">volsense_inference.dashboard module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.model_loader.html">volsense_inference.model_loader module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.predictor.html">volsense_inference.predictor module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../inference/volsense_inference.sector_mapping.html">volsense_inference.sector_mapping module</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Research &amp; Notebooks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../notebooks/modules.html">VolSense Research and Application Notebooks</a></li>
 </ul>
 
         </div>
@@ -83,7 +99,7 @@
 
 
 <div class="viewcode-block" id="save_to_cache">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.data_utils.save_to_cache">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.data_utils.html#volsense_core.data.data_utils.save_to_cache">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">save_to_cache</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Save a DataFrame to local parquet cache.</span>
@@ -102,7 +118,7 @@
 
 
 <div class="viewcode-block" id="load_from_cache">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.data_utils.load_from_cache">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.data_utils.html#volsense_core.data.data_utils.load_from_cache">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">load_from_cache</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Load a DataFrame from parquet cache if it exists.</span>
@@ -121,7 +137,7 @@
 
 
 <div class="viewcode-block" id="get_or_fetch_single">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.data_utils.get_or_fetch_single">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.data_utils.html#volsense_core.data.data_utils.get_or_fetch_single">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_or_fetch_single</span><span class="p">(</span><span class="n">ticker</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="s2">&quot;2000-01-01&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Fetch OHLCV and realized volatility for a single ticker with optional caching.</span>
@@ -156,7 +172,7 @@
 
 
 <div class="viewcode-block" id="get_or_fetch_multi">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.data_utils.get_or_fetch_multi">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.data_utils.html#volsense_core.data.data_utils.get_or_fetch_multi">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_or_fetch_multi</span><span class="p">(</span>
     <span class="n">tickers</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="s2">&quot;2000-01-01&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lookback</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="kc">True</span>
 <span class="p">):</span>
@@ -200,7 +216,7 @@
 
 
 <div class="viewcode-block" id="make_rolling_windows">
-<a class="viewcode-back" href="../../../core/volsense_core.data.html#volsense_core.data.data_utils.make_rolling_windows">[docs]</a>
+<a class="viewcode-back" href="../../../core/volsense_core.data.data_utils.html#volsense_core.data.data_utils.make_rolling_windows">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_rolling_windows</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span><span class="p">,</span> <span class="n">stride</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate rolling subwindows of a DataFrame for evaluation or backtesting.</span>

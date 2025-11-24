@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from volsense_core.data.fetch import fetch_macro_series
 
 EPS = 1e-6
 
@@ -226,8 +227,35 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     df["month_cos"] = np.cos(2 * np.pi * df["date"].dt.month / 12)
     return df
 
+# ============================================================
+# 🌍 Macro Data
+# ============================================================
 
-def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame:
+def attach_macro_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Merge macro features onto the ticker dataset and forward-fill.
+    """
+    # 1. Determine date range needed
+    start = df['date'].min().strftime('%Y-%m-%d')
+    end = df['date'].max().strftime('%Y-%m-%d')
+    
+    # 2. Fetch
+    macros = fetch_macro_series(start, end)
+    
+    # 3. Merge (Left join on date)
+    # Ensure df date is also tz-naive
+    df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
+    
+    merged = df.merge(macros, left_on='date', right_index=True, how='left')
+    
+    # 4. Fill gaps (Macro data often has different holidays than equities)
+    macro_cols = [c for c in merged.columns if c.startswith("macro_")]
+    merged[macro_cols] = merged[macro_cols].ffill().fillna(0.0)
+    
+    return merged
+
+
+def build_features(df: pd.DataFrame, include=None, exclude=None, include_macro=False) -> pd.DataFrame:
     """
     Build a full feature set with inclusion/exclusion controls.
 
@@ -236,7 +264,8 @@ def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame
       2) add_rolling_features
       3) add_market_features
       4) add_calendar_features
-      5) Filter to core columns + requested engineered features
+      5) [optional] attach_macro_features
+      6) Filter to core columns + requested engineered features
 
     :param df: Input DataFrame (raw OHLCV or long table with 'return' and 'realized_vol').
     :type df: pandas.DataFrame
@@ -275,6 +304,10 @@ def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame
         "macd_diff",
         "vol_stress",
         "skew_scaled_return",
+        "macro_Oil",
+        "macro_BTC",
+        "macro_VIX",
+        "macro_Rates",
     ]
     exclude = set(exclude or [])
 
@@ -282,6 +315,11 @@ def build_features(df: pd.DataFrame, include=None, exclude=None) -> pd.DataFrame
     df = add_rolling_features(df)
     df = add_market_features(df)
     df = add_calendar_features(df)
+
+    # --- NEW: Macro Integration ---
+    if include_macro:
+        df = attach_macro_features(df)
+        
 
     # Filter to requested engineered features + core columns
     keep = set(include) - exclude

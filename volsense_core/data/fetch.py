@@ -101,6 +101,47 @@ def fetch_ohlcv(
         return next(iter(out_dict.values())) if out_dict else pd.DataFrame()
     return out_dict
 
+# ============================================================
+# 🌍 Fetch Macro Data
+# ============================================================
+
+def fetch_macro_series(start_date="2000-01-01", end_date=None):
+    """
+    Fetch global macro proxies (Oil, Bitcoin) to act as exogenous features.
+    """
+    proxies = {
+        "Oil": "CL=F",      # Crude Oil Futures
+        "BTC": "BTC-USD",   # Bitcoin
+        "VIX": "^VIX",      # CBOE Volatility Index (Global stress proxy)
+        "Rates": "^TNX"     # 10-Year Treasury Yield
+    }
+    
+    macro_data = pd.DataFrame()
+    
+    print(f"🌍 Fetching Macro Proxies: {list(proxies.keys())}...")
+    for name, ticker in proxies.items():
+        try:
+            df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=False)
+            if not df.empty:
+                # Use Adj Close if available, else Close
+                col = "Adj Close" if "Adj Close" in df.columns else "Close"
+                
+                # Calculate simple daily return/change
+                if name == "VIX" or name == "Rates":
+                    # For levels (VIX/Rates), we care about absolute changes or just levels
+                    s = df[col] 
+                else:
+                    # For asset prices (Oil/BTC), we care about Returns
+                    s = df[col].pct_change()
+                
+                # Standardize index to timezone-naive for safe merging
+                s.index = s.index.tz_localize(None)
+                macro_data[f"macro_{name}"] = s
+        except Exception as e:
+            print(f"⚠️ Failed to fetch {name} ({ticker}): {e}")
+
+    return macro_data
+
 
 # ============================================================
 # 📈 Unified Dataset Builder

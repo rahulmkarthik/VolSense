@@ -67,6 +67,7 @@ def _coerce_to_long(df_in: pd.DataFrame) -> pd.DataFrame:
 
     raise ValueError("Input DataFrame format not recognized for SignalEngine.")
 
+
 # --- Position Classification (multi-layer) utility ---
 def classify_position(row):
     """
@@ -109,9 +110,6 @@ def classify_position(row):
     # otherwise NEUTRAL
     else:
         return "neutral"
-
-
-
 
 
 # ============================================================
@@ -320,7 +318,6 @@ class SignalEngine:
 
         term_df = pd.DataFrame(term_spreads, columns=["ticker", "term_spread_10v5"])
         df = df.merge(term_df, on="ticker", how="left")
-
 
         # --- 3. Cross-sectional ranks (strength & direction)
         df["xsec_rank"] = df.groupby("horizon")["vol_zscore"].rank(pct=True)

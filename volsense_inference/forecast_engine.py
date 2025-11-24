@@ -36,8 +36,10 @@ Notes
   renders and closes the figure to avoid duplicate captures in notebook contexts.
 
 """
+
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
 from volsense_inference.model_loader import load_model
 from volsense_inference.predictor import predict_batch, attach_realized
@@ -140,10 +142,12 @@ class Forecast:
         :return: Recent feature DataFrame used for inference.
         :rtype: pandas.DataFrame
         """
+        end_date = datetime.today().date()
+        start_date = (end_date - timedelta(days=150)).strftime("%Y-%m-%d")
         df_recent = build_dataset(
             tickers=tickers,
-            start=self.start,
-            end=None,
+            start=start_date,
+            end=end_date,
             window=self.vol_window,  # <-- use realized-vol lookback, not model window
             cache_dir=None,
             show_progress=True,

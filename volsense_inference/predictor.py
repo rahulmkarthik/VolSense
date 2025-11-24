@@ -134,7 +134,6 @@ def _forward(model, X: torch.Tensor, tid_tensor: Optional[torch.Tensor]) -> np.n
         return out.cpu().numpy().reshape(-1)
 
 
-
 # ---------------------------------------------------------------------------
 # 🎯 Core prediction logic
 # ---------------------------------------------------------------------------
@@ -204,8 +203,7 @@ def predict_single(
 
     # default to 0 if ticker not in dict
     tid_tensor = torch.tensor(
-        [ticker_to_id.get(ticker, 0)] if ticker_to_id else [0],
-        dtype=torch.long
+        [ticker_to_id.get(ticker, 0)] if ticker_to_id else [0], dtype=torch.long
     )
 
     yhat = _forward(model, X, tid_tensor)
@@ -311,7 +309,7 @@ def attach_realized(df_preds: pd.DataFrame, df_recent: pd.DataFrame) -> pd.DataF
     :return: DataFrame augmented with 'realized_vol' and derived diagnostics when available.
     :rtype: pandas.DataFrame
     """
-    
+
     if df_preds is None or not hasattr(df_preds, "columns"):
         print("⚠️ df_preds is None or not a DataFrame")
         return pd.DataFrame()

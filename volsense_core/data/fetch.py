@@ -208,3 +208,44 @@ def build_dataset(
         .reset_index(drop=True)
     )
     return dataset
+
+
+# ============================================================
+# 🗓️ Earnings Events Fetcher
+# ============================================================
+def fetch_earnings_dates(
+    tickers: List[str], start_date: str, end_date: str
+) -> pd.DataFrame:
+    import yfinance as yf
+
+    bad_tickers = []
+    events = []
+
+    for t in tqdm(tickers, desc="📅 Fetching earnings", unit="ticker"):
+        try:
+            ticker_obj = yf.Ticker(t)
+            ed = ticker_obj.earnings_dates
+
+            if ed is None or ed.empty:
+                bad_tickers.append(t)
+                continue
+
+            ed = ed.reset_index()
+            ed.columns = ["Date", "Estimate", "Reported", "Surprise_%"]
+            ed["Date"] = pd.to_datetime(ed["Date"]).dt.normalize()
+            ed["Ticker"] = t
+            events.append(ed[["Date", "Ticker"]])
+        except Exception:
+            bad_tickers.append(t)
+            continue
+
+    if not events:
+        return pd.DataFrame(columns=["date", "ticker"])
+
+    df = pd.concat(events, ignore_index=True)
+    df = df[
+        (df["Date"] >= pd.to_datetime(start_date))
+        & (df["Date"] <= pd.to_datetime(end_date))
+    ].rename(columns={"Date": "date", "Ticker": "ticker"})
+
+    return df.sort_values(["ticker", "date"]).reset_index(drop=True)

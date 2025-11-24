@@ -1,7 +1,8 @@
 import torch
 import numpy as np
 import pandas as pd
-from typing import Any, Dict, Optional, List
+from typing import Any, Optional, List
+
 
 class TorchStandardScaler:
     """
@@ -104,6 +105,8 @@ class TorchStandardScaler:
         """
         Xt = self._to_tensor(X)
         if self.mean_ is None or self.std_ is None:
-            raise RuntimeError("Scaler must be fitted before calling inverse_transform()")
+            raise RuntimeError(
+                "Scaler must be fitted before calling inverse_transform()"
+            )
         out = Xt * (self.std_ + 1e-8) + self.mean_
         return out.cpu().numpy()

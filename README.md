@@ -36,7 +36,7 @@ A modular experimentation framework supporting both classical and neural volatil
 - Regime-wise validation on calm (2013-14), spike (2020-21), and forward (2023-present) periods.  
 - Integrated evaluation layer (RMSE, MAE, correlation, Durbin–Watson, feature importance).
 
-Two flagship models — **v109** (109 tickers) and **v509** (507 tickers) — are trained and released as production-ready baselines.
+Two flagship models — **v109** (109 tickers) and **v507** (507 tickers) — are trained and released as production-ready baselines.
 
 ---
 
@@ -64,7 +64,7 @@ A portable, production-grade inference layer enabling researchers and traders to
 
 ## Data & Feature Engineering
 
-- Automated OHLCV ingestion via **Yahoo Finance** and `multi_fetch.py`.  
+- Automated OHLCV ingestion via **Yahoo Finance** and `fetch.py`.  
 - Unified feature generation with `build_features()` ensuring identical transformations for training and inference.  
 - Core features include:
   - `vol_3d`, `vol_20d`, `vol_60d`, `vol_ratio`, `vol_vol`, `vol_chg`
@@ -116,7 +116,7 @@ Launches an intuitive dashboard providing:
 - Sector heatmaps and Z-score distributions.
 - Cross-sectional signal visualization with position, regime, and horizon filters.
 - One-click CSV export for further analysis.
-- 
+ 
 ## Documentation
 
 Full technical documentation is generated via Sphinx and Napoleon, including:
@@ -126,6 +126,8 @@ Full technical documentation is generated via Sphinx and Napoleon, including:
 - Architectural diagrams and configuration examples.
 
 ## Repository Structure
+
+```
 
 VolSense/
 │
@@ -164,6 +166,8 @@ VolSense/
 ├── README.md
 ├── requirements.txt
 └── .gitignore
+
+```
 
 ## Credits & License
 

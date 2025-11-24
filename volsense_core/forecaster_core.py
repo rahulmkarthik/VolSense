@@ -12,6 +12,7 @@ evaluating VolSense forecasting backends including:
 
 - BaseLSTM (ticker-specific recurrent forecaster)
 - GlobalVolForecaster (multi-ticker shared model)
+- VolNetX (advanced LSTM + Attention + Transformer neural network forecaster)
 - ARCH-family forecasters (GARCH, EGARCH, GJR)
 
 Public API
@@ -45,6 +46,8 @@ Notes
 
 import numpy as np
 import pandas as pd
+import os
+import torch
 from pandas.tseries.offsets import BDay
 from tqdm import tqdm
 
@@ -59,8 +62,10 @@ from volsense_core.models.global_vol_forecaster import (
     predict_next_day,
     make_last_windows,
 )
+from volsense_core.models.volnetx import (VolNetXConfig, build_volnetx_dataset, train_volnetx)
 from volsense_core.models.lstm_forecaster import TrainConfig as LSTMTrainConfig
 from volsense_core.models.global_vol_forecaster import TrainConfig as GlobalTrainConfig
+from volsense_core.utils.checkpoint_utils import save_checkpoint
 
 
 __all__ = ["VolSenseForecaster"]
@@ -112,13 +117,13 @@ def make_forecast_df(preds, actuals, dates, tickers, horizons, model_name):
 # ============================================================
 class VolSenseForecaster:
     """
-    Unified forecasting API for BaseLSTM, GlobalVolForecaster, and GARCH family models.
+    Unified forecasting API for BaseLSTM, GlobalVolForecaster, VolNetX, and GARCH family models.
 
     All results are on realized (non-log) volatility scale.
     Output schema:
       ['asof_date','date','ticker','horizon','forecast_vol','realized_vol','model']
 
-    :param method: One of 'lstm', 'global_lstm', 'garch', 'egarch', 'gjr'.
+    :param method: One of 'lstm', 'global_lstm', 'garch', 'egarch', 'gjr', 'volnetx'.
     :param device: 'cpu' or 'cuda'.
     :param mode: Default prediction mode ('eval' or 'inference').
     :param kwargs: method-specific configuration (window, horizons, epochs, extra_features, etc.)
@@ -152,6 +157,7 @@ class VolSenseForecaster:
         self.global_scalers = None
         self.ticker = kwargs.get("ticker", None)
 
+
         if self.method in ["garch", "egarch", "gjr"]:
             self.model = ARCHForecaster(
                 model=self.method,
@@ -177,7 +183,7 @@ class VolSenseForecaster:
         GARCH family:
           - fits a ticker-specific ARCH/GARCH variant.
 
-        :param data: pandas.DataFrame containing required columns (date,ticker,return,realized_vol).
+        :param data: pandas.DataFrame containing required columns (date, ticker, return, realized_vol).
         :returns: self (trained forecaster)
         :rtype: VolSenseForecaster
         :raises KeyError: missing extra_features columns.
@@ -270,6 +276,67 @@ class VolSenseForecaster:
             if self.kwargs.get("global_ckpt_path"):
                 save_checkpoint(self.kwargs["global_ckpt_path"], model, t2i, scalers)
             return self
+        
+        # -------------------------------
+        # 🧠 VolNetX (Transformer-Hybrid)
+        # -------------------------------
+        if self.method == "volnetx":
+            print("🧠 Training VolNetX Hybrid Model...")
+            
+            # 1. Config
+            cfg = VolNetXConfig(
+                window=self.kwargs.get("window", 65),
+                horizons=self.kwargs.get("horizons", [1, 5, 10]),
+                input_size=self.kwargs.get("input_size", 16), # Will update after dataset build
+                hidden_dim=self.kwargs.get("hidden_dim", 160),
+                num_layers=self.kwargs.get("num_layers", 3),
+                epochs=self.kwargs.get("epochs", 20),
+                batch_size=self.kwargs.get("batch_size", 64),
+                device=self.device,
+                # Add explicit VolNetX params from kwargs if passed
+                use_transformer=self.kwargs.get("use_transformer", True),
+                use_feature_attention=self.kwargs.get("use_feature_attention", True),
+            )
+            # Store features in config for checkpointing
+            cfg.extra_features = extra_feats 
+            self.cfg = cfg
+
+            # 2. Prepare Data (Features + Loaders)
+            print("   ↳ Building VolNetX dataset...")
+            features = ["return"] + (extra_feats or [])
+            # Update input_size based on actual feature count
+            cfg.input_size = len(features)
+            
+            t2i, train_loader, val_loader, _, _ = build_volnetx_dataset(
+                data, 
+                features=features,
+                window=cfg.window,
+                horizons=cfg.horizons,
+                batch_size=cfg.batch_size,
+                device=self.device
+            )
+            self.global_ticker_to_id = t2i
+            self.global_window = cfg.window
+            # Note: VolNetX currently relies on standard scaling inside dataset or externally.
+            # If using external scalers, they should be passed/fitted here.
+            # Assuming raw features for now or pre-scaled data.
+
+            # 3. Train
+            print("Training VolNetX model...")
+            model = train_volnetx(cfg, train_loader, val_loader, n_tickers=len(t2i))
+            self.model = model
+
+            # 4. Save
+            if self.kwargs.get("global_ckpt_path"):
+                save_checkpoint(
+                    model=model, 
+                    cfg=cfg,
+                    version=os.path.basename(self.kwargs["global_ckpt_path"]), 
+                    save_dir=os.path.dirname(self.kwargs["global_ckpt_path"]),
+                    ticker_to_id=t2i, 
+                    features=features
+                )
+            return self
 
         else:
             raise ValueError(f"Unknown method: {self.method}")
@@ -283,6 +350,7 @@ class VolSenseForecaster:
 
         LSTM: returns eval-set predictions for the trained ticker on realized scale.
         Global LSTM: performs rolling realized-aligned evaluation across tickers; requires `data`.
+        VolNetX: returns rolling forecasts with realized vol alignment.
         GARCH family: returns rolling 1-day forecasts with realized vol alignment.
 
         :param data: Input DataFrame required for 'global_lstm' evaluation; ignored for 'lstm' and GARCH.
@@ -399,7 +467,7 @@ class VolSenseForecaster:
                 dates=dates_all,
                 tickers=tickers_all,
                 horizons=horizons,
-                model_name="GlobalVolForecaster",
+                model_name="GlobalVolForecaster"
             )
 
             df_out = df_out.dropna(subset=["realized_vol"]).reset_index(drop=True)
@@ -407,6 +475,11 @@ class VolSenseForecaster:
                 f"✅ GlobalVolForecaster realized-aligned evaluation complete ({len(df_out)} rows)."
             )
             return df_out
+        
+        # 3. VolNetX (Isolated Path)
+        elif self.method == "volnetx":
+            if data is None: raise ValueError("VolNetX requires input DataFrame.")
+            return self._predict_volnetx(data, model_name, horizons)
         # -------------------------------
         # GARCH Family (Ticker-specific)
         # -------------------------------
@@ -449,6 +522,114 @@ class VolSenseForecaster:
 
         else:
             raise ValueError(f"Unknown method: {self.method}")
+        
+    # ============================================================
+    # 🧪 VolNetX Specific Prediction Loop
+    # ============================================================
+    def _predict_volnetx(self, data, model_name, horizons):
+        """
+        Isolated prediction loop for VolNetX that handles specific input shapes
+        and bypasses the GlobalVolForecaster scaler logic.
+        """
+        data = data.sort_values(["ticker", "date"]).reset_index(drop=True)
+        
+        # 1. Determine features (use config)
+        features = ["return"] + (getattr(self.cfg, "extra_features", []) or [])
+        
+        # 2. Compute future realized vols for alignment
+        for h in horizons:
+            data[f"realized_shift_{h}d"] = data.groupby("ticker")["realized_vol"].shift(-h)
+
+        preds_all, actuals_all, dates_all, tickers_all = [], [], [], []
+        
+        # 3. Iterate Tickers
+        self.model.eval()
+        for ticker, df_t in tqdm(data.groupby("ticker"), desc="VolNetX Forecasts"):
+            # Filter valid windows
+            df_t = df_t.dropna(subset=["realized_vol"] + features).reset_index(drop=True)
+            
+            # Skip if unknown ticker
+            if self.global_ticker_to_id and ticker not in self.global_ticker_to_id:
+                continue
+            
+            # Ticker ID
+            tid = self.global_ticker_to_id.get(ticker, 0)
+            
+            # Vectorized Rolling Window Creation
+            # Instead of looping row-by-row (slow), we use stride_tricks or manual loop
+            # Manual loop is safer for "asof_date" alignment
+            
+            input_data = df_t[features].values.astype(np.float32)
+            dates = df_t["date"].values
+            
+            # Pre-calculate realized targets
+            realized_map = {h: df_t[f"realized_shift_{h}d"].values for h in horizons}
+            
+            start_indices = range(self.global_window, len(df_t))
+            
+            # Optimization: Batch prediction within ticker? 
+            # For simplicity in this loop, we do mini-batches or single step. 
+            # Let's do single step to match strict alignment logic, but use torch for speed.
+            
+            # Create all windows at once [N_samples, Window, Feats]
+            if len(df_t) <= self.global_window: continue
+            
+            # Sliding window view (efficient numpy)
+            shape = (len(input_data) - self.global_window, self.global_window, len(features))
+            strides = (input_data.strides[0], input_data.strides[0], input_data.strides[1])
+            windows = np.lib.stride_tricks.as_strided(input_data, shape=shape, strides=strides)
+            
+            # Convert to Tensor
+            x_batch = torch.tensor(windows, dtype=torch.float32).to(self.device) # [N, W, F]
+            t_batch = torch.full((len(windows),), tid, dtype=torch.long).to(self.device) # [N]
+            
+            # Predict Batch
+            with torch.no_grad():
+                # VolNetX Signature: (tidx, x)
+                # Ensure input shape is [B, T, F] (Standard) or [B, F, T] (Conv)?
+                # VolNetX code uses LSTM batch_first=True -> [B, T, F]
+                preds = self.model(t_batch, x_batch) # -> [N, H]
+                preds = preds.cpu().numpy()
+            
+            # Inverse Transform (VolNetX trains on log-vol)
+            preds_realized = np.exp(preds)
+            
+            # Collect Results
+            # windows[i] corresponds to prediction made at index (global_window + i - 1)
+            # predicting for (global_window + i - 1 + h)
+            
+            # We need to extract the corresponding realized values and dates
+            # The windows start at index `global_window`. 
+            # So window[0] uses data 0..window-1. The "as of date" is index `window-1`.
+            
+            valid_indices = np.arange(self.global_window - 1, len(df_t) - 1)
+            
+            current_dates = dates[valid_indices]
+            
+            # Stack realized values [N, n_horizons]
+            realized_matrix = np.stack([realized_map[h][valid_indices] for h in horizons], axis=1)
+            
+            # Filter out rows where ALL realized values are NaN (end of series)
+            # (Optional, but keeps eval clean)
+            mask = ~np.all(np.isnan(realized_matrix), axis=1)
+            
+            if np.sum(mask) > 0:
+                preds_all.append(preds_realized[mask])
+                actuals_all.append(realized_matrix[mask])
+                dates_all.append(current_dates[mask])
+                tickers_all.append(np.full(np.sum(mask), ticker))
+
+        if not preds_all: return pd.DataFrame()
+        
+        # Flatten lists of arrays
+        preds_flat = np.concatenate(preds_all)
+        actuals_flat = np.concatenate(actuals_all)
+        dates_flat = np.concatenate(dates_all)
+        tickers_flat = np.concatenate(tickers_all)
+        
+        return make_forecast_df(
+            preds_flat, actuals_flat, dates_flat, tickers_flat, horizons, model_name
+        ).dropna().reset_index(drop=True)
 
     # ============================================================
     # 💾 Unified Checkpoint Saving (BaseLSTM + GlobalVolForecaster)

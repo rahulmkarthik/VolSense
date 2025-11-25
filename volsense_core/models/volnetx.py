@@ -217,47 +217,38 @@ def build_volnetx_dataset(
     df: pd.DataFrame,
     features: List[str],
     target_col: str = "realized_vol_log",
-    config: VolNetXConfig = None, # Pass full config for flexibility
+    config: VolNetXConfig = None,  # <--- 🆕 Add config argument
 ) -> Tuple[Dict[str, int], DataLoader, DataLoader, TensorDataset, TensorDataset]:
     
-    # Default params if config missing
+    # Setup defaults using config if available
     window = config.window if config else 65
     horizons = config.horizons if config else [1, 5, 10]
     batch_size = config.batch_size if config else 64
-    device = config.device if config else "cpu"
     
     df = df.sort_values(["ticker", "date"]).copy()
     tickers = df["ticker"].unique().tolist()
     ticker_to_id = {t: i for i, t in enumerate(tickers)}
     df["tidx"] = df["ticker"].map(ticker_to_id)
 
-    # --- Validation Split Logic ---
+    # --- 🆕 VALIDATION SPLIT LOGIC ---
     val_mask = pd.Series(False, index=df.index)
-    
-    if config.val_mode == "causal":
-        # Standard forward validation
+    if config and config.val_mode == "causal":
         if config.val_start:
             val_mask = df["date"] >= pd.to_datetime(config.val_start)
         else:
-            # Default to last 20% by date if no start date provided
+            # Default to last 20%
             dates = df["date"].sort_values().unique()
             split_idx = int(len(dates) * 0.8)
-            split_date = dates[split_idx]
-            val_mask = df["date"] >= split_date
+            val_mask = df["date"] >= dates[split_idx]
             
-    elif config.val_mode == "holdout_slice":
-        # Specific regime validation (e.g., COVID)
-        if not config.val_start or not config.val_end:
-            raise ValueError("holdout_slice mode requires val_start and val_end dates.")
-        
-        start_dt = pd.to_datetime(config.val_start)
-        end_dt = pd.to_datetime(config.val_end)
-        val_mask = (df["date"] >= start_dt) & (df["date"] <= end_dt)
+    elif config and config.val_mode == "holdout_slice":
+        if config.val_start and config.val_end:
+            start_dt = pd.to_datetime(config.val_start)
+            end_dt = pd.to_datetime(config.val_end)
+            val_mask = (df["date"] >= start_dt) & (df["date"] <= end_dt)
 
-    # Assign split labels to dataframe rows
-    # 0 = train, 1 = val
-    df["split"] = val_mask.astype(int) 
-
+    df["split"] = val_mask.astype(int)  # 0=Train, 1=Val
+    # ---------------------------------
     # --- Tensor Building ---
     train_X, train_Y, train_T = [], [], []
     val_X, val_Y, val_T = [], [], []
@@ -294,7 +285,7 @@ def build_volnetx_dataset(
         # Validation Assignment
         # We assign a window to Validation if the TARGET date falls in the val set
         # (This prevents leakage where training windows overlap val period)
-        target_indices = valid_indices + horizons[0] - 1 # Align with nearest horizon
+        target_indices = valid_indices + horizons[0] - 1
         is_val = split_arr[target_indices] == 1
         
         # Append to Train buffers
@@ -312,10 +303,16 @@ def build_volnetx_dataset(
     # Helper to stack and transpose
     def to_tensor_dataset(X_list, Y_list, T_list):
         if not X_list: return None
-        X = torch.tensor(np.concatenate(X_list))
-        # Fix shape: [B, F, T] -> [B, T, F] if needed (sliding_window_view returns [B, T, F] natively)
-        # VolNetX expects [B, T, F], so check input_size
         
+        # 1. Concatenate list of arrays
+        X = torch.tensor(np.concatenate(X_list)) # Shape: [N, Features, Window]
+        
+        # 2. 🛠️ CRITICAL FIX: Transpose to [N, Window, Features]
+        # numpy.sliding_window_view on axis=0 puts the window dim last.
+        # We permute (0, 2, 1) to swap dims 1 and 2.
+        if X.ndim == 3 and X.shape[2] == window:
+             X = X.permute(0, 2, 1) 
+             
         Y = torch.tensor(np.concatenate(Y_list))
         T = torch.tensor(np.concatenate(T_list), dtype=torch.long)
         return TensorDataset(X, T, Y)

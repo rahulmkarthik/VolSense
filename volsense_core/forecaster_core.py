@@ -287,42 +287,43 @@ class VolSenseForecaster:
             cfg = VolNetXConfig(
                 window=self.kwargs.get("window", 65),
                 horizons=self.kwargs.get("horizons", [1, 5, 10]),
-                input_size=self.kwargs.get("input_size", 16), # Will update after dataset build
+                input_size=self.kwargs.get("input_size", 16), 
                 hidden_dim=self.kwargs.get("hidden_dim", 160),
                 num_layers=self.kwargs.get("num_layers", 3),
                 epochs=self.kwargs.get("epochs", 20),
                 batch_size=self.kwargs.get("batch_size", 64),
                 device=self.device,
-                # Add explicit VolNetX params from kwargs if passed
                 use_transformer=self.kwargs.get("use_transformer", True),
                 use_feature_attention=self.kwargs.get("use_feature_attention", True),
+                
+                # --- NEW: Advanced Validation Params ---
+                val_mode=self.kwargs.get("val_mode", "causal"),
+                val_start=self.kwargs.get("val_start", None),
+                val_end=self.kwargs.get("val_end", None),
+                loss_horizon_weights=self.kwargs.get("loss_horizon_weights", (0.55, 0.25, 0.20))
             )
-            # Store features in config for checkpointing
             cfg.extra_features = extra_feats 
             self.cfg = cfg
 
-            # 2. Prepare Data (Features + Loaders)
-            print("   ↳ Building VolNetX dataset...")
+            # 2. Prepare Data
+            print(f"   ↳ Building VolNetX dataset ({cfg.val_mode} mode)...")
             features = ["return"] + (extra_feats or [])
-            # Update input_size based on actual feature count
             cfg.input_size = len(features)
             
+            # Pass the full config object now
             t2i, train_loader, val_loader, _, _ = build_volnetx_dataset(
                 data, 
                 features=features,
-                window=cfg.window,
-                horizons=cfg.horizons,
-                batch_size=cfg.batch_size,
-                device=self.device
+                target_col="realized_vol_log",
+                config=cfg  # <--- Pass Config object
             )
+            
             self.global_ticker_to_id = t2i
             self.global_window = cfg.window
-            # Note: VolNetX currently relies on standard scaling inside dataset or externally.
-            # If using external scalers, they should be passed/fitted here.
-            # Assuming raw features for now or pre-scaled data.
+            self.global_scalers = {} 
 
             # 3. Train
-            print("Training VolNetX model...")
+            print("   ↳ Starting training loop...")
             model = train_volnetx(cfg, train_loader, val_loader, n_tickers=len(t2i))
             self.model = model
 

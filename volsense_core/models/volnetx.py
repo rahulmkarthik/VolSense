@@ -34,6 +34,9 @@ class VolNetXConfig:
     lr: float = 1e-3
     batch_size: int = 64
     epochs: int = 20
+    val_mode: str = "causal" # 'causal' or 'holdout_slice'
+    val_start: str = None
+    val_end: str = None
 
 
 # --------------------------------------------------------------------
@@ -214,66 +217,115 @@ def build_volnetx_dataset(
     df: pd.DataFrame,
     features: List[str],
     target_col: str = "realized_vol_log",
-    window: int = 65,
-    horizons: List[int] = [1, 5, 10],
-    batch_size: int = 64,
-    split_ratio: float = 0.8,
-    device: str = "cpu"
+    config: VolNetXConfig = None, # Pass full config for flexibility
 ) -> Tuple[Dict[str, int], DataLoader, DataLoader, TensorDataset, TensorDataset]:
-    """
-    Build VolNetX-compatible rolling window dataset with ticker ID mapping and torch DataLoaders.
-
-    Returns:
-        ticker_to_id: Mapping from ticker to integer ID
-        train_loader, val_loader: DataLoaders for training and validation
-        train_ds, val_ds: Underlying torch datasets
-    """
+    
+    # Default params if config missing
+    window = config.window if config else 65
+    horizons = config.horizons if config else [1, 5, 10]
+    batch_size = config.batch_size if config else 64
+    device = config.device if config else "cpu"
+    
     df = df.sort_values(["ticker", "date"]).copy()
     tickers = df["ticker"].unique().tolist()
     ticker_to_id = {t: i for i, t in enumerate(tickers)}
     df["tidx"] = df["ticker"].map(ticker_to_id)
 
-    X_buffer, Y_buffer, T_buffer = [], [], []
+    # --- Validation Split Logic ---
+    val_mask = pd.Series(False, index=df.index)
+    
+    if config.val_mode == "causal":
+        # Standard forward validation
+        if config.val_start:
+            val_mask = df["date"] >= pd.to_datetime(config.val_start)
+        else:
+            # Default to last 20% by date if no start date provided
+            dates = df["date"].sort_values().unique()
+            split_idx = int(len(dates) * 0.8)
+            split_date = dates[split_idx]
+            val_mask = df["date"] >= split_date
+            
+    elif config.val_mode == "holdout_slice":
+        # Specific regime validation (e.g., COVID)
+        if not config.val_start or not config.val_end:
+            raise ValueError("holdout_slice mode requires val_start and val_end dates.")
+        
+        start_dt = pd.to_datetime(config.val_start)
+        end_dt = pd.to_datetime(config.val_end)
+        val_mask = (df["date"] >= start_dt) & (df["date"] <= end_dt)
+
+    # Assign split labels to dataframe rows
+    # 0 = train, 1 = val
+    df["split"] = val_mask.astype(int) 
+
+    # --- Tensor Building ---
+    train_X, train_Y, train_T = [], [], []
+    val_X, val_Y, val_T = [], [], []
 
     for t in tickers:
         g = df[df["ticker"] == t].reset_index(drop=True)
         if len(g) < window + max(horizons):
             continue
 
-        X = g[features].values.astype(np.float32)
-        y = g[target_col].values.astype(np.float32)
-        idx = np.arange(window + max(horizons), len(g))
+        # Pre-compute arrays
+        X_arr = g[features].values.astype(np.float32)
+        y_arr = g[target_col].values.astype(np.float32)
+        split_arr = g["split"].values
+        
+        # Valid indices where a window of length `window` ends
+        # AND targets exist for all horizons
+        max_h = max(horizons)
+        valid_indices = np.arange(window, len(g) - max_h)
+        
+        if len(valid_indices) == 0: continue
 
-        # ✅ Correct sliding window shape: [n, window, features]
-        X_rolled = np.lib.stride_tricks.sliding_window_view(X, window, axis=0)
-        X_rolled = X_rolled[idx - window]
+        # Create rolling windows (memory efficient view)
+        # shape: (num_windows, window, features)
+        X_windows = np.lib.stride_tricks.sliding_window_view(X_arr, window, axis=0)
+        # Slice to valid range
+        X_windows = X_windows[valid_indices - window] # Adjust index to match view
+        
+        # Targets
+        y_targets = np.stack([y_arr[valid_indices + h - 1] for h in horizons], axis=1)
+        
+        # Ticker ID
+        t_ids = np.full(len(valid_indices), ticker_to_id[t], dtype=np.int64)
+        
+        # Validation Assignment
+        # We assign a window to Validation if the TARGET date falls in the val set
+        # (This prevents leakage where training windows overlap val period)
+        target_indices = valid_indices + horizons[0] - 1 # Align with nearest horizon
+        is_val = split_arr[target_indices] == 1
+        
+        # Append to Train buffers
+        if np.sum(~is_val) > 0:
+            train_X.append(X_windows[~is_val])
+            train_Y.append(y_targets[~is_val])
+            train_T.append(t_ids[~is_val])
+            
+        # Append to Val buffers
+        if np.sum(is_val) > 0:
+            val_X.append(X_windows[is_val])
+            val_Y.append(y_targets[is_val])
+            val_T.append(t_ids[is_val])
 
+    # Helper to stack and transpose
+    def to_tensor_dataset(X_list, Y_list, T_list):
+        if not X_list: return None
+        X = torch.tensor(np.concatenate(X_list))
+        # Fix shape: [B, F, T] -> [B, T, F] if needed (sliding_window_view returns [B, T, F] natively)
+        # VolNetX expects [B, T, F], so check input_size
+        
+        Y = torch.tensor(np.concatenate(Y_list))
+        T = torch.tensor(np.concatenate(T_list), dtype=torch.long)
+        return TensorDataset(X, T, Y)
 
-        y_targets = np.stack([y[idx - h] for h in horizons], axis=1)
-        t_id = np.full(len(idx), ticker_to_id[t], dtype=np.int64)
+    train_ds = to_tensor_dataset(train_X, train_Y, train_T)
+    val_ds = to_tensor_dataset(val_X, val_Y, val_T)
+    
+    if not train_ds or not val_ds:
+        raise ValueError(f"Split resulted in empty dataset. Check date ranges. (Train: {len(train_X)}, Val: {len(val_X)})")
 
-        X_buffer.append(X_rolled)
-        Y_buffer.append(y_targets)
-        T_buffer.append(t_id)
-
-    X_tensor = torch.tensor(np.concatenate(X_buffer))
-
-    # 🛠️ Fix the shape: convert [B, F, T] → [B, T, F]
-    if X_tensor.shape[1] == len(features) and X_tensor.shape[2] == window:
-        X_tensor = X_tensor.transpose(1, 2)
-
-    y_tensor = torch.tensor(np.concatenate(Y_buffer))
-    tidx_tensor = torch.tensor(np.concatenate(T_buffer), dtype=torch.long)
-
-    # ✅ Guarantee tidx is 1D
-    if tidx_tensor.ndim > 1:
-        tidx_tensor = tidx_tensor.view(-1)
-
-    # Train/Val Split
-    n = len(X_tensor)
-    split = int(n * split_ratio)
-    train_ds = TensorDataset(X_tensor[:split], tidx_tensor[:split], y_tensor[:split])
-    val_ds = TensorDataset(X_tensor[split:], tidx_tensor[split:], y_tensor[split:])
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size)
 

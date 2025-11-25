@@ -298,7 +298,8 @@ class VolSenseForecaster:
                 val_mode=self.kwargs.get("val_mode", "causal"),
                 val_start=self.kwargs.get("val_start", None),
                 val_end=self.kwargs.get("val_end", None),
-                loss_horizon_weights=self.kwargs.get("loss_horizon_weights", (0.55, 0.25, 0.20))
+                loss_horizon_weights=self.kwargs.get("loss_horizon_weights", (0.55, 0.25, 0.20)),
+                cosine_schedule=self.kwargs.get("cosine_schedule", False)
             )
             cfg.extra_features = extra_feats 
             self.cfg = cfg

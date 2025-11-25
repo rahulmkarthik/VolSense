@@ -33,6 +33,7 @@ class VolNetXConfig:
     early_stop: bool = True
     patience: int = 5
     lr: float = 1e-3
+    cosine_schedule: bool = False
     batch_size: int = 64
     epochs: int = 20
     val_mode: str = "causal" # 'causal' or 'holdout_slice'
@@ -167,8 +168,20 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
     ).to(config.device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
-    loss_fn = nn.MSELoss()
 
+    # -----------------------------------------------------------
+    # 🚀 NEW: Cosine Annealing Scheduler
+    # -----------------------------------------------------------
+    scheduler = None
+    if getattr(config, "cosine_schedule", False):
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, 
+            T_max=config.epochs, 
+            eta_min=1e-6
+        )
+    # -----------------------------------------------------------
+
+    loss_fn = nn.MSELoss()
     best_val_loss = float("inf")
     patience_counter = 0
 
@@ -184,6 +197,13 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
             optimizer.step()
             train_losses.append(loss.item())
 
+        # 🚀 STEP SCHEDULER (After optimization steps)
+        if scheduler is not None:
+            scheduler.step()
+            current_lr = scheduler.get_last_lr()[0]
+        else:
+            current_lr = config.lr
+
         model.eval()
         val_losses = []
         with torch.no_grad():
@@ -195,7 +215,7 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
 
         train_loss = np.mean(train_losses)
         val_loss = np.mean(val_losses)
-        print(f"Epoch {epoch+1}/{config.epochs} - Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+        print(f"Epoch {epoch+1}/{config.epochs} | LR: {current_lr:.2e} | Train: {train_loss:.5f} | Val: {val_loss:.5f}")
 
         if config.early_stop:
             if val_loss < best_val_loss:

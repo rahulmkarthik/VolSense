@@ -6,7 +6,8 @@ from typing import List
 import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader, TensorDataset
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
+from volsense_core.utils.scalers import TorchStandardScaler
 
 
 # --------------------------------------------------------------------
@@ -210,17 +211,17 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
 
         
 # --------------------------------------------------------------------
-# 🛠️ Dataset Preparation
+# 🛠️ Dataset Preparation (With Internal Scaling)
 # --------------------------------------------------------------------
-
 def build_volnetx_dataset(
     df: pd.DataFrame,
     features: List[str],
     target_col: str = "realized_vol_log",
-    config: VolNetXConfig = None,  # <--- 🆕 Add config argument
-) -> Tuple[Dict[str, int], DataLoader, DataLoader, TensorDataset, TensorDataset]:
+    config: VolNetXConfig = None,
+    scaler: Optional[TorchStandardScaler] = None, # <--- NEW ARG
+) -> Tuple[Dict[str, int], DataLoader, DataLoader, TensorDataset, TensorDataset, TorchStandardScaler]: # <--- UPDATED RETURN
     
-    # Setup defaults using config if available
+    # Setup defaults
     window = config.window if config else 65
     horizons = config.horizons if config else [1, 5, 10]
     batch_size = config.batch_size if config else 64
@@ -230,26 +231,36 @@ def build_volnetx_dataset(
     ticker_to_id = {t: i for i, t in enumerate(tickers)}
     df["tidx"] = df["ticker"].map(ticker_to_id)
 
-    # --- 🆕 VALIDATION SPLIT LOGIC ---
+    # --- Validation Split Logic ---
     val_mask = pd.Series(False, index=df.index)
     if config and config.val_mode == "causal":
         if config.val_start:
             val_mask = df["date"] >= pd.to_datetime(config.val_start)
         else:
-            # Default to last 20%
             dates = df["date"].sort_values().unique()
             split_idx = int(len(dates) * 0.8)
             val_mask = df["date"] >= dates[split_idx]
-            
     elif config and config.val_mode == "holdout_slice":
         if config.val_start and config.val_end:
             start_dt = pd.to_datetime(config.val_start)
             end_dt = pd.to_datetime(config.val_end)
             val_mask = (df["date"] >= start_dt) & (df["date"] <= end_dt)
 
-    df["split"] = val_mask.astype(int)  # 0=Train, 1=Val
-    # ---------------------------------
-    # --- Tensor Building ---
+    df["split"] = val_mask.astype(int)
+
+    # --- 🚀 NEW: Internal Scaling Logic ---
+    if scaler is None:
+        print("   ⚖️ Fitting new global scaler (Train split only)...")
+        scaler = TorchStandardScaler()
+        # Fit only on Training data (split == 0) to prevent leakage
+        train_subset = df[df["split"] == 0][features]
+        scaler.fit(train_subset)
+    
+    # Apply transform to the entire dataframe in-place
+    # (TorchStandardScaler returns numpy array, safe to assign back)
+    df[features] = scaler.transform(df[features])
+    # ---------------------------------------
+
     train_X, train_Y, train_T = [], [], []
     val_X, val_Y, val_T = [], [], []
 
@@ -258,61 +269,38 @@ def build_volnetx_dataset(
         if len(g) < window + max(horizons):
             continue
 
-        # Pre-compute arrays
         X_arr = g[features].values.astype(np.float32)
         y_arr = g[target_col].values.astype(np.float32)
         split_arr = g["split"].values
         
-        # Valid indices where a window of length `window` ends
-        # AND targets exist for all horizons
         max_h = max(horizons)
         valid_indices = np.arange(window, len(g) - max_h)
-        
         if len(valid_indices) == 0: continue
 
-        # Create rolling windows (memory efficient view)
-        # shape: (num_windows, window, features)
         X_windows = np.lib.stride_tricks.sliding_window_view(X_arr, window, axis=0)
-        # Slice to valid range
-        X_windows = X_windows[valid_indices - window] # Adjust index to match view
+        X_windows = X_windows[valid_indices - window] 
         
-        # Targets
         y_targets = np.stack([y_arr[valid_indices + h - 1] for h in horizons], axis=1)
-        
-        # Ticker ID
         t_ids = np.full(len(valid_indices), ticker_to_id[t], dtype=np.int64)
         
-        # Validation Assignment
-        # We assign a window to Validation if the TARGET date falls in the val set
-        # (This prevents leakage where training windows overlap val period)
         target_indices = valid_indices + horizons[0] - 1
         is_val = split_arr[target_indices] == 1
         
-        # Append to Train buffers
         if np.sum(~is_val) > 0:
             train_X.append(X_windows[~is_val])
             train_Y.append(y_targets[~is_val])
             train_T.append(t_ids[~is_val])
-            
-        # Append to Val buffers
         if np.sum(is_val) > 0:
             val_X.append(X_windows[is_val])
             val_Y.append(y_targets[is_val])
             val_T.append(t_ids[is_val])
 
-    # Helper to stack and transpose
     def to_tensor_dataset(X_list, Y_list, T_list):
         if not X_list: return None
-        
-        # 1. Concatenate list of arrays
-        X = torch.tensor(np.concatenate(X_list)) # Shape: [N, Features, Window]
-        
-        # 2. 🛠️ CRITICAL FIX: Transpose to [N, Window, Features]
-        # numpy.sliding_window_view on axis=0 puts the window dim last.
-        # We permute (0, 2, 1) to swap dims 1 and 2.
+        X = torch.tensor(np.concatenate(X_list))
+        # Transpose [B, F, T] -> [B, T, F]
         if X.ndim == 3 and X.shape[2] == window:
-             X = X.permute(0, 2, 1) 
-             
+             X = X.permute(0, 2, 1)
         Y = torch.tensor(np.concatenate(Y_list))
         T = torch.tensor(np.concatenate(T_list), dtype=torch.long)
         return TensorDataset(X, T, Y)
@@ -320,13 +308,11 @@ def build_volnetx_dataset(
     train_ds = to_tensor_dataset(train_X, train_Y, train_T)
     val_ds = to_tensor_dataset(val_X, val_Y, val_T)
     
-    if not train_ds or not val_ds:
-        raise ValueError(f"Split resulted in empty dataset. Check date ranges. (Train: {len(train_X)}, Val: {len(val_X)})")
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True) if train_ds else None
+    val_loader = DataLoader(val_ds, batch_size=batch_size) if val_ds else None
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=batch_size)
-
-    return ticker_to_id, train_loader, val_loader, train_ds, val_ds
+    # Return scaler as the last element
+    return ticker_to_id, train_loader, val_loader, train_ds, val_ds, scaler
 
 
 # --------------------------------------------------------------------

@@ -276,18 +276,18 @@ class VolSenseForecaster:
             if self.kwargs.get("global_ckpt_path"):
                 save_checkpoint(self.kwargs["global_ckpt_path"], model, t2i, scalers)
             return self
-        
+
         # -------------------------------
         # 🧠 VolNetX (Transformer-Hybrid)
         # -------------------------------
-        if self.method == "volnetx":
+        elif self.method == "volnetx":
             print("🧠 Training VolNetX Hybrid Model...")
             
             # 1. Config
             cfg = VolNetXConfig(
                 window=self.kwargs.get("window", 65),
                 horizons=self.kwargs.get("horizons", [1, 5, 10]),
-                input_size=self.kwargs.get("input_size", 16), 
+                input_size=self.kwargs.get("input_size", 16),
                 hidden_dim=self.kwargs.get("hidden_dim", 160),
                 num_layers=self.kwargs.get("num_layers", 3),
                 epochs=self.kwargs.get("epochs", 20),
@@ -295,8 +295,6 @@ class VolSenseForecaster:
                 device=self.device,
                 use_transformer=self.kwargs.get("use_transformer", True),
                 use_feature_attention=self.kwargs.get("use_feature_attention", True),
-                
-                # --- NEW: Advanced Validation Params ---
                 val_mode=self.kwargs.get("val_mode", "causal"),
                 val_start=self.kwargs.get("val_start", None),
                 val_end=self.kwargs.get("val_end", None),
@@ -310,17 +308,20 @@ class VolSenseForecaster:
             features = ["return"] + (extra_feats or [])
             cfg.input_size = len(features)
             
-            # Pass the full config object now
-            t2i, train_loader, val_loader, _, _ = build_volnetx_dataset(
+            # 🚀 UPDATED: unpack the scaler returned by build_volnetx_dataset
+            t2i, train_loader, val_loader, _, _, scaler = build_volnetx_dataset(
                 data, 
                 features=features,
                 target_col="realized_vol_log",
-                config=cfg  # <--- Pass Config object
+                config=cfg
             )
             
             self.global_ticker_to_id = t2i
             self.global_window = cfg.window
-            self.global_scalers = {} 
+            
+            # 🚀 Broadcast the global scaler to all tickers for compatibility with save()
+            # Since VolNetX uses one global scaler, we map every ticker to the same instance.
+            self.global_scalers = {t: scaler for t in t2i.keys()}
 
             # 3. Train
             print("   ↳ Starting training loop...")
@@ -329,13 +330,10 @@ class VolSenseForecaster:
 
             # 4. Save
             if self.kwargs.get("global_ckpt_path"):
-                save_checkpoint(
-                    model=model, 
-                    cfg=cfg,
-                    version=os.path.basename(self.kwargs["global_ckpt_path"]), 
+                 self.save(
                     save_dir=os.path.dirname(self.kwargs["global_ckpt_path"]),
-                    ticker_to_id=t2i, 
-                    features=features
+                    version=os.path.basename(self.kwargs["global_ckpt_path"]),
+                    device=self.device
                 )
             return self
 
@@ -529,91 +527,64 @@ class VolSenseForecaster:
     # ============================================================
     def _predict_volnetx(self, data, model_name, horizons):
         """
-        Isolated prediction loop for VolNetX that handles specific input shapes
-        and bypasses the GlobalVolForecaster scaler logic.
+        Isolated prediction loop for VolNetX.
+        Handles scaling internally using the stored global scaler.
         """
         data = data.sort_values(["ticker", "date"]).reset_index(drop=True)
-        
-        # 1. Determine features (use config)
         features = ["return"] + (getattr(self.cfg, "extra_features", []) or [])
         
-        # 2. Compute future realized vols for alignment
+        # Compute targets
         for h in horizons:
             data[f"realized_shift_{h}d"] = data.groupby("ticker")["realized_vol"].shift(-h)
 
         preds_all, actuals_all, dates_all, tickers_all = [], [], [], []
-        
-        # 3. Iterate Tickers
         self.model.eval()
+        
+        # 🚀 Grab the global scaler (any instance since they are identical)
+        if not self.global_scalers:
+            raise RuntimeError("Model has no scalers. Was it trained correctly?")
+        
+        # We just take the first available scaler since it's global
+        global_scaler = next(iter(self.global_scalers.values()))
+
         for ticker, df_t in tqdm(data.groupby("ticker"), desc="VolNetX Forecasts"):
-            # Filter valid windows
             df_t = df_t.dropna(subset=["realized_vol"] + features).reset_index(drop=True)
             
-            # Skip if unknown ticker
             if self.global_ticker_to_id and ticker not in self.global_ticker_to_id:
                 continue
             
-            # Ticker ID
             tid = self.global_ticker_to_id.get(ticker, 0)
             
-            # Vectorized Rolling Window Creation
-            # Instead of looping row-by-row (slow), we use stride_tricks or manual loop
-            # Manual loop is safer for "asof_date" alignment
+            # 🚀 APPLY SCALING
+            # transform() returns numpy array, so we can use it directly
+            input_data = global_scaler.transform(df_t[features])
+            # Ensure float32
+            input_data = input_data.astype(np.float32)
             
-            input_data = df_t[features].values.astype(np.float32)
             dates = df_t["date"].values
-            
-            # Pre-calculate realized targets
             realized_map = {h: df_t[f"realized_shift_{h}d"].values for h in horizons}
             
-            start_indices = range(self.global_window, len(df_t))
-            
-            # Optimization: Batch prediction within ticker? 
-            # For simplicity in this loop, we do mini-batches or single step. 
-            # Let's do single step to match strict alignment logic, but use torch for speed.
-            
-            # Create all windows at once [N_samples, Window, Feats]
             if len(df_t) <= self.global_window: continue
             
-            # Sliding window view (efficient numpy)
+            # Vectorized Sliding Window
             shape = (len(input_data) - self.global_window, self.global_window, len(features))
             strides = (input_data.strides[0], input_data.strides[0], input_data.strides[1])
             windows = np.lib.stride_tricks.as_strided(input_data, shape=shape, strides=strides)
             
-            # Convert to Tensor
-            x_batch = torch.tensor(windows, dtype=torch.float32).to(self.device) # [N, W, F]
-            t_batch = torch.full((len(windows),), tid, dtype=torch.long).to(self.device) # [N]
+            x_batch = torch.tensor(windows, dtype=torch.float32).to(self.device) 
+            t_batch = torch.full((len(windows),), tid, dtype=torch.long).to(self.device) 
             
-            # Predict Batch
             with torch.no_grad():
-                # VolNetX Signature: (tidx, x)
-                # Ensure input shape is [B, T, F] (Standard) or [B, F, T] (Conv)?
-                # VolNetX code uses LSTM batch_first=True -> [B, T, F]
-                preds = self.model(t_batch, x_batch) # -> [N, H]
-                preds = preds.cpu().numpy()
+                preds = self.model(t_batch, x_batch).cpu().numpy()
             
-            # Inverse Transform (VolNetX trains on log-vol)
             preds_realized = np.exp(preds)
             
-            # Collect Results
-            # windows[i] corresponds to prediction made at index (global_window + i - 1)
-            # predicting for (global_window + i - 1 + h)
-            
-            # We need to extract the corresponding realized values and dates
-            # The windows start at index `global_window`. 
-            # So window[0] uses data 0..window-1. The "as of date" is index `window-1`.
-            
+            # Alignment Logic
             valid_indices = np.arange(self.global_window - 1, len(df_t) - 1)
-            
             current_dates = dates[valid_indices]
-            
-            # Stack realized values [N, n_horizons]
             realized_matrix = np.stack([realized_map[h][valid_indices] for h in horizons], axis=1)
             
-            # Filter out rows where ALL realized values are NaN (end of series)
-            # (Optional, but keeps eval clean)
             mask = ~np.all(np.isnan(realized_matrix), axis=1)
-            
             if np.sum(mask) > 0:
                 preds_all.append(preds_realized[mask])
                 actuals_all.append(realized_matrix[mask])
@@ -622,14 +593,12 @@ class VolSenseForecaster:
 
         if not preds_all: return pd.DataFrame()
         
-        # Flatten lists of arrays
-        preds_flat = np.concatenate(preds_all)
-        actuals_flat = np.concatenate(actuals_all)
-        dates_flat = np.concatenate(dates_all)
-        tickers_flat = np.concatenate(tickers_all)
-        
         return make_forecast_df(
-            preds_flat, actuals_flat, dates_flat, tickers_flat, horizons, model_name
+            np.concatenate(preds_all), 
+            np.concatenate(actuals_all), 
+            np.concatenate(dates_all), 
+            np.concatenate(tickers_all), 
+            horizons, model_name
         ).dropna().reset_index(drop=True)
 
     # ============================================================

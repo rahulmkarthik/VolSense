@@ -167,7 +167,7 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
         use_layernorm=config.use_layernorm
     ).to(config.device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=5e-5)
 
     # -----------------------------------------------------------
     # 🚀 NEW: Cosine Annealing Scheduler
@@ -192,8 +192,18 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
             x, tidx, y = x.to(config.device), tidx.to(config.device), y.to(config.device)
             optimizer.zero_grad()
             preds = model(tidx, x)
-            loss = sum(w * loss_fn(preds[:, i], y[:, i]) for i, w in enumerate(config.loss_horizon_weights))
+            # 🚀 UPGRADE 2: Weighted Loss (Focus on High Vol)
+            # We weight the loss by the target magnitude to punish errors on spikes
+            loss = 0
+            for i, w in enumerate(config.loss_horizon_weights):
+                mse = (preds[:, i] - y[:, i]) ** 2
+                # Simple weighting: if log_vol > -1.0 (approx 36% vol), double the penalty
+                weight = 1.0 + (y[:, i] > -1.0).float() * 1.5 
+                loss += w * (weight * mse).mean()
             loss.backward()
+            # 🚀 UPGRADE 3: Gradient Clipping (The Stability Fix)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             optimizer.step()
             train_losses.append(loss.item())
 

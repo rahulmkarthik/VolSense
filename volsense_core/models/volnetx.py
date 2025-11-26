@@ -34,6 +34,8 @@ class VolNetXConfig:
     patience: int = 5
     lr: float = 1e-3
     cosine_schedule: bool = False
+    grad_clip: float = 1.0       # Gradient clipping threshold
+    weight_decay: float = 1e-4   # AdamW regularization strength
     batch_size: int = 64
     epochs: int = 20
     val_mode: str = "causal" # 'causal' or 'holdout_slice'
@@ -167,7 +169,7 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
         use_layernorm=config.use_layernorm
     ).to(config.device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=5e-5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
     # -----------------------------------------------------------
     # 🚀 NEW: Cosine Annealing Scheduler
@@ -201,8 +203,9 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
                 weight = 1.0 + (y[:, i] > -1.0).float() * 1.5 
                 loss += w * (weight * mse).mean()
             loss.backward()
-            # 🚀 UPGRADE 3: Gradient Clipping (The Stability Fix)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # 🚀 Use Config for Gradient Clipping
+            if config.grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.grad_clip)
             
             optimizer.step()
             train_losses.append(loss.item())

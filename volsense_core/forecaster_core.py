@@ -302,6 +302,8 @@ class VolSenseForecaster:
                 cosine_schedule=self.kwargs.get("cosine_schedule", False),
                 grad_clip=self.kwargs.get("grad_clip", 1.0),
                 weight_decay=self.kwargs.get("weight_decay", 1e-4),
+                patience=self.kwargs.get("patience", 5),
+                early_stop=self.kwargs.get("early_stop", True),
             )
             cfg.extra_features = extra_feats 
             self.cfg = cfg

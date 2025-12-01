@@ -291,6 +291,7 @@ class VolSenseForecaster:
                 hidden_dim=self.kwargs.get("hidden_dim", 160),
                 num_layers=self.kwargs.get("num_layers", 2),
                 dropout=self.kwargs.get("dropout", 0.2),
+                lr=self.kwargs.get("lr", 5e-4),
                 epochs=self.kwargs.get("epochs", 20),
                 batch_size=self.kwargs.get("batch_size", 64),
                 device=self.device,

@@ -41,6 +41,7 @@ class VolNetXConfig:
     val_mode: str = "causal" # 'causal' or 'holdout_slice'
     val_start: str = None
     val_end: str = None
+    extra_features: List[str] = None
 
 
 # --------------------------------------------------------------------
@@ -69,8 +70,8 @@ class VolNetX(nn.Module):
                  horizons: List[int],
                  hidden_dim: int = 160,
                  emb_dim: int = 16,
-                 num_layers: int = 3,
-                 dropout: float = 0.1,
+                 num_layers: int = 2,           # <--- Reduced depth
+                 dropout: float = 0.2,
                  use_transformer: bool = True,
                  use_ticker_embedding: bool = True,
                  use_feature_attention: bool = True,
@@ -80,38 +81,55 @@ class VolNetX(nn.Module):
         self.window = window
         self.horizons = horizons
         self.separate_heads = separate_heads
-        self.use_transformer = use_transformer
         self.use_ticker_embedding = use_ticker_embedding
+        self.use_transformer = use_transformer
         self.use_feature_attention = use_feature_attention
 
+        # 1. Embeddings
         self.emb = nn.Embedding(n_tickers, emb_dim) if use_ticker_embedding else None
         final_input_dim = input_size + (emb_dim if use_ticker_embedding else 0)
 
+        # 2. Gated Feature Selection (More stable than Softmax Attention)
         if use_feature_attention:
-            self.feature_attn = FeatureAttention(final_input_dim)
+            self.feat_gate = nn.Sequential(
+                nn.Linear(final_input_dim, final_input_dim),
+                nn.Sigmoid()
+            )
 
-
-        self.encoder = nn.LSTM(
+        # 3. Backbone: LSTM -> Transformer
+        # We keep LSTM first to compress local noise, then Transformer for global context
+        self.lstm = nn.LSTM(
             input_size=final_input_dim,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             dropout=dropout,
             batch_first=True
         )
-
+        
         if use_transformer:
-            encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_dim, nhead=4, batch_first=True)
+            # batch_first=True is critical
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=hidden_dim, 
+                nhead=4, 
+                dim_feedforward=hidden_dim*4, 
+                dropout=dropout, 
+                batch_first=True,
+                norm_first=True # <--- Pre-Norm stabilizes deep Transformers
+            )
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=1)
 
-        if use_layernorm:
-            self.norm = nn.LayerNorm(hidden_dim)
+        self.ln = nn.LayerNorm(hidden_dim) if use_layernorm else nn.Identity()
 
+        # 4. Heads
         out_dim = len(horizons)
+        
+        # Main Heads (Non-Linear)
         if separate_heads:
             self.heads = nn.ModuleList([
                 nn.Sequential(
                     nn.Linear(hidden_dim, hidden_dim // 2),
                     nn.ReLU(),
+                    nn.Dropout(dropout),
                     nn.Linear(hidden_dim // 2, 1)
                 ) for _ in horizons
             ])
@@ -119,32 +137,51 @@ class VolNetX(nn.Module):
             self.head = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim // 2),
                 nn.ReLU(),
+                nn.Dropout(dropout),
                 nn.Linear(hidden_dim // 2, out_dim)
             )
 
+        # 5. The "Highway" Residual (CRITICAL FIX)
+        # Directly maps the LSTM output state to the prediction, bypassing the non-linear head
+        self.residual_head = nn.Linear(hidden_dim, out_dim)
+
     def forward(self, tidx, x):
-        assert x.ndim == 3 and x.shape[1] == self.window, f"Expected shape [B, T={self.window}, F], got {x.shape}"
-
-
+        # x: [B, Window, F]
+        
+        # 1. Embed Ticker
         if self.use_ticker_embedding and self.emb is not None:
-            emb = self.emb(tidx)
-            emb = emb.unsqueeze(1).expand(-1, x.size(1), -1)
+            emb = self.emb(tidx).unsqueeze(1).expand(-1, x.size(1), -1)
             x = torch.cat([x, emb], dim=-1)
 
+        # 2. Feature Gating
         if self.use_feature_attention:
-            x = self.feature_attn(x)
-        
-        x, _ = self.encoder(x)
+            # Element-wise multiplication (Gate) rather than Softmax
+            gate = self.feat_gate(x) 
+            x = x * gate
 
-        x = x[:, -1]  # Take the last timestep only — [B, H]
+        # 3. LSTM Encoding
+        # out: [B, W, H]
+        x, _ = self.lstm(x)
 
-        if hasattr(self, "norm"):
-            x = self.norm(x)
+        # 4. Transformer Context (Refines the sequence)
+        if hasattr(self, "transformer"):
+            x = self.transformer(x)
 
+        # 5. Pooling (Take last step)
+        last_step = x[:, -1, :]  # [B, H]
+        last_step = self.ln(last_step)
+
+        # 6. Prediction
         if self.separate_heads:
-            return torch.cat([h(x) for h in self.heads], dim=-1)  # [B, H]
+            # [B, 1] per head -> [B, n_horizons]
+            y_nonlinear = torch.cat([h(last_step) for h in self.heads], dim=-1)
         else:
-            return self.head(x)
+            y_nonlinear = self.head(last_step)
+
+        # 7. Add Residual (The Stabilizer)
+        y_residual = self.residual_head(last_step)
+        
+        return y_nonlinear + y_residual
 
 
 

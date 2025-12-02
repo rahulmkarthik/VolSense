@@ -245,10 +245,13 @@ def build_dataset(
 def fetch_earnings_dates(
     tickers: List[str], start_date: str, end_date: str
 ) -> pd.DataFrame:
-    import yfinance as yf
 
     bad_tickers = []
     events = []
+    
+    # 1. Convert start/end to Naive Timestamps up front for safe comparison
+    ts_start = pd.to_datetime(start_date).tz_localize(None)
+    ts_end = pd.to_datetime(end_date).tz_localize(None)
 
     for t in tqdm(tickers, desc="📅 Fetching earnings", unit="ticker"):
         try:
@@ -260,10 +263,21 @@ def fetch_earnings_dates(
                 continue
 
             ed = ed.reset_index()
-            ed.columns = ["Date", "Estimate", "Reported", "Surprise_%"]
-            ed["Date"] = pd.to_datetime(ed["Date"]).dt.normalize()
+            # yfinance sometimes varies column names ("Earnings Date" vs "Date")
+            # Rename specifically if needed, otherwise assume index reset put it in col 0 or named it 'Date'
+            if "Earnings Date" in ed.columns:
+                ed.rename(columns={"Earnings Date": "Date"}, inplace=True)
+            elif "Event Date" in ed.columns: # Rare variation
+                 ed.rename(columns={"Event Date": "Date"}, inplace=True)
+
+            # 🚀 CRITICAL FIX: Strip Timezone (.tz_localize(None))
+            ed["Date"] = pd.to_datetime(ed["Date"]).dt.tz_localize(None).dt.normalize()
             ed["Ticker"] = t
-            events.append(ed[["Date", "Ticker"]])
+            
+            # Filter rows immediately (safer than doing it at the end)
+            mask = (ed["Date"] >= ts_start) & (ed["Date"] <= ts_end)
+            events.append(ed.loc[mask, ["Date", "Ticker"]])
+            
         except Exception:
             bad_tickers.append(t)
             continue
@@ -272,9 +286,8 @@ def fetch_earnings_dates(
         return pd.DataFrame(columns=["date", "ticker"])
 
     df = pd.concat(events, ignore_index=True)
-    df = df[
-        (df["Date"] >= pd.to_datetime(start_date))
-        & (df["Date"] <= pd.to_datetime(end_date))
-    ].rename(columns={"Date": "date", "Ticker": "ticker"})
+    
+    # Rename for pipeline compatibility
+    df = df.rename(columns={"Date": "date", "Ticker": "ticker"})
 
     return df.sort_values(["ticker", "date"]).reset_index(drop=True)

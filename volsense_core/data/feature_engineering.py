@@ -260,28 +260,24 @@ def add_earnings_heat(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFra
     """
     Adds `event_earnings_heat`: A continuous signal (0 to 1) inversely proportional 
     to days until the next earnings event.
-    
-    Formula: 1 / (days_until_earnings + 1)
-    - Earnings Day = 1.0
-    - 1 Day Before = 0.5
-    - 9 Days Before = 0.1
     """
     df = df.copy()
+    
+    # 🚀 CRITICAL FIX: Ensure main DF is timezone-naive before merge
+    if pd.api.types.is_datetime64tz_dtype(df["date"]):
+        df["date"] = df["date"].dt.tz_localize(None)
     
     if earnings_df is None or earnings_df.empty:
         df["event_earnings_heat"] = 0.0
         return df
 
     # 1. Prepare Earnings Data
-    # Sort for efficient merging
     earnings_df = earnings_df[["ticker", "date"]].sort_values(["ticker", "date"]).drop_duplicates()
     earnings_df["next_earnings_date"] = earnings_df["date"]
     
     # 2. Merge-as-of to find the NEXT earnings date for every row
     df = df.sort_values(["ticker", "date"])
     
-    # We use pd.merge_asof to find the *next* earnings date for each trading day
-    # direction='forward' looks into the future
     merged = pd.merge_asof(
         df,
         earnings_df[["ticker", "next_earnings_date"]],
@@ -295,17 +291,10 @@ def add_earnings_heat(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFra
     merged["days_until"] = (merged["next_earnings_date"] - merged["date"]).dt.days
     
     # 4. Calculate Heat (Inverse decay)
-    # Fill NaNs (no future earnings found) with a large number (cold)
     merged["days_until"] = merged["days_until"].fillna(999)
-    
-    # Apply formula: Heat = 1 / (d + 1). 
-    # Valid only if d >= 0. (merge_asof forward handles this, but safety check doesn't hurt)
     merged["event_earnings_heat"] = 1.0 / (merged["days_until"] + 1.0)
-    
-    # Zero out anything too far away (e.g. > 60 days) to reduce noise
     merged.loc[merged["days_until"] > 60, "event_earnings_heat"] = 0.0
     
-    # Cleanup
     return merged.drop(columns=["next_earnings_date", "days_until"])
 
 

@@ -105,42 +105,71 @@ def fetch_ohlcv(
 # 🌍 Fetch Macro Data
 # ============================================================
 
+
 def fetch_macro_series(start_date="2000-01-01", end_date=None):
     """
-    Fetch global macro proxies (Oil, Bitcoin) to act as exogenous features.
+    Fetch global macro proxies including Credit, Curve, and USD.
     """
     proxies = {
-        "Oil": "CL=F",      # Crude Oil Futures
-        "BTC": "BTC-USD",   # Bitcoin
-        "VIX": "^VIX",      # CBOE Volatility Index (Global stress proxy)
-        "Rates": "^TNX"     # 10-Year Treasury Yield
+        "Oil": "CL=F",       # Crude Oil
+        "BTC": "BTC-USD",    # Bitcoin
+        "VIX": "^VIX",       # Volatility Index
+        "Rates10Y": "^TNX",  # 10Y Yield
+        "Rates2Y": "^IRX",   # 2Y Yield (New)
+        "CreditHY": "HYG",   # High Yield Bonds (New)
+        "CreditGov": "IEF",  # 7-10Y Treasuries (New)
+        "USD": "DX-Y.NYB"    # US Dollar Index (New)
     }
     
     macro_data = pd.DataFrame()
-    
     print(f"🌍 Fetching Macro Proxies: {list(proxies.keys())}...")
+    
+    # Batch download is often cleaner, but looping handles errors better per ticker
     for name, ticker in proxies.items():
         try:
             df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=False)
             if not df.empty:
-                # Use Adj Close if available, else Close
                 col = "Adj Close" if "Adj Close" in df.columns else "Close"
+                s = df[col]
                 
-                # Calculate simple daily return/change
-                if name == "VIX" or name == "Rates":
-                    # For levels (VIX/Rates), we care about absolute changes or just levels
-                    s = df[col] 
-                else:
-                    # For asset prices (Oil/BTC), we care about Returns
-                    s = df[col].pct_change()
-                
-                # Standardize index to timezone-naive for safe merging
+                # Standardize index
                 s.index = s.index.tz_localize(None)
-                macro_data[f"macro_{name}"] = s
+                
+                # Store raw levels first (we calculate spreads/returns later)
+                macro_data[f"raw_{name}"] = s
+                
         except Exception as e:
             print(f"⚠️ Failed to fetch {name} ({ticker}): {e}")
 
-    return macro_data
+    # --- 🚀 Feature Engineering (Vectorized) ---
+    if not macro_data.empty:
+        # 1. Existing Legacy Features
+        if "raw_Oil" in macro_data: macro_data["macro_Oil"] = macro_data["raw_Oil"].pct_change()
+        if "raw_BTC" in macro_data: macro_data["macro_BTC"] = macro_data["raw_BTC"].pct_change()
+        if "raw_VIX" in macro_data: macro_data["macro_VIX"] = macro_data["raw_VIX"] # VIX is already a level
+        if "raw_Rates10Y" in macro_data: macro_data["macro_Rates"] = macro_data["raw_Rates10Y"] # Legacy support
+        
+        # 2. 🚀 NEW: Yield Curve (10Y - 2Y)
+        if "raw_Rates10Y" in macro_data and "raw_Rates2Y" in macro_data:
+            # Yields are in percent (e.g. 4.5), simple difference works
+            macro_data["macro_Curve"] = macro_data["raw_Rates10Y"] - macro_data["raw_Rates2Y"]
+            
+        # 3. 🚀 NEW: Credit Spread (Log Return Divergence)
+        if "raw_CreditHY" in macro_data and "raw_CreditGov" in macro_data:
+            # We want the relative performance. If HYG drops faster than IEF, spread widens (stress).
+            # Using returns difference: Ret(HYG) - Ret(IEF)
+            # Negative value = Credit Stress.
+            hy_ret = macro_data["raw_CreditHY"].pct_change()
+            gov_ret = macro_data["raw_CreditGov"].pct_change()
+            macro_data["macro_CreditSpread"] = hy_ret - gov_ret
+            
+        # 4. 🚀 NEW: USD Strength
+        if "raw_USD" in macro_data: 
+            macro_data["macro_USD"] = macro_data["raw_USD"].pct_change()
+
+    # Drop the intermediate "raw_" columns to keep it clean
+    cols_to_keep = [c for c in macro_data.columns if c.startswith("macro_")]
+    return macro_data[cols_to_keep]
 
 
 # ============================================================

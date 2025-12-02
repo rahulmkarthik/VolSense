@@ -256,26 +256,57 @@ def attach_macro_features(df: pd.DataFrame) -> pd.DataFrame:
     
     return merged
 
-
-def add_earnings_flag(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFrame:
+def add_earnings_heat(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Adds a binary column `is_earnings_day` to indicate if a row is an earnings event.
-    Assumes both `df` and `earnings_df` have 'ticker' and 'date' columns.
+    Adds `event_earnings_heat`: A continuous signal (0 to 1) inversely proportional 
+    to days until the next earnings event.
+    
+    Formula: 1 / (days_until_earnings + 1)
+    - Earnings Day = 1.0
+    - 1 Day Before = 0.5
+    - 9 Days Before = 0.1
     """
     df = df.copy()
-    df["is_earnings_day"] = 0
+    
+    if earnings_df is None or earnings_df.empty:
+        df["event_earnings_heat"] = 0.0
+        return df
 
-    if earnings_df is not None and not earnings_df.empty:
-        earnings_df = earnings_df.drop_duplicates(["ticker", "date"])
-        earnings_df["is_earnings_day"] = 1
-        df = df.merge(
-            earnings_df[["ticker", "date", "is_earnings_day"]],
-            on=["ticker", "date"],
-            how="left",
-        )
-        df["is_earnings_day"] = df["is_earnings_day"].fillna(0).astype(int)
-
-    return df
+    # 1. Prepare Earnings Data
+    # Sort for efficient merging
+    earnings_df = earnings_df[["ticker", "date"]].sort_values(["ticker", "date"]).drop_duplicates()
+    earnings_df["next_earnings_date"] = earnings_df["date"]
+    
+    # 2. Merge-as-of to find the NEXT earnings date for every row
+    df = df.sort_values(["ticker", "date"])
+    
+    # We use pd.merge_asof to find the *next* earnings date for each trading day
+    # direction='forward' looks into the future
+    merged = pd.merge_asof(
+        df,
+        earnings_df[["ticker", "next_earnings_date"]],
+        by="ticker",
+        on="date",
+        direction="forward",
+        allow_exact_matches=True
+    )
+    
+    # 3. Calculate Days Until
+    merged["days_until"] = (merged["next_earnings_date"] - merged["date"]).dt.days
+    
+    # 4. Calculate Heat (Inverse decay)
+    # Fill NaNs (no future earnings found) with a large number (cold)
+    merged["days_until"] = merged["days_until"].fillna(999)
+    
+    # Apply formula: Heat = 1 / (d + 1). 
+    # Valid only if d >= 0. (merge_asof forward handles this, but safety check doesn't hurt)
+    merged["event_earnings_heat"] = 1.0 / (merged["days_until"] + 1.0)
+    
+    # Zero out anything too far away (e.g. > 60 days) to reduce noise
+    merged.loc[merged["days_until"] > 60, "event_earnings_heat"] = 0.0
+    
+    # Cleanup
+    return merged.drop(columns=["next_earnings_date", "days_until"])
 
 
 def add_ticker_type_column(df: pd.DataFrame, version: str = "v507") -> pd.DataFrame:
@@ -327,34 +358,25 @@ def build_features(
     """
 
     include = include or [
-        "vol_3d",
-        "vol_10d",
-        "vol_20d",
-        "vol_60d",
-        "vol_ratio",
-        "vol_chg",
-        "vol_vol",
-        "vol_skew_20d",
-        "vol_kurt_20d",
-        "vol_entropy",
-        "return_sharpe_20d",
-        "ewma_vol_10d",
-        "market_stress",
-        "market_stress_1d_lag",
-        "skew_5d",
-        "day_of_week",
-        "month_sin",
-        "month_cos",
-        "abs_return",
-        "ret_sq",
-        "rsi_14",
-        "macd_diff",
-        "vol_stress",
-        "skew_scaled_return",
-        "macro_Oil",
-        "macro_BTC",
-        "macro_VIX",
-        "macro_Rates",
+        # Vol Dynamics
+        "vol_3d", "vol_10d", "vol_20d", "vol_60d",
+        "vol_ratio", "vol_chg", "vol_vol", "ewma_vol_10d",
+        
+        # Distribution
+        "vol_skew_20d", "vol_kurt_20d", "vol_entropy",
+        "skew_5d", "skew_scaled_return",
+        
+        # Price / Tech
+        "return_sharpe_20d", "abs_return", "ret_sq",
+        "rsi_14", "macd_diff",
+        
+        # Stress / Calendar
+        "market_stress", "market_stress_1d_lag", "vol_stress",
+        "day_of_week", "month_sin", "month_cos",
+        
+        # 🌍 MACRO (Legacy + New Tier 2)
+        "macro_Oil", "macro_BTC", "macro_VIX", "macro_Rates",
+        "macro_CreditSpread", "macro_Curve", "macro_USD"
     ]
     exclude = set(exclude or [])
 
@@ -364,7 +386,7 @@ def build_features(
     df = add_calendar_features(df)
     df = add_ticker_type_column(df, version="v507")
 
-    # 🗓️ Earnings event flag
+    # 🗓️ Earnings event HEAT (Replaces binary flag)
     if include_earnings:
         assert (
             "ticker" in df.columns and "date" in df.columns
@@ -374,12 +396,16 @@ def build_features(
         start_date = str(df["date"].min().date())
         end_date = str(df["date"].max().date())
 
+        # Reuse existing fetch logic
         earnings_df = fetch_earnings_dates(tickers, start_date, end_date)
-        df = add_earnings_flag(df, earnings_df)
-        include.append("is_earnings_day")
+        
+        # Heatmap logic
+        df = add_earnings_heat(df, earnings_df)
+        
+        include.append("event_earnings_heat")
         include.append("ticker_type")
 
-    # --- NEW: Macro Integration ---
+    # --- Macro Integration ---
     if include_macro:
         df = attach_macro_features(df)
         

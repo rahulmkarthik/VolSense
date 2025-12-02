@@ -326,9 +326,13 @@ class VolSenseForecaster:
             self.global_ticker_to_id = t2i
             self.global_window = cfg.window
             
-            # 🚀 Broadcast the global scaler to all tickers for compatibility with save()
-            # Since VolNetX uses one global scaler, we map every ticker to the same instance.
-            self.global_scalers = {t: scaler for t in t2i.keys()}
+            # 🚀 Store the scaler dictionary directly
+            # build_volnetx_dataset now returns a dict {ticker: scaler}
+            if isinstance(scaler, dict):
+                self.global_scalers = scaler
+            else:
+                # Fallback for legacy behavior (should not happen with new volnetx.py)
+                self.global_scalers = {t: scaler for t in t2i.keys()}
 
             # 3. Train
             print("   ↳ Starting training loop...")
@@ -535,37 +539,42 @@ class VolSenseForecaster:
     def _predict_volnetx(self, data, model_name, horizons):
         """
         Isolated prediction loop for VolNetX.
-        Handles scaling internally using the stored global scaler.
+        Handles per-ticker scaling using the stored scaler dictionary.
         """
         data = data.sort_values(["ticker", "date"]).reset_index(drop=True)
         features = ["return"] + (getattr(self.cfg, "extra_features", []) or [])
         
-        # Compute targets
+        # Compute targets for alignment (shifted realized vol)
         for h in horizons:
             data[f"realized_shift_{h}d"] = data.groupby("ticker")["realized_vol"].shift(-h)
 
         preds_all, actuals_all, dates_all, tickers_all = [], [], [], []
         self.model.eval()
         
-        # 🚀 Grab the global scaler (any instance since they are identical)
+        # Validation: Ensure we have scalers
         if not self.global_scalers:
             raise RuntimeError("Model has no scalers. Was it trained correctly?")
-        
-        # We just take the first available scaler since it's global
-        global_scaler = next(iter(self.global_scalers.values()))
 
+        # 🚀 CRITICAL FIX: Iterate tickers and look up specific scaler
         for ticker, df_t in tqdm(data.groupby("ticker"), desc="VolNetX Forecasts"):
+            # Clean data
             df_t = df_t.dropna(subset=["realized_vol"] + features).reset_index(drop=True)
             
+            # 1. Check Ticker Existence (Model & Scaler)
             if self.global_ticker_to_id and ticker not in self.global_ticker_to_id:
                 continue
             
+            # 2. Retrieve Per-Ticker Scaler
+            if ticker not in self.global_scalers:
+                # If we didn't see this ticker during training, we can't scale it.
+                continue
+
             tid = self.global_ticker_to_id.get(ticker, 0)
+            scaler = self.global_scalers[ticker]
             
-            # 🚀 APPLY SCALING
-            # transform() returns numpy array, so we can use it directly
-            input_data = global_scaler.transform(df_t[features])
-            # Ensure float32
+            # 3. Apply Scaling
+            # transform() returns numpy array, fillna(0.0) prevents NaN propagation
+            input_data = scaler.transform(df_t[features].fillna(0.0))
             input_data = input_data.astype(np.float32)
             
             dates = df_t["date"].values
@@ -573,17 +582,20 @@ class VolSenseForecaster:
             
             if len(df_t) <= self.global_window: continue
             
-            # Vectorized Sliding Window
+            # Vectorized Sliding Window construction
             shape = (len(input_data) - self.global_window, self.global_window, len(features))
             strides = (input_data.strides[0], input_data.strides[0], input_data.strides[1])
             windows = np.lib.stride_tricks.as_strided(input_data, shape=shape, strides=strides)
             
+            # To Tensor
             x_batch = torch.tensor(windows, dtype=torch.float32).to(self.device) 
             t_batch = torch.full((len(windows),), tid, dtype=torch.long).to(self.device) 
             
+            # Inference
             with torch.no_grad():
                 preds = self.model(t_batch, x_batch).cpu().numpy()
             
+            # Inverse Log Transform (Model predicts log_vol)
             preds_realized = np.exp(preds)
             
             # Alignment Logic
@@ -591,7 +603,9 @@ class VolSenseForecaster:
             current_dates = dates[valid_indices]
             realized_matrix = np.stack([realized_map[h][valid_indices] for h in horizons], axis=1)
             
+            # Filter valid targets
             mask = ~np.all(np.isnan(realized_matrix), axis=1)
+            
             if np.sum(mask) > 0:
                 preds_all.append(preds_realized[mask])
                 actuals_all.append(realized_matrix[mask])

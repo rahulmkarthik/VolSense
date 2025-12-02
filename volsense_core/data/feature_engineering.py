@@ -263,10 +263,10 @@ def add_earnings_heat(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFra
     """
     df = df.copy()
     
-    # 🚀 CRITICAL FIX: Ensure main DF is timezone-naive before merge
+    # Ensure main DF is timezone-naive before merge
     if pd.api.types.is_datetime64tz_dtype(df["date"]):
         df["date"] = df["date"].dt.tz_localize(None)
-    
+
     if earnings_df is None or earnings_df.empty:
         df["event_earnings_heat"] = 0.0
         return df
@@ -278,9 +278,10 @@ def add_earnings_heat(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFra
     # 2. Merge-as-of to find the NEXT earnings date for every row
     df = df.sort_values(["ticker", "date"])
     
+    # 🚀 CRITICAL FIX: The right dataframe MUST include the 'on' column ("date")
     merged = pd.merge_asof(
         df,
-        earnings_df[["ticker", "next_earnings_date"]],
+        earnings_df[["ticker", "next_earnings_date", "date"]], # <--- Added "date" here
         by="ticker",
         on="date",
         direction="forward",

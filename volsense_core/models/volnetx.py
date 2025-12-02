@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
+import copy
 from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Optional, Union
 from torch.utils.data import DataLoader, TensorDataset
@@ -264,9 +265,9 @@ def build_volnetx_dataset(
     
     return ticker_to_id, train_loader, val_loader, train_ds, val_ds, scaler
 
-# Include train_volnetx and evaluate_volnetx from previous step here...
+
 def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: int):
-    # ... (Same as your previous snippet) ...
+    # 1. Initialize Model
     model = VolNetX(
         n_tickers=n_tickers,
         window=config.window,
@@ -276,25 +277,26 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
         emb_dim=config.emb_dim,
         num_layers=config.num_layers,
         dropout=config.dropout,
-        feat_dropout=config.feat_dropout, # <--- NEW PARAM PASSED
+        feat_dropout=config.feat_dropout,
         use_transformer=config.use_transformer,
         use_ticker_embedding=config.use_ticker_embedding,
         use_feature_attention=config.use_feature_attention,
         separate_heads=config.separate_heads,
         use_layernorm=config.use_layernorm
     ).to(config.device)
-    
-    # ... (Rest of training loop matches your snippet exactly) ...
-    # [Paste the training loop code from your previous prompt here for completeness]
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
-    loss_fn = nn.MSELoss()
-    best_val_loss = float("inf")
-    patience_counter = 0
 
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+    
     scheduler = None
     if getattr(config, "cosine_schedule", False):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=1e-6)
 
+    loss_fn = nn.MSELoss()
+    best_val_loss = float("inf")
+    patience_counter = 0
+    best_model_state = None  # <--- HOLDER FOR BEST WEIGHTS
+
+    # 2. Training Loop
     for epoch in range(config.epochs):
         model.train()
         train_losses = []
@@ -315,6 +317,7 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
 
         if scheduler: scheduler.step()
         
+        # 3. Validation Loop
         model.eval()
         val_losses = []
         with torch.no_grad():
@@ -328,13 +331,24 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
         val_loss = np.mean(val_losses) if val_losses else 0.0
         print(f"Epoch {epoch+1}/{config.epochs} | Train: {np.mean(train_losses):.5f} | Val: {val_loss:.5f}")
         
+        # 4. Snapshot Logic (Save Best Weights)
         if config.early_stop:
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
+                # Take a deep copy of the weights to RAM
+                best_model_state = copy.deepcopy(model.state_dict())
+                # Optional: Print confirmation
+                # print(f"   ⭐ New best found! (Loss: {best_val_loss:.5f})") 
             else:
                 patience_counter += 1
                 if patience_counter >= config.patience:
-                    print("Early stopping triggered.")
+                    print(f"⏹️ Early stopping triggered at Epoch {epoch+1}.")
                     break
+    
+    # 5. Restore Best Weights
+    if best_model_state is not None:
+        print(f"🔙 Restoring best model weights (Loss: {best_val_loss:.5f})...")
+        model.load_state_dict(best_model_state)
+    
     return model

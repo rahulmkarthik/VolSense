@@ -30,6 +30,7 @@ import os
 import json
 import pickle
 import torch
+import numpy as np
 import inspect
 from typing import Any, Dict
 
@@ -78,11 +79,18 @@ def build_meta_from_model(
     name = model.__class__.__name__
     module_path = model.__module__
 
+    # --- Explicit feature list construction ---
+    # Both VolNetX and GlobalVolForecaster use ["return"] + extra_features
+    # We reconstruct this explicitly to avoid ambiguity during loading
+    explicit_features = features
+    if explicit_features is None and cfg is not None:
+        extra_feats = getattr(cfg, "extra_features", None) or []
+        explicit_features = ["return"] + extra_feats if extra_feats else ["return"]
+
     meta = {
         "arch": name,
         "module_path": module_path,
-        "features": features
-        or getattr(cfg, "extra_features", getattr(cfg, "features", [])),
+        "features": explicit_features or [],
         "extra_features": getattr(cfg, "extra_features", []),
         "horizons": getattr(cfg, "horizons", []),
         "ticker_to_id": ticker_to_id or {},
@@ -135,6 +143,10 @@ def build_meta_from_model(
                 arch_params[k] = getattr(model, k)
 
     # Remove cfg-only fields not accepted by constructors
+    # Note: 'window' is intentionally stored at meta root (not arch_params)
+    # because it's extracted directly from model attributes via generic
+    # attribute extraction (lines 96-103). Both VolNetX and GlobalVolForecaster
+    # store self.window, which gets captured automatically.
     for bad_key in ["horizons", "window", "stride", "val_start", "target_col"]:
         arch_params.pop(bad_key, None)
 

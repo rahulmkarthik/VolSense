@@ -70,6 +70,8 @@ class VolNetX(nn.Module):
                  use_ticker_embedding=True, use_feature_attention=True, 
                  separate_heads=True, use_layernorm=True):
         super().__init__()
+        self.n_tickers = n_tickers
+        self.horizons = horizons
         self.use_ticker_embedding = use_ticker_embedding
         self.use_feature_attention = use_feature_attention
         self.separate_heads = separate_heads

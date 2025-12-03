@@ -270,6 +270,7 @@ class GlobalVolForecaster(nn.Module):
         :type variational_dropout_p: float
         """
         super().__init__()
+        self.n_tickers = n_tickers
         self.window = window
         self.input_size = int(input_size) if input_size is not None else 1
         self.attention_enabled = attention

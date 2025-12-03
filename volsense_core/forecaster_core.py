@@ -127,6 +127,29 @@ class VolSenseForecaster:
     :param device: 'cpu' or 'cuda'.
     :param mode: Default prediction mode ('eval' or 'inference').
     :param kwargs: method-specific configuration (window, horizons, epochs, extra_features, etc.)
+        - For all methods:
+            - method: "lstm", "global_lstm", or "volnetx"
+            - extra_features: list of feature column names beyond "return"
+            - device: "cpu" or "cuda"
+            - global_ckpt_path: path for automatic checkpoint saving
+            
+        - LSTM-specific:
+            - window, horizons, epochs, lr, dropout, hidden_dim, num_layers, val_start
+            
+        - GlobalVolForecaster (global_lstm):
+            - Data: window, horizons, stride, val_start, val_end, val_mode, embargo_days, target_col
+            - Training: epochs, lr, batch_size, early_stop, patience
+            - Architecture: dropout, use_layernorm, separate_heads, attention, residual_head
+            - Regularization: feat_dropout_p, variational_dropout_p
+            - Strategy: cosine_schedule, cosine_restarts, grad_clip, weight_decay, loss_horizon_weights, loss_type
+            - Data Loading: oversample_high_vol, dynamic_window_jitter, num_workers, pin_memory
+            - EMA: use_ema, ema_decay
+            
+        - VolNetX:
+            - window, horizons, epochs, lr, batch_size, hidden_dim, num_layers, dropout
+            - feat_dropout, use_transformer, use_feature_attention, loss_horizon_weights
+            - val_start, patience, grad_clip, weight_decay, cosine_schedule
+    :type kwargs: dict
     """
 
     def __init__(self, method="lstm", device="cpu", mode="eval", **kwargs):
@@ -139,11 +162,7 @@ class VolSenseForecaster:
         :type device: str
         :param mode: Default prediction mode, typically 'eval' (historical backtest).
         :type mode: str
-        :param kwargs: Additional method-specific configuration:
-            - LSTM/global: window, horizons, epochs, lr, dropout, hidden_dim, num_layers, val_start, extra_features
-            - Global only: global_ckpt_path
-            - GARCH family: p, q, o (GJR only), dist
-            - Common: ticker (to pin a single ticker if needed)
+        :param kwargs: See class docstring for full parameter list.
         :type kwargs: dict
         """
         self.method = method.lower()
@@ -251,12 +270,51 @@ class VolSenseForecaster:
         elif self.method == "global_lstm":
             print("🌐 Training GlobalVolForecaster...")
             cfg = GlobalTrainConfig(
-                window=self.kwargs.get("window", 40),
+                # Data & Windowing
+                window=self.kwargs.get("window", 75),
                 horizons=self.kwargs.get("horizons", [1, 5, 10]),
+                stride=self.kwargs.get("stride", 3),
                 val_start=self.kwargs.get("val_start", "2023-01-01"),
-                device=self.device,
-                epochs=self.kwargs.get("epochs", 10),
+                val_end=self.kwargs.get("val_end", None),
+                val_mode=self.kwargs.get("val_mode", "causal"),
+                embargo_days=self.kwargs.get("embargo_days", 0),
+                target_col=self.kwargs.get("target_col", "realized_vol_log"),
                 extra_features=extra_feats,
+                
+                # Training Dynamics
+                epochs=self.kwargs.get("epochs", 45),
+                lr=self.kwargs.get("lr", 3e-4),
+                batch_size=self.kwargs.get("batch_size", 256),
+                device=self.device,
+                
+                # Architecture & Regularization
+                dropout=self.kwargs.get("dropout", 0.15),
+                use_layernorm=self.kwargs.get("use_layernorm", True),
+                separate_heads=self.kwargs.get("separate_heads", True),
+                attention=self.kwargs.get("attention", True),
+                residual_head=self.kwargs.get("residual_head", True),
+                feat_dropout_p=self.kwargs.get("feat_dropout_p", 0.1),
+                variational_dropout_p=self.kwargs.get("variational_dropout_p", 0.1),
+                
+                # Training Strategy
+                early_stop=self.kwargs.get("early_stop", True),
+                patience=self.kwargs.get("patience", 10),
+                cosine_schedule=self.kwargs.get("cosine_schedule", True),
+                cosine_restarts=self.kwargs.get("cosine_restarts", True),
+                grad_clip=self.kwargs.get("grad_clip", 1.0),
+                weight_decay=self.kwargs.get("weight_decay", 1e-5),
+                loss_horizon_weights=self.kwargs.get("loss_horizon_weights", None),
+                loss_type=self.kwargs.get("loss_type", "mse"),
+                
+                # Data Loading & Augmentation
+                oversample_high_vol=self.kwargs.get("oversample_high_vol", False),
+                dynamic_window_jitter=self.kwargs.get("dynamic_window_jitter", 0),
+                num_workers=self.kwargs.get("num_workers", 2),
+                pin_memory=self.kwargs.get("pin_memory", True),
+                
+                # EMA
+                use_ema=self.kwargs.get("use_ema", True),
+                ema_decay=self.kwargs.get("ema_decay", 0.995),
             )
             self.cfg = cfg
 
@@ -669,14 +727,27 @@ class VolSenseForecaster:
         version_tag = f"{arch_type}_{version}"
 
         # --- Extract features and ticker mappings ---
+        # Explicitly construct the full feature list to match training behavior
         if arch_type == "globalvolforecaster":
-            features = getattr(self, "global_features", None)
+            # GlobalVolForecaster uses ["return"] + extra_features
+            extra_feats = getattr(self.cfg, "extra_features", None) or []
+            features = ["return"] + extra_feats
+            ticker_to_id = getattr(self, "global_ticker_to_id", None)
+        elif arch_type == "volnetx":
+            # VolNetX also uses ["return"] + extra_features
+            extra_feats = getattr(self.cfg, "extra_features", None) or []
+            features = ["return"] + extra_feats
             ticker_to_id = getattr(self, "global_ticker_to_id", None)
         elif arch_type == "baselstm":
+            # BaseLSTM may have explicit features or use extra_features
             features = getattr(self.cfg, "features", None)
+            if features is None:
+                extra_feats = getattr(self.cfg, "extra_features", None) or []
+                features = ["return"] + extra_feats if extra_feats else ["return"]
             ticker_to_id = {getattr(self, "ticker", "TICKER"): 0}
         else:
-            features = getattr(self.cfg, "features", [])
+            # Fallback for unknown architectures
+            features = getattr(self.cfg, "features", ["return"])
             ticker_to_id = {}
 
         # --- Call the centralized saver ---

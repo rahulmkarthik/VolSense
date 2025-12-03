@@ -272,31 +272,32 @@ def add_earnings_heat(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFra
         return df
 
     # 1. Prepare Earnings Data
-    earnings_df = earnings_df[["ticker", "date"]].sort_values(["ticker", "date"]).drop_duplicates()
+    # 🚀 FIX: Sort by DATE specifically for merge_asof requirements
+    earnings_df = earnings_df[["ticker", "date"]].sort_values("date").drop_duplicates()
     earnings_df["next_earnings_date"] = earnings_df["date"]
     
-    # 2. Merge-as-of to find the NEXT earnings date for every row
-    df = df.sort_values(["ticker", "date"])
+    # 2. Prepare Left DataFrame
+    # 🚀 FIX: Sort by DATE globally. merge_asof requires 'on' key to be strictly sorted.
+    df = df.sort_values("date")
     
-    # 🚀 CRITICAL FIX: The right dataframe MUST include the 'on' column ("date")
+    # 3. Merge
     merged = pd.merge_asof(
         df,
-        earnings_df[["ticker", "next_earnings_date", "date"]], # <--- Added "date" here
+        earnings_df[["ticker", "next_earnings_date", "date"]], 
         by="ticker",
         on="date",
         direction="forward",
         allow_exact_matches=True
     )
     
-    # 3. Calculate Days Until
+    # 4. Calculate Heat
     merged["days_until"] = (merged["next_earnings_date"] - merged["date"]).dt.days
-    
-    # 4. Calculate Heat (Inverse decay)
     merged["days_until"] = merged["days_until"].fillna(999)
     merged["event_earnings_heat"] = 1.0 / (merged["days_until"] + 1.0)
     merged.loc[merged["days_until"] > 60, "event_earnings_heat"] = 0.0
     
-    return merged.drop(columns=["next_earnings_date", "days_until"])
+    # 🚀 FIX: Restore Ticker/Date sorting for pipeline consistency
+    return merged.drop(columns=["next_earnings_date", "days_until"]).sort_values(["ticker", "date"])
 
 
 def add_ticker_type_column(df: pd.DataFrame, version: str = "v507") -> pd.DataFrame:

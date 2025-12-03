@@ -36,6 +36,7 @@ class VolNetXConfig:
     cosine_schedule: bool = True
     grad_clip: float = 0.5
     weight_decay: float = 1e-3
+    loss_type: str = "mse" # 'mse' or 'huber'
     batch_size: int = 128
     epochs: int = 50
     
@@ -291,12 +292,21 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
     if getattr(config, "cosine_schedule", False):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=1e-6)
 
-    loss_fn = nn.MSELoss()
+    # 2. Setup Loss Function
+    loss_type = getattr(config, "loss_type", "mse").lower()
+    
+    # We use 'none' reduction to handle per-horizon weighting manually
+    if loss_type == "huber":
+        criterion = nn.HuberLoss(delta=1.0, reduction='none')
+    else:
+        # Standard MSE (placeholder, calculation handled manually for weighting)
+        criterion = nn.MSELoss(reduction='none')
+
     best_val_loss = float("inf")
     patience_counter = 0
-    best_model_state = None  # <--- HOLDER FOR BEST WEIGHTS
+    best_model_state = None
 
-    # 2. Training Loop
+    # 3. Training Loop
     for epoch in range(config.epochs):
         model.train()
         train_losses = []
@@ -306,9 +316,16 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
             preds = model(tidx, x)
             loss = 0
             for i, w in enumerate(config.loss_horizon_weights):
-                mse = (preds[:, i] - y[:, i]) ** 2
-                weight = 1.0 + (y[:, i] > -1.0).float() * 1.5 
-                loss += w * (weight * mse).mean()
+                if loss_type == "huber":
+                    # Huber: Handles outliers natively
+                    raw_loss = criterion(preds[:, i], y[:, i])
+                    loss += w * raw_loss.mean()
+                else:
+                    # MSE: Apply manual High-Vol Penalty
+                    raw_loss = (preds[:, i] - y[:, i]) ** 2
+                    weight = 1.0 + (y[:, i] > -1.0).float() * 1.5 
+                    loss += w * (weight * raw_loss).mean()
+            
             loss.backward()
             if config.grad_clip > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.grad_clip)
@@ -317,7 +334,7 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
 
         if scheduler: scheduler.step()
         
-        # 3. Validation Loop
+        # 4. Validation Loop
         model.eval()
         val_losses = []
         with torch.no_grad():
@@ -325,28 +342,33 @@ def train_volnetx(config: VolNetXConfig, train_loader, val_loader, n_tickers: in
                 for x, tidx, y in val_loader:
                     x, tidx, y = x.to(config.device), tidx.to(config.device), y.to(config.device)
                     preds = model(tidx, x)
-                    loss = sum(w * loss_fn(preds[:, i], y[:, i]) for i, w in enumerate(config.loss_horizon_weights))
-                    val_losses.append(loss.item())
+                    batch_loss = 0
+                    for i, w in enumerate(config.loss_horizon_weights):
+                        if loss_type == "huber":
+                            raw_loss = criterion(preds[:, i], y[:, i])
+                        else:
+                            # Validation usually uses standard MSE to track performance
+                            # (No extra weighting) to match previous behavior
+                            raw_loss = (preds[:, i] - y[:, i]) ** 2
+                        
+                        batch_loss += w * raw_loss.mean()
+                    val_losses.append(batch_loss.item())
         
         val_loss = np.mean(val_losses) if val_losses else 0.0
         print(f"Epoch {epoch+1}/{config.epochs} | Train: {np.mean(train_losses):.5f} | Val: {val_loss:.5f}")
         
-        # 4. Snapshot Logic (Save Best Weights)
+        # 5. Snapshot Logic
         if config.early_stop:
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
-                # Take a deep copy of the weights to RAM
                 best_model_state = copy.deepcopy(model.state_dict())
-                # Optional: Print confirmation
-                # print(f"   ⭐ New best found! (Loss: {best_val_loss:.5f})") 
             else:
                 patience_counter += 1
                 if patience_counter >= config.patience:
                     print(f"⏹️ Early stopping triggered at Epoch {epoch+1}.")
                     break
     
-    # 5. Restore Best Weights
     if best_model_state is not None:
         print(f"🔙 Restoring best model weights (Loss: {best_val_loss:.5f})...")
         model.load_state_dict(best_model_state)

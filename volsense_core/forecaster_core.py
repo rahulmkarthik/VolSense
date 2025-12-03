@@ -301,6 +301,7 @@ class VolSenseForecaster:
                 val_start=self.kwargs.get("val_start", None),
                 val_end=self.kwargs.get("val_end", None),
                 loss_horizon_weights=self.kwargs.get("loss_horizon_weights", (0.55, 0.25, 0.20)),
+                loss_type=self.kwargs.get("loss_type", "mse"),
                 cosine_schedule=self.kwargs.get("cosine_schedule", False),
                 grad_clip=self.kwargs.get("grad_clip", 0.5),
                 weight_decay=self.kwargs.get("weight_decay", 1e-4),

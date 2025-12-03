@@ -291,6 +291,7 @@ class VolSenseForecaster:
                 hidden_dim=self.kwargs.get("hidden_dim", 160),
                 num_layers=self.kwargs.get("num_layers", 2),
                 dropout=self.kwargs.get("dropout", 0.2),
+                feat_dropout=self.kwargs.get("feat_dropout", 0.0),
                 lr=self.kwargs.get("lr", 5e-4),
                 epochs=self.kwargs.get("epochs", 20),
                 batch_size=self.kwargs.get("batch_size", 64),
@@ -686,6 +687,7 @@ class VolSenseForecaster:
             save_dir=save_dir,
             ticker_to_id=ticker_to_id,
             features=features,
+            scalers=self.global_scalers,
         )
 
         print(f"\n✅ Model saved successfully in {save_dir}: {version_tag}")

@@ -302,9 +302,7 @@ class VolSenseForecaster:
                 cosine_schedule=self.kwargs.get("cosine_schedule", True),
                 cosine_restarts=self.kwargs.get("cosine_restarts", True),
                 grad_clip=self.kwargs.get("grad_clip", 1.0),
-                weight_decay=self.kwargs.get("weight_decay", 1e-5),
                 loss_horizon_weights=self.kwargs.get("loss_horizon_weights", None),
-                loss_type=self.kwargs.get("loss_type", "mse"),
                 
                 # Data Loading & Augmentation
                 oversample_high_vol=self.kwargs.get("oversample_high_vol", False),

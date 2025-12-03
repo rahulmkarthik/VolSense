@@ -14,6 +14,7 @@ from volsense_core.utils.scalers import TorchStandardScaler as StandardScaler
 from dataclasses import dataclass
 from torch.utils.data import DataLoader
 from typing import Dict
+import copy
 
 
 # ============================================================
@@ -720,7 +721,7 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
         if cfg.early_stop:
             if val_loss + cfg.min_delta < best_val:
                 best_val = val_loss
-                best_sd = (ema_model or model).state_dict()
+                best_sd = copy.deepcopy((ema_model or model).state_dict())
                 patience_left = cfg.patience
             else:
                 patience_left -= 1
@@ -730,6 +731,7 @@ def train_global_model(df: pd.DataFrame, cfg: TrainConfig):
 
     # Load best weights (EMA if available)
     if best_sd is not None:
+        print(f"🔙 Restoring best model weights (Loss: {best_val:.5f})...")
         (ema_model or model).load_state_dict(best_sd)
         if ema_model is not None:
             model.load_state_dict(ema_model.state_dict())

@@ -488,85 +488,86 @@ class VolSenseForecaster:
             for ticker, df_t in tqdm(
                 data.groupby("ticker"), desc="Rolling eval forecasts"
             ):
-            df_t = df_t.dropna(subset=["realized_vol"]).reset_index(drop=True)
-            
-            # Skip tickers with insufficient data
-            if len(df_t) <= self.global_window:
-                continue
-            
-            ticker_id = self.global_ticker_to_id.get(ticker)
-            if ticker_id is None:
-                continue
-            
-            # Get scaler for this ticker
-            scaler = self.global_scalers.get(ticker)
-            if scaler is None:
-                continue
-            
-            # 🚀 VECTORIZED: Build feature matrix
-            features = ["return"] + (getattr(self.cfg, "extra_features", []) or [])
-            feat_data = df_t[features].values.astype(np.float32)
-            
-            # Apply per-ticker scaling
-            feat_scaled = scaler.transform(feat_data)
-            
-            # 🚀 VECTORIZED: Sliding window construction using stride tricks
-            n_windows = len(df_t) - self.global_window
-            if n_windows <= 0:
-                continue
-            
-            shape = (n_windows, self.global_window, len(features))
-            strides = (feat_scaled.strides[0], feat_scaled.strides[0], feat_scaled.strides[1])
-            windows = np.lib.stride_tricks.as_strided(feat_scaled, shape=shape, strides=strides)
-            
-            # 🚀 VECTORIZED: Batch inference (all windows at once)
-            x_batch = torch.tensor(windows, dtype=torch.float32).to(self.device)
-            t_batch = torch.full((n_windows,), ticker_id, dtype=torch.long).to(self.device)
-            
-            with torch.no_grad():
-                preds_batch = self.model(t_batch, x_batch).cpu().numpy()  # Shape: (n_windows, n_horizons)
-            
-            # Convert from log-vol to realized scale
-            preds_realized = np.exp(preds_batch)
-            
-            # Align with dates and realized values
-            window_dates = df_t["date"].iloc[self.global_window:].values
-            
-            # Build realized values matrix
-            realized_matrix = np.column_stack([
-                df_t[f"realized_shift_{h}d"].iloc[self.global_window:].values
-                for h in horizons
-            ])
-            
-            # Filter out rows with all NaN realized values
-            valid_mask = ~np.all(np.isnan(realized_matrix), axis=1)
-            
-            if np.any(valid_mask):
-                preds_all.append(preds_realized[valid_mask])
-                actuals_all.append(realized_matrix[valid_mask])
-                dates_all.extend(window_dates[valid_mask])
-                tickers_all.extend([ticker] * np.sum(valid_mask))
+                df_t = df_t.dropna(subset=["realized_vol"]).reset_index(drop=True)
+                
+                # Skip tickers with insufficient data
+                if len(df_t) <= self.global_window:
+                    continue
+                
+                ticker_id = self.global_ticker_to_id.get(ticker)
+                if ticker_id is None:
+                    continue
+                
+                # Get scaler for this ticker
+                scaler = self.global_scalers.get(ticker)
+                if scaler is None:
+                    continue
+                
+                # 🚀 VECTORIZED: Build feature matrix
+                features = ["return"] + (getattr(self.cfg, "extra_features", []) or [])
+                feat_data = df_t[features].values.astype(np.float32)
+                
+                # Apply per-ticker scaling
+                feat_scaled = scaler.transform(feat_data)
+                
+                # 🚀 VECTORIZED: Sliding window construction using stride tricks
+                n_windows = len(df_t) - self.global_window
+                if n_windows <= 0:
+                    continue
+                
+                shape = (n_windows, self.global_window, len(features))
+                strides = (feat_scaled.strides[0], feat_scaled.strides[0], feat_scaled.strides[1])
+                windows = np.lib.stride_tricks.as_strided(feat_scaled, shape=shape, strides=strides)
+                
+                # 🚀 VECTORIZED: Batch inference (all windows at once)
+                x_batch = torch.tensor(windows, dtype=torch.float32).to(self.device)
+                t_batch = torch.full((n_windows,), ticker_id, dtype=torch.long).to(self.device)
+                
+                with torch.no_grad():
+                    preds_batch = self.model(t_batch, x_batch).cpu().numpy()  # Shape: (n_windows, n_horizons)
+                
+                # Convert from log-vol to realized scale
+                preds_realized = np.exp(preds_batch)
+                
+                # Align with dates and realized values
+                window_dates = df_t["date"].iloc[self.global_window:].values
+                
+                # Build realized values matrix
+                realized_matrix = np.column_stack([
+                    df_t[f"realized_shift_{h}d"].iloc[self.global_window:].values
+                    for h in horizons
+                ])
+                
+                # Filter out rows with all NaN realized values
+                valid_mask = ~np.all(np.isnan(realized_matrix), axis=1)
+                
+                if np.any(valid_mask):
+                    preds_all.append(preds_realized[valid_mask])
+                    actuals_all.append(realized_matrix[valid_mask])
+                    dates_all.extend(window_dates[valid_mask])
+                    tickers_all.extend([ticker] * np.sum(valid_mask))
 
-        # Convert to arrays
-        if not preds_all:
-            return pd.DataFrame()  # No valid predictions
-            
-        preds_all = np.vstack(preds_all)
-        actuals_all = np.vstack(actuals_all)
 
-        # Build standardized DataFrame
-        df_out = make_forecast_df(
-            preds=preds_all,
-            actuals=actuals_all,
-            dates=dates_all,
-            tickers=tickers_all,
-            horizons=horizons,
-            model_name="GlobalVolForecaster"
-        )
+            # Convert to arrays
+            if not preds_all:
+                return pd.DataFrame()  # No valid predictions
+                
+            preds_all = np.vstack(preds_all)
+            actuals_all = np.vstack(actuals_all)
 
-        df_out = df_out.dropna(subset=["realized_vol"]).reset_index(drop=True)
-        print(
-            f"✅ GlobalVolForecaster realized-aligned evaluation complete ({len(df_out)} rows)."
+            # Build standardized DataFrame
+            df_out = make_forecast_df(
+                preds=preds_all,
+                actuals=actuals_all,
+                dates=dates_all,
+                tickers=tickers_all,
+                horizons=horizons,
+                model_name="GlobalVolForecaster"
+            )
+
+            df_out = df_out.dropna(subset=["realized_vol"]).reset_index(drop=True)
+            print(
+                f"✅ GlobalVolForecaster realized-aligned evaluation complete ({len(df_out)} rows)."
             )
             return df_out
         

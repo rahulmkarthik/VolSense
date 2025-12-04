@@ -147,12 +147,19 @@ class ARCHForecaster:
         :return: Self, with fitted result accessible via .result.
         :rtype: ARCHForecaster
         """
+        import warnings
+        
         y, _ = self._to_series(returns)
         y_scaled = y * self.cfg.scale
         self._fitted_ret_scaled = y_scaled
 
         model = self._build_model(y_scaled)
-        self._result = model.fit(**self.cfg.fit_kwargs)
+        
+        # Suppress all warnings during fit (convergence warnings, etc.)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self._result = model.fit(**self.cfg.fit_kwargs)
+        
         return self
 
     @property

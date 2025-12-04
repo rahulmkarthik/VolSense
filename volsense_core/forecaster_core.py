@@ -484,10 +484,10 @@ class VolSenseForecaster:
 
             preds_all, actuals_all, dates_all, tickers_all = [], [], [], []
 
-            # Rolling evaluation (vectorized within ticker)
-            for ticker, df_t in tqdm(
-                data.groupby("ticker"), desc="Rolling eval forecasts"
-            ):
+        # Rolling evaluation (vectorized within ticker)
+        for ticker, df_t in tqdm(
+            data.groupby("ticker"), desc="Rolling eval forecasts"
+        ):
             df_t = df_t.dropna(subset=["realized_vol"]).reset_index(drop=True)
             
             # Skip tickers with insufficient data
@@ -567,8 +567,8 @@ class VolSenseForecaster:
         df_out = df_out.dropna(subset=["realized_vol"]).reset_index(drop=True)
         print(
             f"✅ GlobalVolForecaster realized-aligned evaluation complete ({len(df_out)} rows)."
-            )
-            return df_out
+        )
+        return df_out
         
         # 3. VolNetX (Isolated Path)
         elif self.method == "volnetx":

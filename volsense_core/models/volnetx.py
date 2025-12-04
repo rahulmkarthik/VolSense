@@ -43,6 +43,7 @@ class VolNetXConfig:
     val_mode: str = "causal"
     val_start: Optional[str] = None
     val_end: Optional[str] = None
+    embargo_days: int = 30  # drop these days on either side of val window from train
     extra_features: Optional[List[str]] = None
 
 # --------------------------------------------------------------------
@@ -240,11 +241,15 @@ def build_volnetx_dataset(
         
         target_indices = valid_indices + horizons[0] - 1
         is_val = split_arr[target_indices] == 1
+        is_embargo = split_arr[target_indices] == -1  # Exclude embargo samples
         
-        if np.sum(~is_val) > 0:
-            train_X.append(X_windows[~is_val])
-            train_Y.append(y_targets[~is_val])
-            train_T.append(t_ids[~is_val])
+        # Filter out embargo samples from both train and val
+        is_train = (~is_val) & (~is_embargo)
+        
+        if np.sum(is_train) > 0:
+            train_X.append(X_windows[is_train])
+            train_Y.append(y_targets[is_train])
+            train_T.append(t_ids[is_train])
         if np.sum(is_val) > 0:
             val_X.append(X_windows[is_val])
             val_Y.append(y_targets[is_val])

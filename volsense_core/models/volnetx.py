@@ -44,6 +44,7 @@ class VolNetXConfig:
     val_start: Optional[str] = None
     val_end: Optional[str] = None
     embargo_days: int = 30  # drop these days on either side of val window from train
+    target_col: str = "realized_log_vol"  # target column for training
     extra_features: Optional[List[str]] = None
 
 # --------------------------------------------------------------------

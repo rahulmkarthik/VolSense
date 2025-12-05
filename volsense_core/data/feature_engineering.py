@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from volsense_core.data.fetch import fetch_macro_series
 from volsense_core.data.fetch import fetch_earnings_dates
 from volsense_inference.sector_mapping import get_ticker_type_map
 
@@ -106,10 +107,13 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     Computes per-ticker:
       - vol_3d: 3-day mean of realized_vol
       - vol_10d: 10-day mean of realized_vol
+      - vol_20d: 20-day mean of realized_vol
+      - vol_60d: 60-day mean of realized_vol
       - vol_ratio: vol_3d / (vol_10d + eps)
       - vol_chg: vol_3d - vol_10d
       - vol_vol: 10-day std of realized_vol
       - ewma_vol_10d: EWMA of realized_vol with span=10
+      - return_sharpe_20d: 20-day mean(return) / std(return)
 
     :param df: Input DataFrame containing at least ['ticker','realized_vol'].
     :type df: pandas.DataFrame
@@ -124,6 +128,8 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["vol_10d"] = g["realized_vol"].apply(
         lambda s: s.rolling(10, min_periods=1).mean()
     )
+    df["vol_20d"] = df["realized_vol"].rolling(20).mean()
+    df["vol_60d"] = df["realized_vol"].rolling(60).mean()
     df["vol_ratio"] = df["vol_3d"] / (df["vol_10d"] + eps)
     df["vol_chg"] = df["vol_3d"] - df["vol_10d"]
     df["vol_vol"] = g["realized_vol"].apply(
@@ -133,6 +139,7 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["ewma_vol_10d"] = g["realized_vol"].apply(
         lambda s: s.ewm(span=10, adjust=False).mean()
     )
+    df["return_sharpe_20d"] = df["return"].rolling(20).mean() / df["return"].rolling(20).std()
     return df
 
 
@@ -167,6 +174,39 @@ def add_market_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["skew_5d"] = g["return"].apply(
         lambda s: s.rolling(5, min_periods=3).apply(_skew5, raw=True)
     )
+    df["vol_skew_20d"] = df["realized_vol"].rolling(20).skew()
+    df["vol_kurt_20d"] = df["realized_vol"].rolling(20).kurt()
+    df["vol_entropy"] = df["realized_vol"].rolling(20).apply(
+    lambda x: -np.sum((p := np.histogram(x, bins=10, density=True)[0]) * np.log(p + 1e-6)), raw=False)
+
+    # absolute return moments
+    df["abs_return"] = df["return"].abs()
+    df["ret_sq"] = df["return"] ** 2
+
+    # RSI (14-day)
+    delta = df["return"].diff()
+    gain = delta.where(delta > 0, 0.0).rolling(14).mean()
+    loss = -delta.where(delta < 0, 0.0).rolling(14).mean()
+    rs = gain / (loss + 1e-6)
+    df["rsi_14"] = 100 - (100 / (1 + rs))
+
+
+    # MACD diff
+    ema_fast = df["return"].ewm(span=12, adjust=False).mean()
+    ema_slow = df["return"].ewm(span=26, adjust=False).mean()
+    macd = ema_fast - ema_slow
+    signal = macd.ewm(span=9, adjust=False).mean()
+    df["macd_diff"] = macd - signal
+
+
+    # Absolute + interactive features
+    df["vol_stress"] = df["vol_ratio"] * df["market_stress"]
+    df["skew_scaled_return"] = df["abs_return"] * df["skew_5d"]
+
+
+    # Clean up extreme values
+    df = df.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
     return df
 
 
@@ -177,8 +217,6 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     Computes:
       - day_of_week: normalized day index in [0,1] (Mon=0, Sun=1 via 6.0 divisor)
       - month_sin, month_cos: cyclical month encodings
-      - abs_return: absolute daily return
-      - ret_sq: squared daily return
 
     :param df: Input DataFrame containing 'date' and 'return'.
     :type df: pandas.DataFrame
@@ -189,30 +227,77 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     df["day_of_week"] = df["date"].dt.dayofweek / 6.0
     df["month_sin"] = np.sin(2 * np.pi * df["date"].dt.month / 12)
     df["month_cos"] = np.cos(2 * np.pi * df["date"].dt.month / 12)
-    df["abs_return"] = df["return"].abs()
-    df["ret_sq"] = df["return"] ** 2
     return df
 
+# ============================================================
+# 🌍 Macro Data
+# ============================================================
 
-def add_earnings_flag(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFrame:
+def attach_macro_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Adds a binary column `is_earnings_day` to indicate if a row is an earnings event.
-    Assumes both `df` and `earnings_df` have 'ticker' and 'date' columns.
+    Merge macro features onto the ticker dataset and forward-fill.
+    """
+    # 1. Determine date range needed
+    start = df['date'].min().strftime('%Y-%m-%d')
+    end = df['date'].max().strftime('%Y-%m-%d')
+    
+    # 2. Fetch
+    macros = fetch_macro_series(start, end)
+    
+    # 3. Merge (Left join on date)
+    # Ensure df date is also tz-naive
+    df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
+    
+    merged = df.merge(macros, left_on='date', right_index=True, how='left')
+    
+    # 4. Fill gaps (Macro data often has different holidays than equities)
+    macro_cols = [c for c in merged.columns if c.startswith("macro_")]
+    merged[macro_cols] = merged[macro_cols].ffill().fillna(0.0)
+    
+    return merged
+
+def add_earnings_heat(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds `event_earnings_heat`: A continuous signal (0 to 1) inversely proportional 
+    to days until the next earnings event.
     """
     df = df.copy()
-    df["is_earnings_day"] = 0
+    
+    # Ensure main DF is timezone-naive before merge
+    if pd.api.types.is_datetime64tz_dtype(df["date"]):
+        df["date"] = df["date"].dt.tz_localize(None)
 
-    if earnings_df is not None and not earnings_df.empty:
-        earnings_df = earnings_df.drop_duplicates(["ticker", "date"])
-        earnings_df["is_earnings_day"] = 1
-        df = df.merge(
-            earnings_df[["ticker", "date", "is_earnings_day"]],
-            on=["ticker", "date"],
-            how="left",
-        )
-        df["is_earnings_day"] = df["is_earnings_day"].fillna(0).astype(int)
+    if earnings_df is None or earnings_df.empty:
+        df["event_earnings_heat"] = 0.0
+        return df
 
-    return df
+    # 1. Prepare Earnings Data
+    # 🚀 FIX: Sort by DATE specifically for merge_asof requirements
+    earnings_df = earnings_df[["ticker", "date"]].sort_values("date").drop_duplicates()
+    earnings_df["next_earnings_date"] = earnings_df["date"]
+    
+    # 2. Prepare Left DataFrame
+    # 🚀 FIX: Sort by DATE globally. merge_asof requires 'on' key to be strictly sorted.
+    df = df.sort_values("date")
+    
+    # 3. Merge
+    merged = pd.merge_asof(
+        df,
+        earnings_df[["ticker", "next_earnings_date", "date"]], 
+        by="ticker",
+        on="date",
+        direction="forward",
+        allow_exact_matches=True
+    )
+    
+    # 4. Calculate Heat
+    merged["days_until"] = (merged["next_earnings_date"] - merged["date"]).dt.days
+    merged["days_until"] = merged["days_until"].fillna(999)
+    merged["event_earnings_heat"] = 1.0 / (merged["days_until"] + 1.0)
+    merged.loc[merged["days_until"] > 60, "event_earnings_heat"] = 0.0
+    
+    # 🚀 FIX: Restore Ticker/Date sorting for pipeline consistency
+    return merged.drop(columns=["next_earnings_date", "days_until"]).sort_values(["ticker", "date"])
 
 
 def add_ticker_type_column(df: pd.DataFrame, version: str = "v507") -> pd.DataFrame:
@@ -233,7 +318,8 @@ def build_features(
     df: pd.DataFrame,
     include=None,
     exclude=None,
-    include_earnings_flag: bool = False,
+    include_earnings: bool = False,
+    include_macro: bool = True,
 ) -> pd.DataFrame:
     """
     Build a full feature set with inclusion/exclusion controls.
@@ -245,15 +331,16 @@ def build_features(
       4) add_calendar_features
       5) (optional) add_earnings_flag
       6) add_ticker_type_column
-      7) Filter to core columns + requested engineered features
+      7) (optional) attach_macro_features
+      8) Filter to core columns + requested engineered features
 
     :param df: Input DataFrame (raw OHLCV or long table with 'return' and 'realized_vol').
     :type df: pandas.DataFrame
     :param include: Feature names to include; if None, uses the default feature list.
     :type include: list[str] or None
     :param exclude: Feature names to exclude from the final set.
-    :param include_earnings_flag: Whether to add an earnings day flag feature.
-    :type include_earnings_flag: bool
+    :param include_earnings: Whether to add an earnings day flag feature.
+    :type include_earnings: bool
     :type exclude: list[str] or set[str] or None
     :raises ValueError: Propagated if base feature computation cannot infer dates.
     :raises KeyError: Propagated if required columns for returns are missing.
@@ -262,20 +349,25 @@ def build_features(
     """
 
     include = include or [
-        "vol_3d",
-        "vol_10d",
-        "vol_ratio",
-        "vol_chg",
-        "vol_vol",
-        "ewma_vol_10d",
-        "market_stress",
-        "market_stress_1d_lag",
-        "skew_5d",
-        "day_of_week",
-        "month_sin",
-        "month_cos",
-        "abs_return",
-        "ret_sq",
+        # Vol Dynamics
+        "vol_3d", "vol_10d", "vol_20d", "vol_60d",
+        "vol_ratio", "vol_chg", "vol_vol", "ewma_vol_10d",
+        
+        # Distribution
+        "vol_skew_20d", "vol_kurt_20d", "vol_entropy",
+        "skew_5d", "skew_scaled_return",
+        
+        # Price / Tech
+        "return_sharpe_20d", "abs_return", "ret_sq",
+        "rsi_14", "macd_diff",
+        
+        # Stress / Calendar
+        "market_stress", "market_stress_1d_lag", "vol_stress",
+        "day_of_week", "month_sin", "month_cos",
+        
+        # 🌍 MACRO (Legacy + New Tier 2)
+        "macro_Oil", "macro_BTC", "macro_VIX", "macro_Rates",
+        "macro_CreditSpread", "macro_Curve", "macro_USD"
     ]
     exclude = set(exclude or [])
 
@@ -285,8 +377,8 @@ def build_features(
     df = add_calendar_features(df)
     df = add_ticker_type_column(df, version="v507")
 
-    # 🗓️ Earnings event flag
-    if include_earnings_flag:
+    # 🗓️ Earnings event HEAT (Replaces binary flag)
+    if include_earnings:
         assert (
             "ticker" in df.columns and "date" in df.columns
         ), "Input dataframe must contain 'ticker' and 'date' columns"
@@ -295,10 +387,19 @@ def build_features(
         start_date = str(df["date"].min().date())
         end_date = str(df["date"].max().date())
 
+        # Reuse existing fetch logic
         earnings_df = fetch_earnings_dates(tickers, start_date, end_date)
-        df = add_earnings_flag(df, earnings_df)
-        include.append("is_earnings_day")
+        
+        # Heatmap logic
+        df = add_earnings_heat(df, earnings_df)
+        
+        include.append("event_earnings_heat")
         include.append("ticker_type")
+
+    # --- Macro Integration ---
+    if include_macro:
+        df = attach_macro_features(df)
+        
 
     # Filter to requested engineered features + core columns
     keep = set(include) - exclude

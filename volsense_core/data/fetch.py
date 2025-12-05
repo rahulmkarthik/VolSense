@@ -101,6 +101,76 @@ def fetch_ohlcv(
         return next(iter(out_dict.values())) if out_dict else pd.DataFrame()
     return out_dict
 
+# ============================================================
+# 🌍 Fetch Macro Data
+# ============================================================
+
+
+def fetch_macro_series(start_date="2000-01-01", end_date=None):
+    """
+    Fetch global macro proxies including Credit, Curve, and USD.
+    """
+    proxies = {
+        "Oil": "CL=F",       # Crude Oil
+        "BTC": "BTC-USD",    # Bitcoin
+        "VIX": "^VIX",       # Volatility Index
+        "Rates10Y": "^TNX",  # 10Y Yield
+        "Rates2Y": "^IRX",   # 2Y Yield (New)
+        "CreditHY": "HYG",   # High Yield Bonds (New)
+        "CreditGov": "IEF",  # 7-10Y Treasuries (New)
+        "USD": "DX-Y.NYB"    # US Dollar Index (New)
+    }
+    
+    macro_data = pd.DataFrame()
+    print(f"🌍 Fetching Macro Proxies: {list(proxies.keys())}...")
+    
+    # Batch download is often cleaner, but looping handles errors better per ticker
+    for name, ticker in proxies.items():
+        try:
+            df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=False)
+            if not df.empty:
+                col = "Adj Close" if "Adj Close" in df.columns else "Close"
+                s = df[col]
+                
+                # Standardize index
+                s.index = s.index.tz_localize(None)
+                
+                # Store raw levels first (we calculate spreads/returns later)
+                macro_data[f"raw_{name}"] = s
+                
+        except Exception as e:
+            print(f"⚠️ Failed to fetch {name} ({ticker}): {e}")
+
+    # --- 🚀 Feature Engineering (Vectorized) ---
+    if not macro_data.empty:
+        # 1. Existing Legacy Features
+        if "raw_Oil" in macro_data: macro_data["macro_Oil"] = macro_data["raw_Oil"].pct_change()
+        if "raw_BTC" in macro_data: macro_data["macro_BTC"] = macro_data["raw_BTC"].pct_change()
+        if "raw_VIX" in macro_data: macro_data["macro_VIX"] = macro_data["raw_VIX"] # VIX is already a level
+        if "raw_Rates10Y" in macro_data: macro_data["macro_Rates"] = macro_data["raw_Rates10Y"] # Legacy support
+        
+        # 2. 🚀 NEW: Yield Curve (10Y - 2Y)
+        if "raw_Rates10Y" in macro_data and "raw_Rates2Y" in macro_data:
+            # Yields are in percent (e.g. 4.5), simple difference works
+            macro_data["macro_Curve"] = macro_data["raw_Rates10Y"] - macro_data["raw_Rates2Y"]
+            
+        # 3. 🚀 NEW: Credit Spread (Log Return Divergence)
+        if "raw_CreditHY" in macro_data and "raw_CreditGov" in macro_data:
+            # We want the relative performance. If HYG drops faster than IEF, spread widens (stress).
+            # Using returns difference: Ret(HYG) - Ret(IEF)
+            # Negative value = Credit Stress.
+            hy_ret = macro_data["raw_CreditHY"].pct_change()
+            gov_ret = macro_data["raw_CreditGov"].pct_change()
+            macro_data["macro_CreditSpread"] = hy_ret - gov_ret
+            
+        # 4. 🚀 NEW: USD Strength
+        if "raw_USD" in macro_data: 
+            macro_data["macro_USD"] = macro_data["raw_USD"].pct_change()
+
+    # Drop the intermediate "raw_" columns to keep it clean
+    cols_to_keep = [c for c in macro_data.columns if c.startswith("macro_")]
+    return macro_data[cols_to_keep]
+
 
 # ============================================================
 # 📈 Unified Dataset Builder
@@ -175,10 +245,13 @@ def build_dataset(
 def fetch_earnings_dates(
     tickers: List[str], start_date: str, end_date: str
 ) -> pd.DataFrame:
-    import yfinance as yf
 
     bad_tickers = []
     events = []
+    
+    # 1. Convert start/end to Naive Timestamps up front for safe comparison
+    ts_start = pd.to_datetime(start_date).tz_localize(None)
+    ts_end = pd.to_datetime(end_date).tz_localize(None)
 
     for t in tqdm(tickers, desc="📅 Fetching earnings", unit="ticker"):
         try:
@@ -190,10 +263,21 @@ def fetch_earnings_dates(
                 continue
 
             ed = ed.reset_index()
-            ed.columns = ["Date", "Estimate", "Reported", "Surprise_%"]
-            ed["Date"] = pd.to_datetime(ed["Date"]).dt.normalize()
+            # yfinance sometimes varies column names ("Earnings Date" vs "Date")
+            # Rename specifically if needed, otherwise assume index reset put it in col 0 or named it 'Date'
+            if "Earnings Date" in ed.columns:
+                ed.rename(columns={"Earnings Date": "Date"}, inplace=True)
+            elif "Event Date" in ed.columns: # Rare variation
+                 ed.rename(columns={"Event Date": "Date"}, inplace=True)
+
+            # 🚀 CRITICAL FIX: Strip Timezone (.tz_localize(None))
+            ed["Date"] = pd.to_datetime(ed["Date"]).dt.tz_localize(None).dt.normalize()
             ed["Ticker"] = t
-            events.append(ed[["Date", "Ticker"]])
+            
+            # Filter rows immediately (safer than doing it at the end)
+            mask = (ed["Date"] >= ts_start) & (ed["Date"] <= ts_end)
+            events.append(ed.loc[mask, ["Date", "Ticker"]])
+            
         except Exception:
             bad_tickers.append(t)
             continue
@@ -202,9 +286,8 @@ def fetch_earnings_dates(
         return pd.DataFrame(columns=["date", "ticker"])
 
     df = pd.concat(events, ignore_index=True)
-    df = df[
-        (df["Date"] >= pd.to_datetime(start_date))
-        & (df["Date"] <= pd.to_datetime(end_date))
-    ].rename(columns={"Date": "date", "Ticker": "ticker"})
+    
+    # Rename for pipeline compatibility
+    df = df.rename(columns={"Date": "date", "Ticker": "ticker"})
 
     return df.sort_values(["ticker", "date"]).reset_index(drop=True)

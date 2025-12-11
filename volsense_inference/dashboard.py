@@ -27,12 +27,17 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import date
-from typing import List
+from typing import List, Optional
+
+# Plotly for interactive visualizations
+import plotly.express as px
+import plotly.graph_objects as go
 
 # VolSense imports
 from volsense_inference.forecast_engine import Forecast  # runs models + features  📦
 from volsense_inference.signal_engine import SignalEngine  # sector-aware signals
 from volsense_inference.sector_mapping import get_sector_map, get_color
+from volsense_inference.persistence import get_daily_cache
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Streamlit page config
@@ -43,11 +48,18 @@ st.set_page_config(
     layout="wide",
 )
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Full V507 Universe
+# ──────────────────────────────────────────────────────────────────────────────
+V507_UNIVERSE = list(get_sector_map("v507").keys())
+
 # ─────────────────────────────────────────────────────────────
 # ⚙️ Session state setup
 # ─────────────────────────────────────────────────────────────
 if "forecast_data" not in st.session_state:
     st.session_state.forecast_data = None
+if "universe_hydrated" not in st.session_state:
+    st.session_state.universe_hydrated = False
 if "active_tab" not in st.session_state:
     st.session_state.active_tab = "Overview"
 if "tabs_list" not in st.session_state:
@@ -172,6 +184,103 @@ def run_volsense(
     sig_df = se.compute_signals(enrich_with_sectors=True)
 
     return fcast, preds, analytics, ae_summary, se, sig_df
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Universe Hydration & Cache Loading
+# ──────────────────────────────────────────────────────────────────────────────
+def hydrate_universe(model_version: str, checkpoints_dir: str) -> tuple:
+    """
+    Run forecasts on the FULL V507 universe and cache results.
+    
+    This provides meaningful cross-sectional signals since z-scores
+    are computed across the entire universe.
+    
+    :param model_version: Model version to use.
+    :param checkpoints_dir: Directory with model checkpoints.
+    :return: Tuple (fcast, preds, analytics, ae_summary, se, sig_df)
+    """
+    cache = get_daily_cache()
+    
+    print(f"🌊 Hydrating full universe ({len(V507_UNIVERSE)} tickers)...")
+    
+    # Run full universe inference
+    fcast = _load_forecast_model(model_version, checkpoints_dir)
+    preds = fcast.run(V507_UNIVERSE)
+    
+    analytics = fcast.signals
+    ae_summary = (
+        analytics.summary(horizon="pred_vol_5")
+        if "pred_vol_5" in preds.columns
+        else analytics.summary()
+    )
+    
+    # Compute signals across full universe (use v507 sector map)
+    se = SignalEngine(model_version="v507")
+    se.set_data(preds)
+    sig_df = se.compute_signals(enrich_with_sectors=True)
+    
+    # Store each ticker's data to daily cache
+    for ticker in V507_UNIVERSE:
+        ticker_preds = preds[preds["ticker"] == ticker].to_dict(orient="records")
+        ticker_signals = sig_df[sig_df["ticker"] == ticker].to_dict(orient="records")
+        
+        if ticker_preds:
+            cache.store_entry(ticker, {
+                "predictions": ticker_preds[0] if len(ticker_preds) == 1 else ticker_preds,
+                "signals": ticker_signals,
+            })
+    
+    print(f"💾 Cached {len(cache)} tickers to daily cache")
+    
+    return fcast, preds, analytics, ae_summary, se, sig_df
+
+
+def load_universe_from_cache(model_version: str) -> Optional[tuple]:
+    """
+    Load cached universe data if available.
+    
+    :param model_version: Model version for SignalEngine.
+    :return: Tuple (None, preds, None, None, se, sig_df) or None if cache empty.
+    """
+    cache = get_daily_cache()
+    
+    if len(cache) < 10:  # Require at least some cached data
+        return None
+    
+    print(f"✅ Loading {len(cache)} tickers from daily cache...")
+    
+    # Reconstruct DataFrames from cache
+    pred_rows = []
+    signal_rows = []
+    
+    for ticker, entry in cache.get_all_entries().items():
+        if "predictions" in entry:
+            p = entry["predictions"]
+            if isinstance(p, dict):
+                pred_rows.append(p)
+            elif isinstance(p, list):
+                pred_rows.extend(p)
+        
+        if "signals" in entry:
+            signal_rows.extend(entry["signals"])
+    
+    if not pred_rows or not signal_rows:
+        return None
+    
+    preds = pd.DataFrame(pred_rows)
+    sig_df = pd.DataFrame(signal_rows)
+    
+    # Convert date columns back to datetime
+    for df in [preds, sig_df]:
+        if "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    
+    # Create SignalEngine (use v507 sector map)
+    se = SignalEngine(model_version="v507")
+    se.set_data(preds)
+    
+    return None, preds, None, None, se, sig_df
 
 
 def _pretty_number(x, nd=3):
@@ -336,61 +445,85 @@ TICKERS = [
 ]
 
 with st.sidebar:
+    st.header("📊 VolSense Dashboard")
+    
     model_version = st.text_input(
         "Model version", value="volnetx"
-    )  # matches your checkpoints naming
-    checkpoints_dir = st.text_input("Checkpoints directory", value="models")
-    default_tickers = ", ".join(TICKERS)
-    tickers_str = st.text_area(
-        "Tickers (comma-separated)", value=default_tickers, height=90
     )
-    start_date = st.date_input("Start fetch (for features)", value=date(2005, 1, 1))
-    run_btn = st.button("🚀 Run Forecasts", type="primary", width="stretch")
+    checkpoints_dir = st.text_input("Checkpoints directory", value="models")
+    
+    st.divider()
+    
+    # Primary action: Refresh Market (full universe)
+    st.subheader("🌊 Market Hydration")
+    st.caption(f"Universe: {len(V507_UNIVERSE)} tickers")
+    
+    cache = get_daily_cache()
+    cache_status = f"📦 {len(cache)} tickers cached ({cache._today_str()})"
+    st.caption(cache_status)
+    
+    hydrate_btn = st.button("Refresh Market", type="primary", use_container_width=True)
+    
+    st.divider()
+    st.caption("💡 Refresh Market runs inference on the full V507 universe for meaningful cross-sectional signals.")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Header
 # ──────────────────────────────────────────────────────────────────────────────
 st.title("📈 VolSense — Sector & Ticker Volatility Insights")
 st.markdown(
-    "Real-time cross-sectional analytics and sector-aware signals. "
-    "Use the sidebar to select model/tickers and generate insights."
+    "Cross-sectional volatility analytics and sector-aware signals across the V507 universe. "
+    "Click **Refresh Market** to hydrate with latest inference."
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Main workflow
 # ──────────────────────────────────────────────────────────────────────────────
 
-if run_btn or st.session_state.forecast_data is not None:
-    try:
-        # 1️⃣ Load cached or run new forecast
-        if not run_btn:
-            fcast = st.session_state.forecast_data["fcast"]
-            preds = st.session_state.forecast_data["preds"]
-            analytics = st.session_state.forecast_data["analytics"]
-            ae_summary = st.session_state.forecast_data["ae_summary"]
-            se = st.session_state.forecast_data["se"]
-            sig_df = st.session_state.forecast_data["sig_df"]
-        else:
-            tickers = _parse_tickers(tickers_str)
-            if not tickers:
-                st.warning("Please provide at least one ticker.")
-                st.stop()
+# Try to load from cache on startup
+if st.session_state.forecast_data is None and not hydrate_btn:
+    cached_result = load_universe_from_cache(model_version)
+    if cached_result is not None:
+        fcast, preds, analytics, ae_summary, se, sig_df = cached_result
+        st.session_state.forecast_data = {
+            "fcast": fcast,
+            "preds": preds,
+            "analytics": analytics,
+            "ae_summary": ae_summary,
+            "se": se,
+            "sig_df": sig_df,
+        }
+        st.session_state.universe_hydrated = True
 
-            with st.spinner("Running VolSense forecasts and computing signals…"):
-                fcast, preds, analytics, ae_summary, se, sig_df = run_volsense(
-                    model_version=model_version,
-                    checkpoints_dir=checkpoints_dir,
-                    start=str(start_date),
-                    tickers=tickers,
-                )
-            st.session_state.forecast_data = {
-                "fcast": fcast,
-                "preds": preds,
-                "analytics": analytics,
-                "ae_summary": ae_summary,
-                "se": se,
-                "sig_df": sig_df,
-            }
+if hydrate_btn:
+    try:
+        with st.spinner(f"🌊 Hydrating full universe ({len(V507_UNIVERSE)} tickers)... This may take a few minutes."):
+            fcast, preds, analytics, ae_summary, se, sig_df = hydrate_universe(
+                model_version=model_version,
+                checkpoints_dir=checkpoints_dir,
+            )
+        st.session_state.forecast_data = {
+            "fcast": fcast,
+            "preds": preds,
+            "analytics": analytics,
+            "ae_summary": ae_summary,
+            "se": se,
+            "sig_df": sig_df,
+        }
+        st.session_state.universe_hydrated = True
+        st.rerun()
+    except Exception as e:
+        st.error(f"❌ Hydration failed: {e}")
+        st.stop()
+
+if st.session_state.forecast_data is not None:
+    try:
+        fcast = st.session_state.forecast_data["fcast"]
+        preds = st.session_state.forecast_data["preds"]
+        analytics = st.session_state.forecast_data["analytics"]
+        ae_summary = st.session_state.forecast_data["ae_summary"]
+        se = st.session_state.forecast_data["se"]
+        sig_df = st.session_state.forecast_data["sig_df"]
 
         st.success("✅ Forecasts & signals ready!")
 
@@ -429,15 +562,48 @@ if run_btn or st.session_state.forecast_data is not None:
 
         with tab_tickers:
             st.subheader("Per-Ticker Forecast vs Realized")
-            horizons = _detect_horizons(preds)
-            selected_ticker = st.selectbox(
-                "Ticker", preds["ticker"].unique(), key="ticker_ta"
-            )
-            chosen_horizon = st.selectbox("Horizon", horizons, key="horizon_ta")
-
-            fig = fcast.plot(selected_ticker, show=False)
-            st.pyplot(fig, width="stretch")
-            st.info(analytics.describe(selected_ticker, f"pred_vol_{chosen_horizon}"))
+            
+            # Text input for ticker (not dropdown)
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                ticker_input = st.text_input(
+                    "Enter Ticker Symbol",
+                    value="NVDA",
+                    key="ticker_ta",
+                    help="Enter any ticker from the V507 universe"
+                ).upper().strip()
+            with col2:
+                horizons = _detect_horizons(preds)
+                chosen_horizon = st.selectbox("Horizon", horizons, key="horizon_ta")
+            
+            # Validate ticker is in universe
+            if ticker_input not in preds["ticker"].values:
+                st.warning(f"⚠️ '{ticker_input}' not found in cached universe. Available: {len(preds['ticker'].unique())} tickers.")
+                st.info("💡 Click **Refresh Market** to hydrate latest data, or check ticker spelling.")
+            else:
+                selected_ticker = ticker_input
+                
+                # Plot with dark mode styling
+                if fcast is not None:
+                    try:
+                        fig = fcast.plot(selected_ticker, show=False)
+                        st.pyplot(fig, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Could not generate plot: {e}")
+                else:
+                    st.info("Plot unavailable (loaded from cache). Click Refresh Market for full functionality.")
+                
+                # Analytics description
+                if analytics is not None:
+                    st.info(analytics.describe(selected_ticker, f"pred_vol_{chosen_horizon}"))
+                
+                # Show ticker's signal data
+                st.markdown("#### 📊 Signal Metrics")
+                ticker_signals = sig_df[sig_df["ticker"] == selected_ticker]
+                if not ticker_signals.empty:
+                    st.dataframe(ticker_signals, hide_index=True, use_container_width=True)
+                else:
+                    st.caption("No signal data available for this ticker.")
 
         # ──────────────────────────────────────────────────────────────────────
         # SECTOR VIEW
@@ -445,62 +611,134 @@ if run_btn or st.session_state.forecast_data is not None:
         with tab_sector:
             st.subheader("Sector Heatmap & Leaders")
 
-            # Controls
-            all_horizons = sorted(sig_df["horizon"].unique().tolist())
-            h_sel = st.select_slider(
-                "Horizon", options=all_horizons, value=all_horizons[0]
+            # Horizon Toggle (Radio for clearer UX)
+            st.markdown("##### 📅 Forecast Horizon")
+            horizon_option = st.radio(
+                "Select forecast horizon for heatmap",
+                ["1-Day", "5-Day", "10-Day"],
+                index=1,  # Default to 5-Day
+                horizontal=True,
+                key="sector_horizon_radio"
             )
-            sector_map = get_sector_map(model_version)
+            horizon_col_map = {"1-Day": 1, "5-Day": 5, "10-Day": 10}
+            h_sel = horizon_col_map[horizon_option]
+            
+            sector_map = get_sector_map("v507")
 
-            # Build sector pivot for heatmap (sector z per horizon)
+            # Build sector data for heatmap
             dsub = sig_df.copy()
-            # latest date snapshot (SignalEngine standardizes date)   :contentReference[oaicite:8]{index=8}
             latest_date = dsub["date"].max()
             dsub = dsub[dsub["date"] == latest_date]
+            
+            # Filter to selected horizon
+            dsub_h = dsub[dsub["horizon"] == h_sel].copy()
 
-            pivot = (
-                dsub.pivot_table(
-                    index="sector", columns="horizon", values="sector_z", aggfunc="mean"
+            # ─────────────────────────────────────────────────
+            # Plotly Treemap Heatmap
+            # ─────────────────────────────────────────────────
+            st.markdown(f"### 🗺️ Volatility Universe Heatmap ({horizon_option} Forecast)")
+            
+            if len(dsub_h) > 0:
+                # Prepare data for treemap
+                df_tree = dsub_h.copy()
+                # Use absolute z-score for sizing (larger = more extreme)
+                df_tree["abs_z"] = df_tree["vol_zscore"].abs().clip(lower=0.1)
+                
+                fig_tree = px.treemap(
+                    df_tree,
+                    path=["sector", "ticker"],
+                    values="abs_z",
+                    color="vol_zscore",
+                    color_continuous_scale="RdYlGn",
+                    color_continuous_midpoint=0,
+                    hover_data=["position", "regime_flag", "vol_spread"],
+                    height=500,
                 )
-                .fillna(0.0)
-                .sort_index()
-            )
+                
+                fig_tree.update_layout(
+                    margin=dict(t=10, l=0, r=0, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(size=10, color="white"),
+                )
+                
+                fig_tree.update_traces(
+                    hovertemplate="<b>%{label}</b><br>Z-Score: %{color:.2f}<br>Signal: %{customdata[0]}<br>Regime: %{customdata[1]}<extra></extra>",
+                    textposition="middle center",
+                )
+                
+                st.plotly_chart(fig_tree, use_container_width=True)
+            else:
+                st.info("No tickers match the current filter criteria.")
 
-            # Plot with st.pyplot (simple heatmap using matplotlib)
-            import matplotlib.pyplot as plt
-            import seaborn as sns
+            st.divider()
 
-            fig_hm, ax = plt.subplots(figsize=(8, 5))
-            sns.heatmap(
-                pivot,
-                cmap="coolwarm",
-                center=0,
-                annot=True,
-                fmt=".2f",
-                cbar_kws={"label": "Sector Z-score"},
-                ax=ax,
-            )
-            ax.set_title(f"Sector Volatility Heatmap  —  {latest_date.date()}")
-            st.pyplot(fig_hm, width="stretch")
+            # ─────────────────────────────────────────────────
+            # Sector Signal Strength Bar Chart
+            # ─────────────────────────────────────────────────
+            st.markdown("### 📈 Sector Signal Strength")
+            
+            if len(dsub_h) > 0:
+                sector_strength = dsub_h.groupby("sector")["vol_zscore"].mean().reset_index()
+                sector_strength = sector_strength.sort_values("vol_zscore", ascending=False)
+                
+                colors = ["#00FF00" if x > 0 else "#FF4444" for x in sector_strength["vol_zscore"]]
+                
+                fig_sector = go.Figure(data=[
+                    go.Bar(
+                        x=sector_strength["sector"],
+                        y=sector_strength["vol_zscore"],
+                        marker_color=colors,
+                        text=sector_strength["vol_zscore"].round(2),
+                        textposition="outside",
+                    )
+                ])
+                
+                fig_sector.update_layout(
+                    height=400,
+                    margin=dict(t=20, l=0, r=0, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    xaxis_title="Sector",
+                    yaxis_title="Avg Z-Score",
+                    showlegend=False,
+                    xaxis=dict(tickangle=-45, color="white"),
+                    yaxis=dict(color="white"),
+                    font=dict(color="white"),
+                )
+                
+                st.plotly_chart(fig_sector, use_container_width=True)
+            else:
+                st.info("No sector data available.")
 
-            # Top sectors by mean z at selected horizon
-            top_n = st.slider("Top sectors to display", 3, 12, 8)
-            sec_slice = (
-                dsub[dsub["horizon"] == h_sel]
-                .groupby("sector")["sector_z"]
-                .mean()
-                .sort_values(ascending=False)
-            )
-            top = sec_slice.head(top_n)
-
-            # Horizontal bar with sector colors
-            colors = [get_color(s) for s in top.index]
-            fig_bar, axb = plt.subplots(figsize=(6, 0.45 * len(top) + 1.5))
-            axb.barh(top.index, top.values, color=colors)
-            axb.invert_yaxis()
-            axb.set_xlabel("Mean Sector Z-score")
-            axb.set_title(f"Top {top_n} Sectors (H={h_sel}d)")
-            st.pyplot(fig_bar, width="stretch")
+            st.divider()
+            
+            # ─────────────────────────────────────────────────
+            # Sector-Specific Tabs
+            # ─────────────────────────────────────────────────
+            st.markdown("### 📊 Sector Deep Dive")
+            
+            available_sectors = sorted(dsub_h["sector"].dropna().unique().tolist())
+            if available_sectors:
+                sector_tabs = st.tabs(available_sectors[:10])  # Limit to 10 sectors for UI
+                
+                for i, sector_name in enumerate(available_sectors[:10]):
+                    with sector_tabs[i]:
+                        sector_df = dsub_h[dsub_h["sector"] == sector_name].copy()
+                        
+                        # Display key metrics
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("Tickers", len(sector_df))
+                        col2.metric("Avg Z-Score", f"{sector_df['vol_zscore'].mean():.2f}")
+                        col3.metric("Avg Vol Spread", f"{sector_df['vol_spread'].mean():.2%}" if "vol_spread" in sector_df else "N/A")
+                        
+                        # Signal table for this sector
+                        display_cols = ["ticker", "position", "vol_zscore", "vol_spread", "regime_flag"]
+                        display_cols = [c for c in display_cols if c in sector_df.columns]
+                        st.dataframe(
+                            sector_df[display_cols].sort_values("vol_zscore", ascending=False),
+                            hide_index=True,
+                            use_container_width=True,
+                        )
 
         # ──────────────────────────────────────────────────────────────────────
         # SIGNAL TABLE

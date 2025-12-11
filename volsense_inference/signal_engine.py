@@ -75,15 +75,24 @@ def _coerce_to_long(df_in: pd.DataFrame) -> pd.DataFrame:
     if "ticker" in df.columns and pred_cols:
         df["date"] = pd.Timestamp.today().normalize()
         
+        # Include realized_vol in id_vars if present so it carries over after melt
+        id_vars = ["ticker", "date"] + mom_cols
+        if "realized_vol" in df.columns:
+            id_vars.append("realized_vol")
+        
         long = df.melt(
-            # FIX: Must include ALL momentum columns in id_vars to preserve them
-            id_vars=["ticker", "date"] + mom_cols, 
+            id_vars=id_vars, 
             value_vars=pred_cols,
             var_name="horizon_col",
             value_name="forecast_vol",
         )
         long["horizon"] = long["horizon_col"].str.extract(r"(\d+)").astype(int)
-        long["today_vol"] = df["realized_vol"].reindex(long.index, fill_value=np.nan)
+        
+        # Map realized_vol to today_vol
+        if "realized_vol" in long.columns:
+            long["today_vol"] = long["realized_vol"]
+        else:
+            long["today_vol"] = np.nan
 
         return long[base_cols + mom_cols]
 

@@ -277,12 +277,23 @@ class Forecast:
         df_t = self.df_recent[self.df_recent["ticker"] == ticker].copy()
         df_t = df_t.sort_values("date").tail(180)  # last ~6 months
 
+        # ─────────────────────────────────────────────────
+        # Dark Mode Styling
+        # ─────────────────────────────────────────────────
         fig, ax = plt.subplots(figsize=(10, 5))
+        
+        # Dark background colors
+        dark_bg = "#1a1c24"
+        fig.patch.set_facecolor(dark_bg)
+        ax.set_facecolor(dark_bg)
+        
+        # Plot realized volatility with bright color
         ax.plot(
             df_t["date"],
             df_t["realized_vol"],
             label="Realized Volatility",
-            color="tab:blue",
+            color="#4da6ff",  # Bright blue
+            linewidth=2,
         )
 
         # Collect horizons we actually have predictions for
@@ -292,20 +303,17 @@ class Forecast:
             if f"pred_vol_{h}" in preds.columns
         ]
 
-        # Unique colors per horizon (skip index 0 in tab10 to avoid blue clash)
-        palette = plt.get_cmap("tab10").colors
-        start_idx = 1  # 0 is blue; we already used that for realized vol
-        color_map = {
-            h: palette[(start_idx + i) % len(palette)]
-            for i, h in enumerate(present_horizons)
-        }
+        # Forecast line colors (bright, visible on dark bg)
+        forecast_colors = {1: "#ffcc00", 5: "#ff6666", 10: "#cc99ff"}
+        default_colors = ["#00ff88", "#ff9933", "#66ccff"]
 
         # Plot all horizons with distinct colors
-        for h in present_horizons:
+        for i, h in enumerate(present_horizons):
             col = f"pred_vol_{h}"
             y = preds[col].values[0]
+            color = forecast_colors.get(h, default_colors[i % len(default_colors)])
             ax.axhline(
-                y, color=color_map[h], linestyle="--", alpha=0.9, label=f"Pred {h}d"
+                y, color=color, linestyle="--", alpha=0.9, linewidth=2, label=f"Pred {h}d"
             )
 
         if show_vix and vix_df is not None:
@@ -314,19 +322,38 @@ class Forecast:
             ax.plot(
                 vix_df["date"],
                 vix_df["close"],
-                color="tab:red",
-                alpha=0.5,
+                color="#ff4444",
+                alpha=0.6,
                 label="VIX Index",
             )
 
-        ax.set_title(f"{ticker} — Forecast vs Realized Volatility")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Volatility")
+        # Styling for dark mode
+        ax.set_title(f"{ticker} — Volatility Term Structure", color="white", fontsize=12)
+        ax.set_xlabel("Date", color="white")
+        ax.set_ylabel("Volatility", color="white")
+        
+        # Axis tick colors
+        ax.tick_params(axis="x", colors="white")
+        ax.tick_params(axis="y", colors="white")
+        
+        # Spine styling
+        ax.spines["bottom"].set_color("#444")
+        ax.spines["left"].set_color("#444")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
 
         # Deduplicate legend entries (defensive)
         handles, labels = ax.get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
-        ax.legend(by_label.values(), by_label.keys())
+        ax.legend(
+            by_label.values(), 
+            by_label.keys(), 
+            facecolor="#2d2f3a", 
+            labelcolor="white",
+            framealpha=1,
+        )
+
+        plt.tight_layout()
 
         if show:
             plt.show()

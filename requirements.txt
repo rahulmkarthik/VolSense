@@ -24,6 +24,7 @@ streamlit>=1.33
 # Data fetching & requests
 yfinance>=0.2.40
 requests>=2.31
+pyarrow>=14.0
 
 # ML utilities
 scikit-learn>=1.3

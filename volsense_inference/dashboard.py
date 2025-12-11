@@ -462,7 +462,7 @@ with st.sidebar:
     cache_status = f"📦 {len(cache)} tickers cached ({cache._today_str()})"
     st.caption(cache_status)
     
-    hydrate_btn = st.button("Refresh Market", type="primary", use_container_width=True)
+    hydrate_btn = st.button("Refresh Market", type="primary", width="stretch")
     
     st.divider()
     st.caption("💡 Refresh Market runs inference on the full V507 universe for meaningful cross-sectional signals.")
@@ -587,7 +587,7 @@ if st.session_state.forecast_data is not None:
                 if fcast is not None:
                     try:
                         fig = fcast.plot(selected_ticker, show=False)
-                        st.pyplot(fig, use_container_width=True)
+                        st.pyplot(fig, width="stretch")
                     except Exception as e:
                         st.error(f"Could not generate plot: {e}")
                 else:
@@ -601,7 +601,7 @@ if st.session_state.forecast_data is not None:
                 st.markdown("#### 📊 Signal Metrics")
                 ticker_signals = sig_df[sig_df["ticker"] == selected_ticker]
                 if not ticker_signals.empty:
-                    st.dataframe(ticker_signals, hide_index=True, use_container_width=True)
+                    st.dataframe(ticker_signals, hide_index=True, width="stretch")
                 else:
                     st.caption("No signal data available for this ticker.")
 
@@ -666,7 +666,7 @@ if st.session_state.forecast_data is not None:
                     textposition="middle center",
                 )
                 
-                st.plotly_chart(fig_tree, use_container_width=True)
+                st.plotly_chart(fig_tree, width="stretch")
             else:
                 st.info("No tickers match the current filter criteria.")
 
@@ -706,7 +706,7 @@ if st.session_state.forecast_data is not None:
                     font=dict(color="white"),
                 )
                 
-                st.plotly_chart(fig_sector, use_container_width=True)
+                st.plotly_chart(fig_sector, width="stretch")
             else:
                 st.info("No sector data available.")
 
@@ -737,7 +737,7 @@ if st.session_state.forecast_data is not None:
                         st.dataframe(
                             sector_df[display_cols].sort_values("vol_zscore", ascending=False),
                             hide_index=True,
-                            use_container_width=True,
+                            width="stretch",
                         )
 
         # ──────────────────────────────────────────────────────────────────────

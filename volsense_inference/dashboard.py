@@ -356,7 +356,6 @@ TICKERS = [
     "AAPL",
     "MSFT",
     "GOOG",
-    "GOOGL",
     "AMZN",
     "META",
     "NVDA",

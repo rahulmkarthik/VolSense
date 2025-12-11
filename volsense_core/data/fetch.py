@@ -6,8 +6,6 @@ from pathlib import Path
 from datetime import datetime, date
 from tqdm import tqdm
 from typing import Union, List, Dict
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 
 # ============================================================
 # 📦 Daily Cache Configuration
@@ -38,6 +36,7 @@ def _save_daily_cache(df: pd.DataFrame, cache_key: str) -> None:
     cache_path = _get_daily_cache_path(cache_key)
     try:
         df.to_parquet(cache_path, index=False)
+        # Clean up old cache files (keep only last 3 days)
         _cleanup_old_caches(cache_key, keep_days=3)
     except Exception as e:
         print(f"⚠️ Failed to save cache: {e}")
@@ -50,6 +49,7 @@ def _cleanup_old_caches(cache_key: str, keep_days: int = 3) -> None:
     today = date.today()
     for f in _DAILY_CACHE_DIR.glob(f"{cache_key}_*.parquet"):
         try:
+            # Extract date from filename
             date_str = f.stem.split("_")[-1]
             file_date = datetime.strptime(date_str, "%Y%m%d").date()
             if (today - file_date).days > keep_days:
@@ -71,7 +71,7 @@ def fetch_ohlcv(
 ) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """
     Fetch OHLCV data for one or more tickers from Yahoo Finance.
-
+    
     Uses batch download for multiple tickers (10-20x faster than per-ticker).
     Optionally uses daily caching to avoid re-downloading within the same day.
 
@@ -104,6 +104,7 @@ def fetch_ohlcv(
         cached_df = _load_daily_cache(cache_key)
         if cached_df is not None:
             print(f"✅ Loaded {len(tickers)} tickers from daily cache")
+            # Convert back to dict format
             out_dict = {}
             for tkr in tickers:
                 tkr_df = cached_df[cached_df["ticker"] == tkr].drop(columns=["ticker"])
@@ -123,46 +124,50 @@ def fetch_ohlcv(
                 end=end,
                 auto_adjust=False,
                 progress=show_progress,
-                threads=True,
+                threads=True,  # Enable multi-threading
                 group_by="ticker",
             )
-
+            
             out_dict = {}
             for tkr in tickers:
                 try:
                     if isinstance(raw_df.columns, pd.MultiIndex):
+                        # Multi-ticker format: columns are (Ticker, Field)
                         if tkr in raw_df.columns.get_level_values(0):
                             df_tkr = raw_df[tkr].copy()
                         else:
                             continue
                     else:
+                        # Single ticker fallback
                         df_tkr = raw_df.copy()
-
+                    
                     if df_tkr.empty:
                         continue
-
+                    
+                    # Normalize columns
                     df_tkr = df_tkr.reset_index()
                     df_tkr.columns = [c.lower().replace(" ", "_") if isinstance(c, str) else c for c in df_tkr.columns]
-
+                    
+                    # Standardize column names
                     rename_map = {"adj_close": "adj_close", "date": "date"}
                     for old, new in [("Date", "date"), ("Adj Close", "adj_close"), ("Close", "close")]:
                         old_lower = old.lower().replace(" ", "_")
                         if old_lower in df_tkr.columns:
                             rename_map[old_lower] = new
                     df_tkr = df_tkr.rename(columns=rename_map)
-
+                    
                     if "adj_close" not in df_tkr.columns:
                         df_tkr["adj_close"] = df_tkr.get("close", np.nan)
-
+                    
                     df_tkr["date"] = pd.to_datetime(df_tkr["date"], errors="coerce")
                     df_tkr = df_tkr.dropna(subset=["date"])
-
+                    
                     out_dict[tkr] = df_tkr
-
+                    
                 except Exception as e:
                     print(f"⚠️ Failed processing {tkr}: {e}")
                     continue
-
+            
             # Save to daily cache
             if use_daily_cache and out_dict:
                 cache_frames = []
@@ -174,13 +179,14 @@ def fetch_ohlcv(
                     combined = pd.concat(cache_frames, ignore_index=True)
                     _save_daily_cache(combined, cache_key)
                     print(f"💾 Saved {len(out_dict)} tickers to daily cache")
-
+            
             if single_mode:
                 return next(iter(out_dict.values())) if out_dict else pd.DataFrame()
             return out_dict
-
+            
         except Exception as e:
             print(f"⚠️ Batch download failed, falling back to per-ticker: {e}")
+            # Fall through to per-ticker download
 
     # --- Per-Ticker Download (single ticker or fallback) ---
     if cache_dir:
@@ -213,6 +219,7 @@ def fetch_ohlcv(
                 print(f"⚠️ {tkr}: no data returned.")
                 continue
 
+            # --- Normalize columns ---
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = [c[0] for c in df.columns]
             df = df.reset_index().rename(
@@ -228,6 +235,7 @@ def fetch_ohlcv(
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
             df = df.dropna(subset=["date"])
 
+            # Cache save
             if cache_path:
                 df.to_csv(cache_path, index=False)
 
@@ -238,8 +246,10 @@ def fetch_ohlcv(
             continue
 
     if single_mode:
+        # Return single ticker DataFrame directly
         return next(iter(out_dict.values())) if out_dict else pd.DataFrame()
     return out_dict
+
 
 # ============================================================
 # 🌍 Fetch Macro Data
@@ -360,6 +370,10 @@ def build_dataset(
         data_dict = data
 
     for tkr, df in data_dict.items():
+        # Handle yfinance MultiIndex columns (new yfinance format)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(1)
+        df.columns = df.columns.str.lower()
         df = df.copy()
         price_col = "adj_close" if "adj_close" in df.columns else "close"
         df["return"] = df[price_col].pct_change()
@@ -385,7 +399,7 @@ def build_dataset(
 def _fetch_single_earnings(ticker: str, ts_start, ts_end) -> pd.DataFrame | None:
     """Fetch earnings for a single ticker (for concurrent execution)."""
     import time
-
+    
     for attempt in range(2):  # Retry once on failure
         try:
             ticker_obj = yf.Ticker(ticker)
@@ -395,6 +409,7 @@ def _fetch_single_earnings(ticker: str, ts_start, ts_end) -> pd.DataFrame | None
                 return None
 
             ed = ed.reset_index()
+            # yfinance sometimes varies column names
             if "Earnings Date" in ed.columns:
                 ed.rename(columns={"Earnings Date": "Date"}, inplace=True)
             elif "Event Date" in ed.columns:
@@ -402,12 +417,12 @@ def _fetch_single_earnings(ticker: str, ts_start, ts_end) -> pd.DataFrame | None
 
             ed["Date"] = pd.to_datetime(ed["Date"]).dt.tz_localize(None).dt.normalize()
             ed["Ticker"] = ticker
-
+            
             mask = (ed["Date"] >= ts_start) & (ed["Date"] <= ts_end)
             result = ed.loc[mask, ["Date", "Ticker"]]
             return result if not result.empty else None
-
-        except Exception:
+            
+        except Exception as e:
             if attempt == 0:
                 time.sleep(0.5)  # Wait before retry
                 continue
@@ -416,25 +431,27 @@ def _fetch_single_earnings(ticker: str, ts_start, ts_end) -> pd.DataFrame | None
 
 
 def fetch_earnings_dates(
-    tickers: List[str],
-    start_date: str,
+    tickers: List[str], 
+    start_date: str, 
     end_date: str,
     use_daily_cache: bool = True,
-    max_workers: int = 5,
+    max_workers: int = 5,  # Reduced from 10 to avoid rate limiting
 ) -> pd.DataFrame:
     """
     Fetch earnings dates for multiple tickers with concurrent execution and caching.
-
-    Uses ThreadPoolExecutor for parallel fetching (5-10x faster than sequential).
+    
+    Uses ThreadPoolExecutor for parallel fetching (10x faster than sequential).
     Optionally caches results for the day to avoid re-fetching.
-
+    
     :param tickers: List of ticker symbols.
     :param start_date: Start date (YYYY-MM-DD).
     :param end_date: End date (YYYY-MM-DD).
     :param use_daily_cache: If True, cache results for the day.
-    :param max_workers: Number of concurrent threads (default: 5).
+    :param max_workers: Number of concurrent threads (default: 10).
     :return: DataFrame with columns ['date', 'ticker'].
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
     # --- Daily Cache Check ---
     if use_daily_cache:
         cache_key = f"earnings_{len(tickers)}"
@@ -442,31 +459,32 @@ def fetch_earnings_dates(
         if cached_df is not None:
             print(f"✅ Loaded earnings from daily cache")
             return cached_df
-
+    
     # Convert start/end to Naive Timestamps
     ts_start = pd.to_datetime(start_date).tz_localize(None)
     ts_end = pd.to_datetime(end_date).tz_localize(None)
-
+    
     events = []
     failed_count = 0
-
+    
     print(f"📅 Fetching earnings for {len(tickers)} tickers (concurrent)...")
-
+    
     # --- Concurrent Fetching ---
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(_fetch_single_earnings, t, ts_start, ts_end): t
+            executor.submit(_fetch_single_earnings, t, ts_start, ts_end): t 
             for t in tickers
         }
-
+        
+        # Progress tracking
         completed = 0
         total = len(futures)
-
+        
         for future in as_completed(futures):
             completed += 1
             if completed % 50 == 0 or completed == total:
                 print(f"   Progress: {completed}/{total} tickers")
-
+            
             result = future.result()
             if result is not None:
                 events.append(result)
@@ -482,11 +500,10 @@ def fetch_earnings_dates(
     df = pd.concat(events, ignore_index=True)
     df = df.rename(columns={"Date": "date", "Ticker": "ticker"})
     df = df.sort_values(["ticker", "date"]).reset_index(drop=True)
-
+    
     # --- Save to Daily Cache ---
     if use_daily_cache:
         _save_daily_cache(df, cache_key)
         print(f"💾 Saved earnings to daily cache")
-
+    
     return df
-

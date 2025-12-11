@@ -384,11 +384,9 @@ def build_features(
         ), "Input dataframe must contain 'ticker' and 'date' columns"
 
         tickers = df["ticker"].unique().tolist()
-        # FIX: Look forward for upcoming earnings (not historical)
-        # earnings_dates API returns future scheduled earnings
-        start_date = str(df["date"].max().date())  # Today
-        from datetime import timedelta
-        end_date = str((df["date"].max() + timedelta(days=120)).date())  # 4 months ahead
+        start_date = str(df["date"].min().date())
+        # Extend end_date to capture upcoming earnings (heat needs future dates)
+        end_date = str((df["date"].max() + pd.Timedelta(days=90)).date())
 
         # Reuse existing fetch logic
         earnings_df = fetch_earnings_dates(tickers, start_date, end_date)

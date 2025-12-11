@@ -454,8 +454,7 @@ TICKERS = [
 ]
 
 with st.sidebar:
-    st.header("📊 VolSense Dashboard")
-    
+    # Model settings
     model_version = st.text_input(
         "Model version", value="volnetx"
     )

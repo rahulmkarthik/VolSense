@@ -11,6 +11,10 @@ checkpoints/
 *.pth
 *.pt
 
+# Cache
+logs/
+.volsense_cache/
+
 # Jupyter checkpoints
 .ipynb_checkpoints/# Ignore CSVs generated under data
 data/**/*.csv

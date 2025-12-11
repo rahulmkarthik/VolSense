@@ -28,10 +28,19 @@ import pandas as pd
 import numpy as np
 from datetime import date
 from typing import List, Optional
+import sys
+from pathlib import Path
 
 # Plotly for interactive visualizations
 import plotly.express as px
 import plotly.graph_objects as go
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Ensure project root is in Python path (for Streamlit Cloud deployment)
+# ──────────────────────────────────────────────────────────────────────────────
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 # VolSense imports
 from volsense_inference.forecast_engine import Forecast  # runs models + features  📦

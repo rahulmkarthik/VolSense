@@ -24,19 +24,21 @@ To explore this, VolSense introduces a **two-tiered architecture**:
 A modular experimentation framework supporting both classical and neural volatility models:
 
 | Model | Description |
-|-------|-------------|
+| :--- | :--- |
 | **ARCHFamily (GARCH, EGARCH, GJR-GARCH)** | Econometric baselines for regime calibration and interpretability. |
 | **BaseLSTM** | Single-ticker LSTM with residual & attention heads, designed for temporal precision. |
 | **GlobalVolForecaster** | Multi-ticker shared LSTM with ticker embeddings, horizon-specific heads, and dropout regularization. |
+| **VolNetX (New)** | Hybrid Transformer-LSTM architecture with Gated Linear Units (GLU) and Multi-Head Attention for regime-aware forecasting. |
 
 **Highlights:**
-- Configurable `TrainConfig` dataclass for all hyperparameters.  
-- Robust checkpointing and bundle serialization.  
-- Multi-horizon support (`1d`, `5d`, `10d`).  
-- Regime-wise validation on calm (2013-14), spike (2020-21), and forward (2023-present) periods.  
-- Integrated evaluation layer (RMSE, MAE, correlation, Durbin–Watson, feature importance).
+* **Configurable:** `TrainConfig` dataclass for all hyperparameters.
+* **Robust Checkpointing:** Automatic bundle serialization for inference.
+* **Multi-Horizon Support:** Simultaneous forecasting for `1d`, `5d`, and `10d`.
+* **Hybrid Architecture (VolNetX):** Combines LSTM (local dynamics) with Transformer Encoders (global regime attention).
+* **Regime-Wise Validation:** Tested on calm (2013-14), spike (2020-21), and forward (2023-present) periods.
+* **Integrated Evaluation:** RMSE, MAE, correlation, Durbin–Watson, and Feature Importance (Bump Test).
 
-Two flagship models — **v109** (109 tickers) and **v507** (507 tickers) — are trained and released as production-ready baselines.
+Three flagship models — **v109** (109 tickers attention LSTM), **v507** (507 ticker attention LSTM), and **volnetx** (transformer-LSTM hybrid) — are trained and released as production-ready baselines.
 
 ---
 

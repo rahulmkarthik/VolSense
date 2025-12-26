@@ -187,11 +187,23 @@ def build_volnetx_dataset(
     ticker_to_id = {t: i for i, t in enumerate(tickers)}
     df["tidx"] = df["ticker"].map(ticker_to_id)
 
-    # Split Logic
-    val_mask = pd.Series(False, index=df.index)
+    # Split Logic with Embargo Zone
+    # 🔒 FIX: Mark embargo period samples with split=-1 to exclude from training
+    # This prevents rolling features computed near val_start from leaking validation info
+    df["split"] = 0  # Default: training
     if config and config.val_start:
-         val_mask = df["date"] >= pd.to_datetime(config.val_start)
-    df["split"] = val_mask.astype(int)
+        val_start_dt = pd.to_datetime(config.val_start)
+        embargo_days = getattr(config, "embargo_days", 30)
+        
+        # Mark validation samples
+        df.loc[df["date"] >= val_start_dt, "split"] = 1
+        
+        # Mark embargo zone (train side, but too close to validation)
+        if embargo_days > 0:
+            embargo_start = val_start_dt - pd.Timedelta(days=embargo_days)
+            embargo_mask = (df["date"] >= embargo_start) & (df["date"] < val_start_dt)
+            df.loc[embargo_mask, "split"] = -1  # Excluded from both train and val
+            print(f"   🚧 Embargo zone: {embargo_start.date()} to {val_start_dt.date()} ({embargo_mask.sum()} samples excluded)")
 
     # --- 🚀 NEW: Per-Ticker Scaling Logic ---
     if scaler is None:

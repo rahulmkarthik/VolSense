@@ -404,10 +404,27 @@ def build_global_splits(df: pd.DataFrame, cfg: TrainConfig):
     features = ["return"] + (cfg.extra_features or [])
     scalers: Dict[str, StandardScaler] = {}
     scaled_parts = []
+    
+    # 🔒 FIX: Determine train cutoff FIRST, then fit scalers on train data only
+    # This prevents future (validation) data statistics from leaking into training features
+    val_start_dt = pd.to_datetime(cfg.val_start)
+    
     for t in tickers:
         sub = df[df["ticker"] == t].copy()
         scaler = StandardScaler()
-        sub[features] = scaler.fit_transform(sub[features].astype(float).fillna(0.0))
+        
+        # Fit scaler on TRAINING data only (before val_start)
+        train_mask = sub["date"] < val_start_dt
+        train_subset = sub.loc[train_mask, features].astype(float).fillna(0.0)
+        
+        if len(train_subset) > 0:
+            scaler.fit(train_subset)
+        else:
+            # Fallback: if no train data for this ticker, fit on all (edge case)
+            scaler.fit(sub[features].astype(float).fillna(0.0))
+        
+        # Transform ALL data using train-only statistics
+        sub[features] = scaler.transform(sub[features].astype(float).fillna(0.0))
         scalers[t] = scaler
         scaled_parts.append(sub)
     df_scaled = pd.concat(scaled_parts, ignore_index=True)

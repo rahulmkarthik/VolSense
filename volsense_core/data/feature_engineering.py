@@ -121,6 +121,12 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     :type eps: float
     :return: DataFrame with added rolling features.
     :rtype: pandas.DataFrame
+    
+    .. note::
+        **MIN_PERIODS CONSIDERATION**: vol_3d and vol_10d use min_periods=1 for
+        robustness at series start, while vol_20d and vol_60d require full window.
+        This is intentional to balance feature availability vs accuracy for shorter
+        vs longer lookbacks.
     """
 
     g = df.groupby("ticker", group_keys=False)
@@ -128,8 +134,10 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["vol_10d"] = g["realized_vol"].apply(
         lambda s: s.rolling(10, min_periods=1).mean()
     )
-    df["vol_20d"] = df["realized_vol"].rolling(20).mean()
-    df["vol_60d"] = df["realized_vol"].rolling(60).mean()
+    # Note: vol_20d and vol_60d use default min_periods (full window required)
+    # to ensure statistical reliability for longer lookbacks
+    df["vol_20d"] = g["realized_vol"].apply(lambda s: s.rolling(20).mean())
+    df["vol_60d"] = g["realized_vol"].apply(lambda s: s.rolling(60).mean())
     df["vol_ratio"] = df["vol_3d"] / (df["vol_10d"] + eps)
     df["vol_chg"] = df["vol_3d"] - df["vol_10d"]
     df["vol_vol"] = g["realized_vol"].apply(
@@ -139,7 +147,10 @@ def add_rolling_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["ewma_vol_10d"] = g["realized_vol"].apply(
         lambda s: s.ewm(span=10, adjust=False).mean()
     )
-    df["return_sharpe_20d"] = df["return"].rolling(20).mean() / df["return"].rolling(20).std()
+    # Per-ticker Sharpe calculation
+    df["return_sharpe_20d"] = g["return"].apply(
+        lambda s: s.rolling(20).mean() / s.rolling(20).std()
+    )
     return df
 
 
@@ -158,6 +169,13 @@ def add_market_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     :type eps: float
     :return: DataFrame with added market-level features.
     :rtype: pandas.DataFrame
+    
+    .. note::
+        **POTENTIAL LOOK-AHEAD (Documented)**: The `market_stress` feature computes
+        cross-sectional std across all tickers on each date. If the ticker universe
+        changes over time (survivorship bias), this may introduce subtle look-ahead
+        bias. For maximum robustness, consider using a fixed reference index (e.g., SPY)
+        or ensure the universe is fixed a-priori.
     """
 
     df["market_stress"] = df.groupby("date")["return"].transform(lambda x: x.std())
@@ -174,35 +192,43 @@ def add_market_features(df: pd.DataFrame, eps: float = EPS) -> pd.DataFrame:
     df["skew_5d"] = g["return"].apply(
         lambda s: s.rolling(5, min_periods=3).apply(_skew5, raw=True)
     )
-    df["vol_skew_20d"] = df["realized_vol"].rolling(20).skew()
-    df["vol_kurt_20d"] = df["realized_vol"].rolling(20).kurt()
-    df["vol_entropy"] = df["realized_vol"].rolling(20).apply(
-    lambda x: -np.sum((p := np.histogram(x, bins=10, density=True)[0]) * np.log(p + 1e-6)), raw=False)
+    
+    # 🔒 FIX: Rolling stats computed per-ticker to avoid cross-ticker contamination
+    df["vol_skew_20d"] = g["realized_vol"].apply(lambda s: s.rolling(20).skew())
+    df["vol_kurt_20d"] = g["realized_vol"].apply(lambda s: s.rolling(20).kurt())
+    df["vol_entropy"] = g["realized_vol"].apply(
+        lambda s: s.rolling(20).apply(
+            lambda x: -np.sum((p := np.histogram(x, bins=10, density=True)[0]) * np.log(p + 1e-6)), raw=False
+        )
+    )
 
     # absolute return moments
     df["abs_return"] = df["return"].abs()
     df["ret_sq"] = df["return"] ** 2
 
-    # RSI (14-day)
-    delta = df["return"].diff()
-    gain = delta.where(delta > 0, 0.0).rolling(14).mean()
-    loss = -delta.where(delta < 0, 0.0).rolling(14).mean()
-    rs = gain / (loss + 1e-6)
-    df["rsi_14"] = 100 - (100 / (1 + rs))
+    # 🔒 FIX: RSI (14-day) computed PER-TICKER to prevent cross-ticker boundary leakage
+    def _compute_rsi(s):
+        delta = s.diff()
+        gain = delta.where(delta > 0, 0.0).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0.0)).rolling(14).mean()
+        rs = gain / (loss + 1e-6)
+        return 100 - (100 / (1 + rs))
+    
+    df["rsi_14"] = g["return"].apply(_compute_rsi)
 
-
-    # MACD diff
-    ema_fast = df["return"].ewm(span=12, adjust=False).mean()
-    ema_slow = df["return"].ewm(span=26, adjust=False).mean()
-    macd = ema_fast - ema_slow
-    signal = macd.ewm(span=9, adjust=False).mean()
-    df["macd_diff"] = macd - signal
-
+    # 🔒 FIX: MACD diff computed PER-TICKER to prevent cross-ticker boundary leakage
+    def _compute_macd_diff(s):
+        ema_fast = s.ewm(span=12, adjust=False).mean()
+        ema_slow = s.ewm(span=26, adjust=False).mean()
+        macd = ema_fast - ema_slow
+        signal = macd.ewm(span=9, adjust=False).mean()
+        return macd - signal
+    
+    df["macd_diff"] = g["return"].apply(_compute_macd_diff)
 
     # Absolute + interactive features
     df["vol_stress"] = df["vol_ratio"] * df["market_stress"]
     df["skew_scaled_return"] = df["abs_return"] * df["skew_5d"]
-
 
     # Clean up extreme values
     df = df.replace([np.inf, -np.inf], np.nan).fillna(0.0)
@@ -260,6 +286,13 @@ def add_earnings_heat(df: pd.DataFrame, earnings_df: pd.DataFrame) -> pd.DataFra
     """
     Adds `event_earnings_heat`: A continuous signal (0 to 1) inversely proportional 
     to days until the next earnings event.
+    
+    .. note::
+        **FORWARD-LOOKING BY DESIGN**: This feature intentionally looks forward to
+        the next earnings date using merge_asof(direction='forward'). This is appropriate
+        for volatility forecasting as earnings schedules are typically known 2+ weeks
+        ahead. However, the implementation uses final realized earnings dates rather
+        than announced dates, introducing minor look-ahead on schedule changes.
     """
     df = df.copy()
     

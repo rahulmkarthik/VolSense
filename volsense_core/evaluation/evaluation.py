@@ -7,6 +7,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from statsmodels.stats.stattools import durbin_watson
 from statsmodels.api import qqplot
+from sklearn.metrics import (
+    roc_auc_score,
+    confusion_matrix,
+    classification_report,
+    balanced_accuracy_score,
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+)
 from volsense_core.evaluation.metrics import rmse, mae, mape, r2_score, acf_sum_k10
 
 
@@ -285,3 +295,209 @@ class ModelEvaluator:
             self.save_metrics(f"{save_dir}/{self.model_name}_tickerwise_metrics.csv")
         print("✅ Evaluation complete.")
         return self.metrics_df, self.summary_df, regime_df
+
+    # --------------------------------------------------------
+    # 🎯 Direction Classification Metrics (Volatility Direction)
+    # --------------------------------------------------------
+    def compute_direction_metrics(self, baseline_col: str = "today_vol"):
+        """
+        Compute classification metrics for volatility direction prediction.
+
+        Derives binary direction labels from regression predictions:
+          - y_true = 1 if realized_vol > baseline (vol increased)
+          - y_true = 0 if realized_vol <= baseline (vol decreased/flat)
+          - y_pred = 1 if forecast_vol > baseline
+          - y_pred = 0 if forecast_vol <= baseline
+
+        This approach treats the regression model as implicitly predicting
+        direction, which is acceptable per CQF brief's allowance for
+        "predicting direction of volatility."
+
+        :param baseline_col: Column to compare against ('today_vol' for current vol,
+                             or 'realized_vol' lagged). If not available, uses
+                             a per-ticker rolling baseline.
+        :type baseline_col: str
+        :return: Dictionary of direction metrics per horizon.
+        :rtype: dict[int, dict[str, float]]
+        """
+        df = self.df.copy()
+        
+        # Derive baseline: If today_vol exists, use it. Else use lagged realized_vol.
+        if baseline_col in df.columns:
+            baseline = df[baseline_col]
+        else:
+            # Fallback: use prior realized vol as baseline (per-ticker shift)
+            df = df.sort_values(["ticker", "date"])
+            baseline = df.groupby("ticker")["realized_vol"].shift(1)
+        
+        # Drop rows where baseline is missing
+        df["baseline_vol"] = baseline
+        df = df.dropna(subset=["baseline_vol", "forecast_vol", "realized_vol"])
+        
+        direction_metrics = {}
+        
+        for h in df["horizon"].unique():
+            hdf = df[df["horizon"] == h]
+            
+            # True direction: did volatility increase vs baseline?
+            y_true = (hdf["realized_vol"] > hdf["baseline_vol"]).astype(int).values
+            # Predicted direction: does model predict increase vs baseline?
+            y_pred = (hdf["forecast_vol"] > hdf["baseline_vol"]).astype(int).values
+            
+            # For AUC, we need probability-like scores
+            # Use the magnitude of predicted change as confidence
+            y_score = (hdf["forecast_vol"] - hdf["baseline_vol"]).values
+            
+            # Guard against edge cases
+            if len(np.unique(y_true)) < 2:
+                print(f"⚠️ Horizon {h}d: Only one class in y_true, skipping AUC.")
+                auc = np.nan
+            else:
+                try:
+                    auc = roc_auc_score(y_true, y_score)
+                except ValueError:
+                    auc = np.nan
+            
+            direction_metrics[h] = {
+                "accuracy": accuracy_score(y_true, y_pred),
+                "balanced_accuracy": balanced_accuracy_score(y_true, y_pred),
+                "precision": precision_score(y_true, y_pred, zero_division=0),
+                "recall": recall_score(y_true, y_pred, zero_division=0),
+                "f1": f1_score(y_true, y_pred, zero_division=0),
+                "auc_roc": auc,
+                "n_samples": len(y_true),
+                "class_balance": y_true.mean(),  # % of "vol up" samples
+            }
+        
+        self.direction_metrics = direction_metrics
+        return direction_metrics
+
+    def summarize_direction(self):
+        """
+        Print a formatted summary of direction classification metrics per horizon.
+
+        :return: DataFrame of direction metrics.
+        :rtype: pandas.DataFrame
+        """
+        if not hasattr(self, "direction_metrics") or self.direction_metrics is None:
+            self.compute_direction_metrics()
+        
+        rows = []
+        for h, m in self.direction_metrics.items():
+            rows.append({"horizon": h, **m})
+        
+        df = pd.DataFrame(rows).sort_values("horizon")
+        
+        print(f"\n🎯 Direction Classification Metrics for {self.model_name}")
+        print("=" * 70)
+        print(df.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
+        print("=" * 70)
+        print("Note: Direction = 1 if forecast_vol > baseline_vol (volatility increase)")
+        
+        return df
+
+    def plot_confusion_matrix(self, horizon: int, baseline_col: str = "today_vol"):
+        """
+        Plot confusion matrix for volatility direction classification.
+
+        :param horizon: Forecast horizon to evaluate.
+        :type horizon: int
+        :param baseline_col: Column to use as baseline for direction.
+        :type baseline_col: str
+        :return: Confusion matrix array.
+        :rtype: numpy.ndarray
+        """
+        df = self.df[self.df["horizon"] == horizon].copy()
+        
+        if baseline_col in df.columns:
+            baseline = df[baseline_col]
+        else:
+            df = df.sort_values(["ticker", "date"])
+            baseline = df.groupby("ticker")["realized_vol"].shift(1)
+        
+        df["baseline_vol"] = baseline
+        df = df.dropna(subset=["baseline_vol", "forecast_vol", "realized_vol"])
+        
+        y_true = (df["realized_vol"] > df["baseline_vol"]).astype(int).values
+        y_pred = (df["forecast_vol"] > df["baseline_vol"]).astype(int).values
+        
+        cm = confusion_matrix(y_true, y_pred)
+        
+        plt.figure(figsize=(6, 5))
+        sns.heatmap(
+            cm,
+            annot=True,
+            fmt="d",
+            cmap="Blues",
+            xticklabels=["Vol Down", "Vol Up"],
+            yticklabels=["Vol Down", "Vol Up"],
+        )
+        plt.xlabel("Predicted Direction")
+        plt.ylabel("True Direction")
+        plt.title(f"{self.model_name}: Confusion Matrix – {horizon}d Horizon")
+        plt.tight_layout()
+        plt.show()
+        
+        return cm
+
+    def classification_report_text(self, horizon: int, baseline_col: str = "today_vol"):
+        """
+        Generate sklearn classification report for a given horizon.
+
+        :param horizon: Forecast horizon to evaluate.
+        :type horizon: int
+        :param baseline_col: Column to use as baseline for direction.
+        :type baseline_col: str
+        :return: Classification report string.
+        :rtype: str
+        """
+        df = self.df[self.df["horizon"] == horizon].copy()
+        
+        if baseline_col in df.columns:
+            baseline = df[baseline_col]
+        else:
+            df = df.sort_values(["ticker", "date"])
+            baseline = df.groupby("ticker")["realized_vol"].shift(1)
+        
+        df["baseline_vol"] = baseline
+        df = df.dropna(subset=["baseline_vol", "forecast_vol", "realized_vol"])
+        
+        y_true = (df["realized_vol"] > df["baseline_vol"]).astype(int).values
+        y_pred = (df["forecast_vol"] > df["baseline_vol"]).astype(int).values
+        
+        report = classification_report(
+            y_true, y_pred, 
+            target_names=["Vol Down", "Vol Up"],
+            zero_division=0
+        )
+        
+        print(f"\n📊 Classification Report – {horizon}d Horizon")
+        print("=" * 55)
+        print(report)
+        
+        return report
+
+    def run_direction_evaluation(self):
+        """
+        Run the full direction classification evaluation workflow.
+
+        Computes direction metrics, prints summary, and plots confusion matrices
+        for each horizon.
+
+        :return: Direction metrics dictionary.
+        :rtype: dict[int, dict[str, float]]
+        """
+        print(f"\n🎯 Running Direction Classification Evaluation for {self.model_name}")
+        print("=" * 70)
+        
+        self.compute_direction_metrics()
+        self.summarize_direction()
+        
+        horizons = sorted(self.df["horizon"].unique())
+        for h in horizons:
+            self.plot_confusion_matrix(h)
+            self.classification_report_text(h)
+        
+        print("\n✅ Direction evaluation complete.")
+        return self.direction_metrics
+

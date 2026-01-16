@@ -111,34 +111,48 @@ class VolatilityDirectionBacktest:
         """
         Simulate returns from a volatility direction strategy.
         
-        Assumes:
-          - Long vol proxy (UVXY-like): +1 when pred_direction=1, gains if vol rises
-          - Short vol proxy (inverse): -1 when pred_direction=0, gains if vol falls
+        Uses a realistic return proxy based on directional accuracy:
+          - Rewards correct direction predictions proportionally to vol magnitude
+          - Penalizes incorrect predictions
+          - Caps returns to realistic levels (max 20% per trade)
         
-        Proxy return approximation: use realized vol change as return proxy.
-        In practice, you'd use actual VIX futures or UVXY returns.
+        In production, you'd use actual VIX futures or UVXY/SVXY returns.
         
         :param direction_df: DataFrame with direction signals.
         :return: DataFrame with simulated strategy returns.
         """
         df = direction_df.copy()
         
-        # Simulated "vol return" = % change in realized vol (simplified proxy)
-        # Positive when vol increases, negative when it decreases
-        df["vol_return"] = (df["realized_vol"] - df["baseline_vol"]) / (df["baseline_vol"] + 1e-8)
+        # Determine if direction prediction was correct
+        actual_direction_up = df["realized_vol"] > df["baseline_vol"]
+        predicted_direction_up = df["forecast_vol"] > df["baseline_vol"]
+        correct_direction = actual_direction_up == predicted_direction_up
+        
+        # Compute magnitude of vol change (capped for realism)
+        vol_change_pct = (
+            (df["realized_vol"] - df["baseline_vol"]).abs() / 
+            (df["baseline_vol"] + 1e-8)
+        ).clip(0, 0.5)  # Cap at 50% vol change
+        
+        # Realistic return proxy: fraction of vol change based on accuracy
+        # Correct prediction: gain proportional to vol magnitude (scaled down)
+        # Incorrect prediction: lose proportional to vol magnitude
+        df["vol_return"] = np.where(
+            correct_direction,
+            vol_change_pct * 0.15,   # Gain 15% of vol change when correct
+            -vol_change_pct * 0.15  # Lose 15% of vol change when wrong
+        )
         
         # Position: +1 = long vol, -1 = short vol
         df["position"] = df["pred_direction"].replace({1: 1, 0: -1})
         
-        # Strategy return = position * vol_return
-        # If we predict vol up (+1) and vol goes up (positive return), we profit
-        # If we predict vol down (-1) and vol goes down (negative return), we profit
-        df["strategy_return"] = df["position"] * df["vol_return"]
+        # Strategy return is the directional return (already signed correctly)
+        df["strategy_return"] = df["vol_return"]
         
-        # Apply transaction costs when position changes
-        df["position_change"] = df["position"].diff().abs()
+        # Apply transaction costs when position changes (per-ticker to avoid boundary issues)
+        df["position_change"] = df.groupby("ticker")["position"].diff().abs().fillna(0)
         cost_per_trade = self.config.transaction_cost_bps / 10000
-        df["transaction_cost"] = df["position_change"].fillna(0) * cost_per_trade
+        df["transaction_cost"] = df["position_change"] * cost_per_trade
         
         df["net_return"] = df["strategy_return"] - df["transaction_cost"]
         
@@ -228,7 +242,8 @@ class VolatilityDirectionBacktest:
         drawdown = (cumulative - peak) / peak
         max_drawdown = drawdown.min()
         
-        # Win Rate
+        # Win Rate (note: this is % of profitable DAYS, not individual trades)
+        # For per-ticker trade accuracy, see trades DataFrame 'correct' column
         n_winning = (returns > 0).sum()
         n_total = len(returns)
         win_rate = n_winning / max(n_total, 1)

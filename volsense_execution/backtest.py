@@ -22,6 +22,8 @@ import seaborn as sns
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Literal
 from datetime import datetime
+import torch
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 @dataclass
@@ -106,8 +108,74 @@ class VolatilityDirectionBacktest:
         df["confidence"] = (df["forecast_vol"] - df["baseline_vol"]).abs()
         
         return df.dropna(subset=["baseline_vol", "pred_direction"])
+
+    def incorporate_embeddings(self, model: torch.nn.Module) -> None:
+        """
+        Compute diversity weights from model embeddings to weight portfolio.
+        
+        Assumes ticker IDs correspond to alphabetically sorted unique tickers,
+        matching the default behavior in VolNetX training.
+        """
+        if not hasattr(model, "emb") or model.emb is None:
+            print("⚠️ Model has no ticker embeddings. Skipping diversity weighting.")
+            return
+            
+        print("⚖️ Computing embedding-based diversity weights...")
+        
+        # Get embeddings
+        try:
+            with torch.no_grad():
+                # weights shape: (n_tickers, emb_dim)
+                emb_weights = model.emb.weight.detach().cpu().numpy()
+        except Exception as e:
+            print(f"⚠️ Failed to extract embeddings: {e}")
+            return
+            
+        # Reconstruct mapping (Assuming Alphabetical Order)
+        sorted_tickers = sorted(self.df["ticker"].unique())
+        
+        # Check if model embedding count matches our ticker count
+        # (It might not if eval set is a subset, which is risky)
+        if len(sorted_tickers) > len(emb_weights):
+            print(f"⚠️ Mismatch: {len(sorted_tickers)} tickers in eval but only {len(emb_weights)} in model.")
+            print("   Using first N embeddings (may be inaccurate).")
+        
+        # Compute Diversity Score
+        # Strategy: Inverse of average cosine similarity to other assets.
+        # "Unique" assets get higher weight; "Crowded" assets get lower weight.
+        
+        # 1. Compute Similarity Matrix
+        sim_matrix = cosine_similarity(emb_weights) # (N, N)
+        
+        # 2. Compute Average Similarity (excluding self-similarity of 1.0)
+        # We start with mean of whole row, then adjust to remove diagonal impact
+        n = sim_matrix.shape[0]
+        avg_sim = (sim_matrix.sum(axis=1) - 1.0) / (n - 1 + 1e-8)
+        
+        # 3. Diversity Score = 1 / (Avg Similarity)
+        # Shift avg_sim to be positive (cosine sim is [-1, 1]) to avoid zero division
+        # We essentially want: Lower Similarity -> Higher Score
+        diversity_scores = 1.0 / (avg_sim + 1.1) # Add bias to ensure stability
+        
+        # Normalize scores to mean 1.0
+        diversity_scores = diversity_scores / diversity_scores.mean()
+        
+        # Map back to tickers
+        # CAUTION: We assume eval_df contains ALL tickers from training or at least
+        # that sorted(eval_df tickers) maps 1:1 to embedding indices.
+        # Ideally, we'd use the training map. 
+        # Here we perform a best-effort mapping assuming full coverage.
+        
+        n_map = min(len(sorted_tickers), len(diversity_scores))
+        self.diversity_map = {
+            t: s for t, s in zip(sorted_tickers[:n_map], diversity_scores[:n_map])
+        }
+        
+        # Apply to main DataFrame
+        self.df["diversity_weight"] = self.df["ticker"].map(self.diversity_map).fillna(1.0)
+        print("   ✅ Applied diversity weights.")
     
-    def _compute_vol_proxy_returns(self, direction_df: pd.DataFrame) -> pd.DataFrame:
+    def _compute_vol_proxy_returns(self, direction_df: pd.DataFrame, horizon: int = 1) -> pd.DataFrame:
         """
         Simulate returns from a volatility direction strategy.
         
@@ -134,13 +202,18 @@ class VolatilityDirectionBacktest:
             (df["baseline_vol"] + 1e-8)
         ).clip(0, 0.5)  # Cap at 50% vol change
         
+        # Scale down returns by horizon to convert multi-day return to daily equivalent.
+        # This prevents compounding inflation for longer horizons (e.g., 5d, 10d).
+        # Without this, a 5-day return would be compounded 5 times instead of once.
+        daily_scale_factor = 1.0 / max(horizon, 1)
+        
         # Realistic return proxy: fraction of vol change based on accuracy
         # Correct prediction: gain proportional to vol magnitude (scaled down)
         # Incorrect prediction: lose proportional to vol magnitude
         df["vol_return"] = np.where(
             correct_direction,
-            vol_change_pct * 0.15,   # Gain 15% of vol change when correct
-            -vol_change_pct * 0.15  # Lose 15% of vol change when wrong
+            vol_change_pct * 0.15 * daily_scale_factor,
+            -vol_change_pct * 0.15 * daily_scale_factor
         )
         
         # Position: +1 = long vol, -1 = short vol
@@ -156,33 +229,64 @@ class VolatilityDirectionBacktest:
         
         df["net_return"] = df["strategy_return"] - df["transaction_cost"]
         
+        df["net_return"] = df["strategy_return"] - df["transaction_cost"]
+        
+        # Carry over diversity weight if available
+        if "diversity_weight" in self.df.columns:
+            # Map weighted score to the direction dataframe
+            # Use map on original DF to ensure consistent values
+            mapping = self.df.set_index("ticker")["diversity_weight"].to_dict()
+            df["diversity_weight"] = df["ticker"].map(mapping).fillna(1.0)
+        
         return df
     
     def run_direction_backtest(
         self, 
         horizon: int = 1,
-        aggregation: Literal["mean", "weighted"] = "mean"
+        aggregation: Literal["mean", "weighted", "diversity_weighted"] = "weighted",
+        model: Optional[torch.nn.Module] = None
     ) -> BacktestResult:
         """
         Run the volatility direction backtest.
         
         :param horizon: Forecast horizon to backtest.
-        :param aggregation: How to aggregate across tickers ('mean' or 'weighted' by confidence).
+        :param aggregation: 
+             - 'mean': Equal weight per ticker
+             - 'weighted': Weighted by prediction confidence
+             - 'diversity_weighted': Weighted by Confidence * Embedding Diversity (requires model)
+        :param model: VolNetX model instance (required for 'diversity_weighted').
         :return: BacktestResult with P&L, metrics, and trade log.
         """
-        print(f"🎯 Running Direction Backtest (Horizon: {horizon}d)")
+        print(f"🎯 Running Direction Backtest (Horizon: {horizon}d, Mode: {aggregation})")
+        
+        # Incorporate embeddings if requested
+        if aggregation == "diversity_weighted":
+            if model is not None:
+                self.incorporate_embeddings(model)
+            else:
+                print("⚠️ 'diversity_weighted' selected but no model provided. Falling back to 'weighted'.")
+                aggregation = "weighted"
         
         # Derive signals
         direction_df = self._derive_direction_signals(horizon)
         
         # Compute per-ticker returns
-        returns_df = self._compute_vol_proxy_returns(direction_df)
+        returns_df = self._compute_vol_proxy_returns(direction_df, horizon=horizon)
         
         # Aggregate across tickers per day
         if aggregation == "weighted":
             # Weight by confidence (predicted magnitude)
             daily = returns_df.groupby("date").apply(
                 lambda g: np.average(g["net_return"], weights=g["confidence"] + 1e-8)
+            )
+        elif aggregation == "diversity_weighted":
+            # Weight by Confidence * Diversity Score
+            # This favors high-confidence trades in unique (low-correlation) assets
+            daily = returns_df.groupby("date").apply(
+                lambda g: np.average(
+                    g["net_return"], 
+                    weights=(g["confidence"] * g["diversity_weight"]) + 1e-8
+                )
             )
         else:
             daily = returns_df.groupby("date")["net_return"].mean()

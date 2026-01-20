@@ -191,6 +191,13 @@ class VolatilityDirectionBacktest:
         """
         df = direction_df.copy()
         
+        # 🛡️ ROBUST CLEANING: Drop invalid inputs immediately
+        # If realized_vol is NaN (e.g., missing data in future), we can't calculate return.
+        df = df.dropna(subset=["forecast_vol", "realized_vol", "baseline_vol"]).copy()
+        
+        if df.empty:
+            return df
+        
         # Determine if direction prediction was correct
         actual_direction_up = df["realized_vol"] > df["baseline_vol"]
         predicted_direction_up = df["forecast_vol"] > df["baseline_vol"]
@@ -228,6 +235,9 @@ class VolatilityDirectionBacktest:
         df["transaction_cost"] = df["position_change"] * cost_per_trade
         
         df["net_return"] = df["strategy_return"] - df["transaction_cost"]
+        
+        # 🛡️ FINAL SAFETY: Fill any remaining NaNs to prevent aggregation failure
+        df["net_return"] = df["net_return"].fillna(0.0)
         
 
         

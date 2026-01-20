@@ -229,7 +229,7 @@ class VolatilityDirectionBacktest:
         
         df["net_return"] = df["strategy_return"] - df["transaction_cost"]
         
-        df["net_return"] = df["strategy_return"] - df["transaction_cost"]
+
         
         # Carry over diversity weight if available
         if "diversity_weight" in self.df.columns:
@@ -277,7 +277,7 @@ class VolatilityDirectionBacktest:
         if aggregation == "weighted":
             # Weight by confidence (predicted magnitude)
             daily = returns_df.groupby("date").apply(
-                lambda g: np.average(g["net_return"], weights=g["confidence"] + 1e-8)
+                lambda g: np.average(g["net_return"], weights=g["confidence"] + 1e-8) if (g["confidence"] + 1e-8).sum() > 0 else 0.0
             )
         elif aggregation == "diversity_weighted":
             # Weight by Confidence * Diversity Score
@@ -286,7 +286,7 @@ class VolatilityDirectionBacktest:
                 lambda g: np.average(
                     g["net_return"], 
                     weights=(g["confidence"] * g["diversity_weight"]) + 1e-8
-                )
+                ) if ((g["confidence"] * g["diversity_weight"]) + 1e-8).sum() > 0 else 0.0
             )
         else:
             daily = returns_df.groupby("date")["net_return"].mean()

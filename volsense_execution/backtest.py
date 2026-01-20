@@ -39,7 +39,7 @@ class BacktestConfig:
     """
     initial_capital: float = 100_000.0
     position_size: float = 1.0
-    transaction_cost_bps: float = 5.0  # 5 bps per trade
+    transaction_cost_bps: float = 50.0  # 50 bps per trade (realistic for vol products)
     risk_free_rate: float = 0.04  # 4% annual
     vol_proxy_ticker: str = "UVXY"
     equity_proxy_ticker: str = "SPY"
@@ -239,6 +239,12 @@ class VolatilityDirectionBacktest:
         df["transaction_cost"] = df["position_change"] * cost_per_trade
         
         df["net_return"] = df["strategy_return"] - df["transaction_cost"]
+        
+        # 🛡️ REALISM: Add execution slippage (±30% variability)
+        # Models the uncertainty in real-world execution of vol trades
+        np.random.seed(42)  # Reproducibility
+        slippage_factor = 1.0 + (np.random.rand(len(df)) - 0.5) * 0.3  # ±15%
+        df["net_return"] = df["net_return"] * slippage_factor
         
         # 🛡️ FINAL SAFETY: Fill any remaining NaNs to prevent aggregation failure
         df["net_return"] = df["net_return"].fillna(0.0)

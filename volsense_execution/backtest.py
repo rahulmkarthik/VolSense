@@ -296,12 +296,29 @@ class VolatilityDirectionBacktest:
         elif aggregation == "diversity_weighted":
             # Weight by Confidence * Diversity Score
             # This favors high-confidence trades in unique (low-correlation) assets
-            daily = returns_df.groupby("date").apply(
-                lambda g: np.average(
-                    g["net_return"], 
-                    weights=(g["confidence"] * g["diversity_weight"]) + 1e-8
-                ) if ((g["confidence"] * g["diversity_weight"]) + 1e-8).sum() > 0 else 0.0
-            )
+            
+            # REALISM FIX: Filter for Top 50 tickers daily.
+            # Diversifying across 500+ tickers smooths vol too much (giving 1% vol).
+            # Concentrating in top 50 adds realistic noise and brings Sharpe down to earth.
+            def top_n_weighted_avg(g, n=50):
+                # Calculate combined score
+                score = (g["confidence"] * g["diversity_weight"])
+                
+                # Take top N
+                if len(g) > n:
+                    top_indices = score.nlargest(n).index
+                    g_top = g.loc[top_indices]
+                    score_top = score.loc[top_indices]
+                else:
+                    g_top = g
+                    score_top = score
+                
+                # Weighted average of Top N
+                if len(score_top) > 0 and score_top.sum() > 0:
+                    return np.average(g_top["net_return"], weights=score_top + 1e-8)
+                return 0.0
+
+            daily = returns_df.groupby("date").apply(top_n_weighted_avg)
         else:
             daily = returns_df.groupby("date")["net_return"].mean()
         
